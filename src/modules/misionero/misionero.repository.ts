@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { misionero } from "./misionero.schema";
 import { eq, desc, like, or, sql } from "drizzle-orm";
 import type { MisioneroRow, NewMisioneroRow, MisioneroEstado } from "./misionero.schema";
+import type { Region } from "@/modules/peregrina/peregrina.schema";
 
 /**
  * MisioneroRepository
@@ -39,7 +40,7 @@ export class MisioneroRepository {
       .orderBy(desc(misionero.createdAt));
   }
 
-  static async findByRegion(region: string): Promise<MisioneroRow[]> {
+  static async findByRegion(region: Region): Promise<MisioneroRow[]> {
     return db
       .select()
       .from(misionero)

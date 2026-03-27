@@ -8,6 +8,7 @@ import * as schema from "./schema";
  *
  * Requires env var: DATABASE_URL (Neon connection string)
  */
-const sql = neon(process.env.DATABASE_URL!);
+const connectionString = process.env.DATABASE_URL || "postgresql://dummy:dummy@localhost:5432/dummy";
+const sql = neon(connectionString);
 
 export const db = drizzle(sql, { schema });

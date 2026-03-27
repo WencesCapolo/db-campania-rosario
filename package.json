@@ -13,21 +13,27 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "next": "^15.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "@neondatabase/auth": "^0.2.0-beta.1",
+    "@neondatabase/neon-js": "^0.2.0-beta.1",
     "@neondatabase/serverless": "^0.10.4",
     "drizzle-orm": "^0.44.0",
-    "@stackframe/stack": "^2.7.0"
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "dotenv": "^16.0.0",
     "drizzle-kit": "^0.30.0",
     "eslint": "^9",
     "eslint-config-next": "^15.0.0",
-    "dotenv": "^16.0.0"
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5"
   }
 }

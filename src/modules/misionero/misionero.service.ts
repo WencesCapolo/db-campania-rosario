@@ -64,7 +64,7 @@ export class MisioneroService {
     return rows.map(MisioneroService.toDTO);
   }
 
-  static async listByRegion(region: string): Promise<MisioneroDTO[]> {
+  static async listByRegion(region: Region): Promise<MisioneroDTO[]> {
     const rows = await MisioneroRepository.findByRegion(region);
     return rows.map(MisioneroService.toDTO);
   }

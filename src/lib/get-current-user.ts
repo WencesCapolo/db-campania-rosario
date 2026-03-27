@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { stackServerApp } from "@/lib/stack";
+import { auth } from "@/lib/auth/server";
 import { UserRepository } from "@/modules/user/user.repository";
 import type { CurrentUser } from "@/modules/user/user.types";
 
@@ -29,21 +29,22 @@ export async function getCurrentUser(opts: {
 export async function getCurrentUser(opts?: {
   optional?: boolean;
 }): Promise<CurrentUser | null> {
-  // ── 1. Stack Auth session ──────────────────────────────────────────────────
-  const stackUser = await stackServerApp.getUser();
+  // ── 1. Neon Auth session ──────────────────────────────────────────────────
+  const { data: session } = await auth.getSession();
+  const authUser = session?.user;
 
-  if (!stackUser) {
+  if (!authUser) {
     if (opts?.optional) return null;
     redirect("/handler/sign-in");
   }
 
   // ── 2. App-level DB row ────────────────────────────────────────────────────
-  let dbUser = await UserRepository.findById(stackUser.id);
+  let dbUser = await UserRepository.findById(authUser.id);
 
   // ── 3. First-login upsert (race-safe — onConflictDoNothing) ───────────────
   if (!dbUser) {
     dbUser = await UserRepository.upsert({
-      id: stackUser.id,
+      id: authUser.id,
       role: "referente_local", // safe default; admin can promote later
       createdById: null,
     });
@@ -53,7 +54,7 @@ export async function getCurrentUser(opts?: {
   return {
     id: dbUser.id,
     role: dbUser.role,
-    email: stackUser.primaryEmail ?? "",
-    displayName: stackUser.displayName ?? null,
+    email: authUser.email ?? "",
+    displayName: authUser.name ?? null,
   };
 }
