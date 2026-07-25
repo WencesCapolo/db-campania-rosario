@@ -1,4 +1,7 @@
-import { MisioneroRepository } from "./misionero.repository";
+import {
+  MisioneroRepository,
+  type MisioneroConTerritorio,
+} from "./misionero.repository";
 import type {
   MisioneroDTO,
   CreateMisioneroInput,
@@ -7,42 +10,61 @@ import type {
   ActionResult,
 } from "./misionero.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import type { Region } from "@/modules/peregrina/peregrina.schema";
+import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import type { Region } from "@/modules/territorio/territorio.schema";
 
 /**
  * MisioneroService
  *
  * Responsibility: business logic for misionero entities.
- * Reads are unrestricted (any authenticated user).
- * Writes require an authenticated user.
+ *
+ * Reads are still open to any authenticated Usuario — the defect issue #2
+ * exists to fix, and it is fixed there rather than half-fixed here.
  */
 export class MisioneroService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private static toDTO(row: Awaited<ReturnType<typeof MisioneroRepository.getById>>): MisioneroDTO {
+  private static toDTO(row: MisioneroConTerritorio): MisioneroDTO {
     let resumenesAnuales: Record<string, string> = {};
     try {
-      resumenesAnuales = JSON.parse(row.resumenesAnuales ?? "{}") as Record<string, string>;
+      resumenesAnuales = JSON.parse(
+        row.misionero.resumenesAnuales ?? "{}"
+      ) as Record<string, string>;
     } catch {
       resumenesAnuales = {};
     }
 
+    const provincia = {
+      id: row.provincia.id,
+      nombre: row.provincia.nombre,
+      abreviatura: row.provincia.abreviatura,
+      region: row.provincia.region,
+      deBaja: row.provincia.bajaAt !== null,
+    };
+
     return {
-      id: row.id,
-      nombre: row.nombre,
-      apellido: row.apellido,
-      telefono: row.telefono ?? null,
-      estado: row.estado,
-      region: row.region,
-      provincia: row.provincia,
-      diocesisLocalidad: row.diocesisLocalidad,
-      centroTipo: row.centroTipo ?? null,
-      centroNombre: row.centroNombre ?? null,
-      anioConsagracion: row.anioConsagracion ?? null,
+      id: row.misionero.id,
+      nombre: row.misionero.nombre,
+      apellido: row.misionero.apellido,
+      telefono: row.misionero.telefono ?? null,
+      estado: row.misionero.estado,
+      diocesisLocalidad: {
+        id: row.diocesis.id,
+        nombre: row.diocesis.nombre,
+        deBaja: row.diocesis.bajaAt !== null,
+        provincia,
+        region: provincia.region,
+      },
+      provincia: provincia.nombre,
+      region: provincia.region,
+      peregrinaId: row.misionero.peregrinaId ?? null,
+      centroTipo: row.misionero.centroTipo ?? null,
+      centroNombre: row.misionero.centroNombre ?? null,
+      anioConsagracion: row.misionero.anioConsagracion ?? null,
       resumenesAnuales,
-      createdById: row.createdById,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      createdById: row.misionero.createdById,
+      createdAt: row.misionero.createdAt,
+      updatedAt: row.misionero.updatedAt,
     };
   }
 
@@ -79,21 +101,27 @@ export class MisioneroService {
     actor: CurrentUser,
     input: CreateMisioneroInput
   ): Promise<ActionResult<MisioneroDTO>> {
-    if (!input.nombre.trim()) return { ok: false, error: "El nombre es obligatorio." };
-    if (!input.apellido.trim()) return { ok: false, error: "El apellido es obligatorio." };
-    if (!input.provincia.trim()) return { ok: false, error: "La provincia es obligatoria." };
-    if (!input.diocesisLocalidad.trim()) return { ok: false, error: "La diócesis/localidad es obligatoria." };
+    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
+      input.diocesisLocalidadId
+    );
+    if (!territorio) {
+      return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    }
+    if (territorio.diocesis.bajaAt !== null) {
+      return {
+        ok: false,
+        error: `«${territorio.diocesis.nombre}» está dada de baja.`,
+      };
+    }
 
     const row = await MisioneroRepository.create({
-      nombre: input.nombre.trim(),
-      apellido: input.apellido.trim(),
-      telefono: input.telefono?.trim() ?? null,
+      nombre: input.nombre,
+      apellido: input.apellido,
+      telefono: input.telefono ?? null,
       estado: "activo",
-      region: input.region as Region,
-      provincia: input.provincia.trim(),
-      diocesisLocalidad: input.diocesisLocalidad.trim(),
+      diocesisLocalidadId: territorio.diocesis.id,
       centroTipo: input.centroTipo ?? null,
-      centroNombre: input.centroNombre?.trim() ?? null,
+      centroNombre: input.centroNombre ?? null,
       anioConsagracion: input.anioConsagracion ?? null,
       resumenesAnuales: "{}",
       createdById: actor.id,
@@ -107,17 +135,33 @@ export class MisioneroService {
     id: string,
     input: UpdateMisioneroInput
   ): Promise<ActionResult<MisioneroDTO>> {
+    if (input.diocesisLocalidadId !== undefined) {
+      const territorio = await TerritorioRepository.findDiocesisLocalidadById(
+        input.diocesisLocalidadId
+      );
+      if (!territorio) {
+        return { ok: false, error: "No existe esa Diócesis/Localidad." };
+      }
+    }
+
     const row = await MisioneroRepository.update(id, {
-      ...(input.nombre !== undefined && { nombre: input.nombre.trim() }),
-      ...(input.apellido !== undefined && { apellido: input.apellido.trim() }),
-      ...(input.telefono !== undefined && { telefono: input.telefono?.trim() ?? null }),
+      ...(input.nombre !== undefined && { nombre: input.nombre }),
+      ...(input.apellido !== undefined && { apellido: input.apellido }),
+      ...(input.telefono !== undefined && { telefono: input.telefono ?? null }),
       ...(input.estado !== undefined && { estado: input.estado }),
-      ...(input.region !== undefined && { region: input.region as Region }),
-      ...(input.provincia !== undefined && { provincia: input.provincia.trim() }),
-      ...(input.diocesisLocalidad !== undefined && { diocesisLocalidad: input.diocesisLocalidad.trim() }),
-      ...(input.centroTipo !== undefined && { centroTipo: input.centroTipo }),
-      ...(input.centroNombre !== undefined && { centroNombre: input.centroNombre?.trim() ?? null }),
-      ...(input.anioConsagracion !== undefined && { anioConsagracion: input.anioConsagracion }),
+      ...(input.diocesisLocalidadId !== undefined && {
+        diocesisLocalidadId: input.diocesisLocalidadId,
+      }),
+      ...(input.centroTipo !== undefined && { centroTipo: input.centroTipo ?? null }),
+      ...(input.centroNombre !== undefined && {
+        centroNombre: input.centroNombre ?? null,
+      }),
+      ...(input.anioConsagracion !== undefined && {
+        anioConsagracion: input.anioConsagracion ?? null,
+      }),
+      ...(input.peregrinaId !== undefined && {
+        peregrinaId: input.peregrinaId ?? null,
+      }),
     });
 
     return { ok: true, data: MisioneroService.toDTO(row) };
@@ -127,15 +171,14 @@ export class MisioneroService {
     _actor: CurrentUser,
     input: AddResumenAnualInput
   ): Promise<ActionResult<MisioneroDTO>> {
-    if (!input.resumen.trim()) return { ok: false, error: "El resumen no puede estar vacío." };
-    if (input.year < 2000 || input.year > new Date().getFullYear()) {
+    if (input.year > new Date().getFullYear()) {
       return { ok: false, error: "Año inválido." };
     }
 
     const row = await MisioneroRepository.upsertResumenAnual(
       input.misioneroId,
       input.year,
-      input.resumen.trim()
+      input.resumen
     );
 
     return { ok: true, data: MisioneroService.toDTO(row) };

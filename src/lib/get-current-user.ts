@@ -56,5 +56,6 @@ export async function getCurrentUser(opts?: {
     role: dbUser.role,
     email: authUser.email ?? "",
     displayName: authUser.name ?? null,
+    diocesisLocalidadId: dbUser.diocesisLocalidadId ?? null,
   };
 }

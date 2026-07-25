@@ -1,4 +1,7 @@
-import { PeregrinaRepository } from "./peregrina.repository";
+import {
+  PeregrinaRepository,
+  type PeregrinaConTerritorio,
+} from "./peregrina.repository";
 import type {
   PeregrinaDTO,
   CreatePeregrinaInput,
@@ -6,65 +9,64 @@ import type {
   ActionResult,
 } from "./peregrina.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import type { Region, Modalidad, PeregrinaEstado } from "./peregrina.schema";
+import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
+import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import type { Region } from "@/modules/territorio/territorio.schema";
 
-// Short province abbreviation map for the `codigo` field
-const PROVINCIA_ABBR: Record<string, string> = {
-  "JUJUY": "JUJ",
-  "SALTA": "SAL",
-  "TUCUMÁN": "TUC",
-  "CATAMARCA": "CAT",
-  "SANTIAGO DEL ESTERO": "SDE",
-  "CÓRDOBA": "CBA",
-  "LA RIOJA": "LRJ",
-  "MENDOZA": "MZA",
-  "SAN JUAN": "SJN",
-  "SAN LUIS": "SLU",
-  "MISIONES": "MIS",
-  "CORRIENTES": "COR",
-  "CHACO": "CHA",
-  "FORMOSA": "FOR",
-  "ENTRE RÍOS": "ERI",
-  "BUENOS AIRES": "BA",
-  "CABA": "CAB",
-  "SANTA FE": "SFE",
-  "LA PAMPA": "LPA",
-  "RÍO NEGRO": "RNE",
-  "NEUQUÉN": "NEU",
-  "CHUBUT": "CHU",
-  "SANTA CRUZ": "SCR",
-  "TIERRA DEL FUEGO": "TDF",
-};
-
-function buildCodigo(provincia: string, modalidad: Modalidad, num: number): string {
-  const abbr = PROVINCIA_ABBR[provincia.toUpperCase()] ?? provincia.slice(0, 3).toUpperCase();
-  const numStr = String(num).padStart(4, "0");
-  return `${abbr} ${modalidad} ${numStr}`;
+/**
+ * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
+ *
+ * The abbreviation now comes from the Provincia reference record instead of a
+ * hardcoded map, so an Asesor Nacional can add a Provincia without a
+ * deployment. The format is unchanged, and existing Códigos are never
+ * regenerated — a Código is physically written on the image.
+ */
+function buildCodigo(
+  abreviatura: string,
+  modalidad: Modalidad,
+  num: number
+): string {
+  return `${abreviatura} ${modalidad} ${String(num).padStart(4, "0")}`;
 }
 
 /**
  * PeregrinaService
  *
  * Responsibility: business logic for peregrina entities.
- * Reads are unrestricted (any authenticated user).
- * Writes require an authenticated user (createdById is always set).
+ *
+ * Reads are still open to any authenticated Usuario — that is the defect
+ * issue #2 exists to fix, and it is fixed there rather than half-fixed here.
  */
 export class PeregrinaService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private static toDTO(row: Awaited<ReturnType<typeof PeregrinaRepository.getById>>): PeregrinaDTO {
+  private static toDTO(row: PeregrinaConTerritorio): PeregrinaDTO {
+    const provincia = {
+      id: row.provincia.id,
+      nombre: row.provincia.nombre,
+      abreviatura: row.provincia.abreviatura,
+      region: row.provincia.region,
+      deBaja: row.provincia.bajaAt !== null,
+    };
+
     return {
-      id: row.id,
-      codigo: row.codigo,
-      tipo: row.tipo,
-      estado: row.estado,
-      region: row.region,
-      provincia: row.provincia,
-      diocesisLocalidad: row.diocesisLocalidad,
-      modalidad: row.modalidad,
-      createdById: row.createdById,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      id: row.peregrina.id,
+      codigo: row.peregrina.codigo,
+      tipo: row.peregrina.tipo,
+      estado: row.peregrina.estado,
+      modalidad: row.peregrina.modalidad,
+      diocesisLocalidad: {
+        id: row.diocesis.id,
+        nombre: row.diocesis.nombre,
+        deBaja: row.diocesis.bajaAt !== null,
+        provincia,
+        region: provincia.region,
+      },
+      provincia: provincia.nombre,
+      region: provincia.region,
+      createdById: row.peregrina.createdById,
+      createdAt: row.peregrina.createdAt,
+      updatedAt: row.peregrina.updatedAt,
     };
   }
 
@@ -109,22 +111,35 @@ export class PeregrinaService {
     actor: CurrentUser,
     input: CreatePeregrinaInput
   ): Promise<ActionResult<PeregrinaDTO>> {
-    if (!input.provincia.trim()) return { ok: false, error: "La provincia es obligatoria." };
-    if (!input.diocesisLocalidad.trim()) return { ok: false, error: "La diócesis/localidad es obligatoria." };
+    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
+      input.diocesisLocalidadId
+    );
+    if (!territorio) {
+      return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    }
+    if (territorio.diocesis.bajaAt !== null) {
+      return {
+        ok: false,
+        error: `«${territorio.diocesis.nombre}» está dada de baja.`,
+      };
+    }
 
-    // Generate the next sequential number and compose the código
-    const num = await PeregrinaRepository.nextCodigoNum(input.provincia, input.modalidad);
-    const codigo = buildCodigo(input.provincia, input.modalidad, num);
+    const num = await PeregrinaRepository.nextCodigoNum(
+      territorio.provincia.id,
+      input.modalidad
+    );
 
     const row = await PeregrinaRepository.create({
-      codigo,
+      codigo: buildCodigo(
+        territorio.provincia.abreviatura,
+        input.modalidad,
+        num
+      ),
       codigoNum: num,
       tipo: input.tipo,
       estado: "activa",
-      region: input.region,
-      provincia: input.provincia.trim(),
-      diocesisLocalidad: input.diocesisLocalidad.trim(),
       modalidad: input.modalidad,
+      diocesisLocalidadId: territorio.diocesis.id,
       createdById: actor.id,
     });
 
@@ -136,13 +151,24 @@ export class PeregrinaService {
     id: string,
     input: UpdatePeregrinaInput
   ): Promise<ActionResult<PeregrinaDTO>> {
+    if (input.diocesisLocalidadId !== undefined) {
+      const territorio = await TerritorioRepository.findDiocesisLocalidadById(
+        input.diocesisLocalidadId
+      );
+      if (!territorio) {
+        return { ok: false, error: "No existe esa Diócesis/Localidad." };
+      }
+    }
+
+    // The Código is not recomposed when the territory changes. It is written on
+    // the image; the system follows reality, not the other way around.
     const row = await PeregrinaRepository.update(id, {
       ...(input.tipo !== undefined && { tipo: input.tipo }),
       ...(input.estado !== undefined && { estado: input.estado }),
-      ...(input.region !== undefined && { region: input.region }),
-      ...(input.provincia !== undefined && { provincia: input.provincia.trim() }),
-      ...(input.diocesisLocalidad !== undefined && { diocesisLocalidad: input.diocesisLocalidad.trim() }),
       ...(input.modalidad !== undefined && { modalidad: input.modalidad }),
+      ...(input.diocesisLocalidadId !== undefined && {
+        diocesisLocalidadId: input.diocesisLocalidadId,
+      }),
     });
 
     return { ok: true, data: PeregrinaService.toDTO(row) };

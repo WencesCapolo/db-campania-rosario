@@ -3,13 +3,12 @@
 import { getCurrentUser } from "@/lib/get-current-user";
 import { MisioneroService } from "./misionero.service";
 import { revalidatePath } from "next/cache";
-import type {
-  CreateMisioneroInput,
-  UpdateMisioneroInput,
-  AddResumenAnualInput,
-  ActionResult,
-  MisioneroDTO,
+import {
+  addResumenAnualSchema,
+  createMisioneroSchema,
+  updateMisioneroSchema,
 } from "./misionero.types";
+import type { ActionResult, MisioneroDTO } from "./misionero.types";
 
 /**
  * MisioneroRouter — Next.js server actions
@@ -35,10 +34,14 @@ export async function searchMisionerosAction(query: string): Promise<MisioneroDT
 }
 
 export async function createMisioneroAction(
-  input: CreateMisioneroInput
+  input: unknown
 ): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await MisioneroService.create(actor, input);
+
+  const parsed = createMisioneroSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+
+  const result = await MisioneroService.create(actor, parsed.data);
 
   if (result.ok) revalidatePath("/misionero");
 
@@ -47,10 +50,14 @@ export async function createMisioneroAction(
 
 export async function updateMisioneroAction(
   id: string,
-  input: UpdateMisioneroInput
+  input: unknown
 ): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await MisioneroService.update(actor, id, input);
+
+  const parsed = updateMisioneroSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+
+  const result = await MisioneroService.update(actor, id, parsed.data);
 
   if (result.ok) {
     revalidatePath("/misionero");
@@ -61,12 +68,16 @@ export async function updateMisioneroAction(
 }
 
 export async function addResumenAnualAction(
-  input: AddResumenAnualInput
+  input: unknown
 ): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await MisioneroService.addResumenAnual(actor, input);
 
-  if (result.ok) revalidatePath(`/misionero/${input.misioneroId}`);
+  const parsed = addResumenAnualSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+
+  const result = await MisioneroService.addResumenAnual(actor, parsed.data);
+
+  if (result.ok) revalidatePath(`/misionero/${parsed.data.misioneroId}`);
 
   return result;
 }
@@ -103,4 +114,12 @@ export async function assignPeregrinaAction(
 export async function getMisioneroDashboardStatsAction() {
   await getCurrentUser();
   return MisioneroService.dashboardStats();
+}
+
+/**
+ * Users see one message at a time, and the first failing field is the one
+ * their cursor is nearest.
+ */
+function primerError(error: { issues: { message: string }[] }): string {
+  return error.issues[0]?.message ?? "Datos inválidos.";
 }

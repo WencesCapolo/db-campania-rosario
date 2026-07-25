@@ -2,6 +2,8 @@
 // Drizzle's `db` client imports this as `* as schema` so all tables are
 // available for relational queries. Add new schema files here as they are created.
 
+// Territorio first: it is the independent entity everything else references.
+export * from "@/modules/territorio/territorio.schema";
 export * from "./users";
 // Peregrina and Misionero schemas live in the module layer to keep the
 // module-folder convention. We re-export them here so the Drizzle client

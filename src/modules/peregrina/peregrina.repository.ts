@@ -1,13 +1,42 @@
 import { db } from "@/db";
 import { peregrina } from "./peregrina.schema";
-import { eq, desc, and, max, sql } from "drizzle-orm";
+import { eq, desc, and, max, sql, asc } from "drizzle-orm";
 import type {
   PeregrinaRow,
   NewPeregrinaRow,
   PeregrinaEstado,
-  Region,
   Modalidad,
 } from "./peregrina.schema";
+import {
+  diocesisLocalidad,
+  provincia,
+} from "@/modules/territorio/territorio.schema";
+import type {
+  DiocesisLocalidadRow,
+  ProvinciaRow,
+  Region,
+} from "@/modules/territorio/territorio.schema";
+
+/**
+ * A Peregrina is never useful without its territory resolved — Provincia and
+ * Región are derived by traversal, so every read joins them in.
+ */
+export interface PeregrinaConTerritorio {
+  peregrina: PeregrinaRow;
+  diocesis: DiocesisLocalidadRow;
+  provincia: ProvinciaRow;
+}
+
+function conTerritorio() {
+  return db
+    .select({ peregrina, diocesis: diocesisLocalidad, provincia })
+    .from(peregrina)
+    .innerJoin(
+      diocesisLocalidad,
+      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+    )
+    .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
+}
 
 /**
  * PeregrinaRepository
@@ -18,74 +47,88 @@ import type {
 export class PeregrinaRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  static async findById(id: string): Promise<PeregrinaRow | undefined> {
-    const [row] = await db
-      .select()
-      .from(peregrina)
-      .where(eq(peregrina.id, id))
-      .limit(1);
+  static async findById(id: string): Promise<PeregrinaConTerritorio | undefined> {
+    const [row] = await conTerritorio().where(eq(peregrina.id, id)).limit(1);
     return row;
   }
 
-  static async getById(id: string): Promise<PeregrinaRow> {
+  static async getById(id: string): Promise<PeregrinaConTerritorio> {
     const row = await PeregrinaRepository.findById(id);
     if (!row) throw new Error(`Peregrina not found: ${id}`);
     return row;
   }
 
-  static async findAll(): Promise<PeregrinaRow[]> {
-    return db.select().from(peregrina).orderBy(desc(peregrina.createdAt));
+  static async findAll(): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio().orderBy(desc(peregrina.createdAt));
   }
 
-  static async findByEstado(estado: PeregrinaEstado): Promise<PeregrinaRow[]> {
-    return db
-      .select()
-      .from(peregrina)
+  static async findByEstado(
+    estado: PeregrinaEstado
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
       .where(eq(peregrina.estado, estado))
       .orderBy(desc(peregrina.createdAt));
   }
 
-  static async findByRegion(region: Region): Promise<PeregrinaRow[]> {
-    return db
-      .select()
-      .from(peregrina)
-      .where(eq(peregrina.region, region))
+  static async findByRegion(region: Region): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
+      .where(eq(provincia.region, region))
       .orderBy(desc(peregrina.createdAt));
   }
 
-  static async findByModalidad(modalidad: Modalidad): Promise<PeregrinaRow[]> {
-    return db
-      .select()
-      .from(peregrina)
+  static async findByModalidad(
+    modalidad: Modalidad
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
       .where(eq(peregrina.modalidad, modalidad))
       .orderBy(desc(peregrina.createdAt));
   }
 
-  // NOTE: Peregrinas are now queried by misionero from the misionero repository.
-  // The misionero table holds the FK (misionero.peregrinaId → peregrina.id).
+  static async findByDiocesisLocalidad(
+    diocesisLocalidadId: string
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
+      .where(eq(peregrina.diocesisLocalidadId, diocesisLocalidadId))
+      .orderBy(desc(peregrina.createdAt));
+  }
 
-  static async findByCreator(createdById: string): Promise<PeregrinaRow[]> {
-    return db
-      .select()
-      .from(peregrina)
+  static async findByProvincia(
+    provinciaId: string
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
+      .where(eq(provincia.id, provinciaId))
+      .orderBy(asc(peregrina.codigo));
+  }
+
+  static async findByCreator(
+    createdById: string
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
       .where(eq(peregrina.createdById, createdById))
       .orderBy(desc(peregrina.createdAt));
   }
 
   /**
-   * Returns the next sequential number for a given provincia + modalidad pair.
-   * Used to auto-generate the `codigo` field.
+   * The next sequential número for a Provincia and Modalidad pair.
+   *
+   * Keyed on the Provincia reference record rather than on a typed-in name,
+   * which is what made the old numbering unreliable: "Córdoba" and "cordoba "
+   * each ran their own sequence and produced colliding Códigos.
    */
   static async nextCodigoNum(
-    provincia: string,
+    provinciaId: string,
     modalidad: Modalidad
   ): Promise<number> {
     const [result] = await db
       .select({ maxNum: max(peregrina.codigoNum) })
       .from(peregrina)
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+      )
       .where(
         and(
-          eq(peregrina.provincia, provincia),
+          eq(diocesisLocalidad.provinciaId, provinciaId),
           eq(peregrina.modalidad, modalidad)
         )
       );
@@ -94,10 +137,10 @@ export class PeregrinaRepository {
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 
-  static async create(data: NewPeregrinaRow): Promise<PeregrinaRow> {
+  static async create(data: NewPeregrinaRow): Promise<PeregrinaConTerritorio> {
     const [row] = await db.insert(peregrina).values(data).returning();
     if (!row) throw new Error("Failed to insert peregrina");
-    return row;
+    return PeregrinaRepository.getById(row.id);
   }
 
   static async update(
@@ -105,14 +148,14 @@ export class PeregrinaRepository {
     data: Partial<
       Omit<PeregrinaRow, "id" | "codigo" | "codigoNum" | "createdById" | "createdAt">
     >
-  ): Promise<PeregrinaRow> {
+  ): Promise<PeregrinaConTerritorio> {
     const [row] = await db
       .update(peregrina)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(peregrina.id, id))
       .returning();
     if (!row) throw new Error(`Peregrina not found: ${id}`);
-    return row;
+    return PeregrinaRepository.getById(row.id);
   }
 
   static async delete(id: string): Promise<void> {
@@ -122,24 +165,27 @@ export class PeregrinaRepository {
   // ── Stats helpers ──────────────────────────────────────────────────────────
 
   static async countByEstado(): Promise<{ estado: string; count: number }[]> {
-    const rows = await db
+    return db
       .select({
         estado: peregrina.estado,
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(peregrina)
       .groupBy(peregrina.estado);
-    return rows;
   }
 
   static async countByRegion(): Promise<{ region: string; count: number }[]> {
-    const rows = await db
+    return db
       .select({
-        region: peregrina.region,
+        region: provincia.region,
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(peregrina)
-      .groupBy(peregrina.region);
-    return rows;
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+      )
+      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
+      .groupBy(provincia.region);
   }
 }

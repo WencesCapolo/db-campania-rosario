@@ -5,6 +5,7 @@ import {
     timestamp,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 
 // -----------------------------------------------
 // Role enum — ordered from highest to lowest
@@ -38,6 +39,17 @@ export const users = pgTable("users", {
 
     role: roleEnum("role").notNull().default("referente_local"),
 
+    // The territory that bounds what this Usuario may see and change.
+    // Nullable: an Asesor Nacional and an admin are country-wide, and existing
+    // rows predate the column. Issue #1 only reads it, to filter selection
+    // lists; issue #2 makes it the basis of authorization.
+    //
+    // Note that Referentes Locales share one login per territory (confirmed
+    // 2026-07-25), so this identifies a place and not a person.
+    diocesisLocalidadId: text("diocesis_localidad_id").references(
+        () => diocesisLocalidad.id
+    ),
+
     // Who created this user (null = self-registered or seeded admin)
     createdById: text("created_by_id"),
 
@@ -55,6 +67,10 @@ export const usersRelations = relations(users, ({ one }) => ({
     createdBy: one(users, {
         fields: [users.createdById],
         references: [users.id],
+    }),
+    diocesisLocalidad: one(diocesisLocalidad, {
+        fields: [users.diocesisLocalidadId],
+        references: [diocesisLocalidad.id],
     }),
 }));
 

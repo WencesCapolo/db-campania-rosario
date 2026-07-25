@@ -8,6 +8,19 @@ export interface CurrentUser {
   role: Role;
   email: string;
   displayName?: string | null;
+
+  /**
+   * The territory that bounds what this Actor may see and change.
+   *
+   * Null for admin and asesor_nacional, who are country-wide, and for rows
+   * created before territory existed. Issue #1 only reads it, to narrow
+   * selection lists; issue #2 makes it the basis of authorization, at which
+   * point a null on a lower rol stops being tolerable.
+   *
+   * Referentes Locales share one login per territory, so this identifies a
+   * place and not a person.
+   */
+  diocesisLocalidadId: string | null;
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
