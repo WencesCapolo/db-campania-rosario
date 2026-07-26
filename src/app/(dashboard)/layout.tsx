@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/get-current-user";
 import { ROLE_LABELS } from "@/lib/permissions";
 import Link from "next/link";
 import styles from "./dashboard.module.css";
+import OcultarSiHayVariante from "./OcultarSiHayVariante";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,9 @@ export default async function DashboardLayout({
   return (
     <div className={styles.shell}>
       {/* ── Sidebar ── */}
+      {/* PROTOTIPO: OcultarSiHayVariante steps the shell aside while a design
+          variant is on screen. Remove it with the variants. */}
+      <OcultarSiHayVariante>
       <aside className={styles.sidebar}>
         <div className={styles.sidebarTop}>
           <div className={styles.logo}>
@@ -78,6 +82,7 @@ export default async function DashboardLayout({
           </div>
         </div>
       </aside>
+      </OcultarSiHayVariante>
 
       {/* ── Main content ── */}
       <main className={styles.main}>{children}</main>

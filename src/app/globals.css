@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/*
+ * There is no `prefers-color-scheme: dark` block here, and its absence is a
+ * decision rather than an omission.
+ *
+ * Issue #4 puts dark mode out of scope, because it doubles the contrast
+ * verification. The block that used to sit here flipped the body to #0a0a0a on
+ * a phone set to dark while every colour the screens actually use is hardcoded
+ * light — `bg-white`, `text-neutral-900`, `border-neutral-400`. The result was
+ * white text on white and dark text on dark, unreadable for exactly the people
+ * the accessibility requirements are about. A 4.5:1 claim is not honest while
+ * that block is live, so it is gone.
+ */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -10,13 +23,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
