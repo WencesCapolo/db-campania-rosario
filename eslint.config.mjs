@@ -1,11 +1,15 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
-
+/**
+ * Flat config, directly — `eslint-config-next` ships flat config arrays as of
+ * Next 16, so the `FlatCompat` shim that wrapped the legacy `.eslintrc` presets
+ * is gone. `next lint` is gone too; the entry point is the ESLint CLI.
+ */
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  { ignores: [".next/**", "node_modules/**"] },
+  ...nextCoreWebVitals,
+  ...nextTypescript,
 ];
 
 export default eslintConfig;
