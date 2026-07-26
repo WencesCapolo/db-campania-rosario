@@ -6,22 +6,14 @@ import { MODALIDAD_LABELS, TIPO_LABELS } from "./prototipo-datos";
 /**
  * PROTOTIPO — Variante A, «Panel». Throwaway.
  *
- * The conventional administrative shape: a permanent dark sidebar, a toolbar of
- * filters, and one wide table. Optimised for somebody at a desk with the whole
- * inventory in front of them, scanning down a column.
+ * The conventional administrative shape: a toolbar of filters above one wide
+ * table. Optimised for somebody at a desk with the whole inventory in front of
+ * them, scanning down a column.
  *
  * On a phone the table stops being a table — each row becomes a stacked block —
  * because story 21 forbids horizontal scrolling, and a genuinely wide table
  * cannot honour that any other way.
  */
-
-const NAV = [
-  { href: "/dashboard", etiqueta: "Inicio" },
-  { href: "/peregrina", etiqueta: "Peregrinas", activo: true },
-  { href: "/misionero", etiqueta: "Misioneros" },
-  { href: "/asignacion/new", etiqueta: "Entregar una imagen" },
-  { href: "/admin/users", etiqueta: "Usuarios" },
-];
 
 const ANILLO =
   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-400 focus-visible:ring-offset-2";
@@ -55,51 +47,8 @@ export default function PrototipoVarianteA({
   peregrinas: PeregrinaDTO[];
 }) {
   return (
-    <div className="min-h-screen bg-neutral-100 text-[18px] text-neutral-900 lg:flex">
-      <aside className="bg-neutral-900 text-white lg:min-h-screen lg:w-72 lg:shrink-0">
-        <div className="flex items-center gap-3 border-b border-white/15 px-5 py-5">
-          <span aria-hidden className="text-2xl">
-            ◆
-          </span>
-          <span className="text-lg font-bold leading-tight">
-            Campaña del Rosario
-          </span>
-        </div>
-
-        <nav aria-label="Principal" className="p-3">
-          <ul className="space-y-1">
-            {NAV.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={item.activo ? "page" : undefined}
-                  className={`flex min-h-12 items-center rounded-lg px-4 text-lg font-medium ${ANILLO} focus-visible:ring-offset-neutral-900 ${
-                    item.activo
-                      ? "bg-white font-bold text-neutral-900"
-                      : "text-neutral-100 hover:bg-white/10"
-                  }`}
-                >
-                  {item.etiqueta}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <div className="mt-auto flex items-center gap-3 border-t border-white/15 px-5 py-4">
-          <span className="flex size-11 items-center justify-center rounded-full bg-white text-lg font-bold text-neutral-900">
-            C
-          </span>
-          <span className="leading-tight">
-            <span className="block font-semibold">Campaña Joven Córdoba</span>
-            <span className="block text-base text-neutral-300">
-              Administrador
-            </span>
-          </span>
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 px-5 py-6 pb-28 lg:px-8">
+    <div className="mx-auto w-full max-w-5xl">
+      <main className="min-w-0 px-5 py-6 pb-28">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Peregrinas</h1>

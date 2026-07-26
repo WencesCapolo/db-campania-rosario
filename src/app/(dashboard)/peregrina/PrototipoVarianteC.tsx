@@ -15,18 +15,10 @@ import { MODALIDAD_LABELS } from "./prototipo-datos";
  * anything. Results are a plain two-line list under it: Código, then a sentence
  * saying where the image is.
  *
- * There is no persistent nav. A single row of large labelled buttons sits above
- * the question, and that is the whole of it. The bet is that a screen with one
- * obvious thing on it beats a screen with a complete map of the system, for
- * somebody who opens the app three times a month.
+ * The bet is that a screen with one obvious thing on it beats a screen with a
+ * complete map of the system, for somebody who opens the app three times a
+ * month.
  */
-
-const NAV = [
-  { href: "/dashboard", etiqueta: "Inicio" },
-  { href: "/misionero", etiqueta: "Misioneros" },
-  { href: "/asignacion/new", etiqueta: "Entregar una imagen" },
-  { href: "/admin/users", etiqueta: "Usuarios" },
-];
 
 const FILTROS = [
   { clave: "todas", etiqueta: "Todas", activo: true },
@@ -53,23 +45,8 @@ export default function PrototipoVarianteC({
   peregrinas: PeregrinaDTO[];
 }) {
   return (
-    <div className="min-h-screen bg-white text-[18px] text-neutral-900">
-      <div className="mx-auto max-w-2xl px-5 pb-40 pt-5">
-        <nav aria-label="Principal" className="mb-8">
-          <ul className="flex flex-wrap gap-2">
-            {NAV.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`inline-flex min-h-12 items-center rounded-lg border-2 border-neutral-400 px-4 text-base font-semibold hover:border-neutral-900 ${ANILLO}`}
-                >
-                  {item.etiqueta}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-2xl px-5 pb-40 pt-6">
         <h1 className="text-4xl font-bold leading-tight">
           ¿Qué imagen buscás?
         </h1>

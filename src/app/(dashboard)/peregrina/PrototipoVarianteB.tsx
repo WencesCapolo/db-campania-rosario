@@ -7,10 +7,8 @@ import { MODALIDAD_LABELS, TIPO_LABELS } from "./prototipo-datos";
  * PROTOTIPO — Variante B, «Fichas». Throwaway.
  *
  * Phone first, and it does not degrade into a phone layout — it starts there.
- * No sidebar at all: navigation is a bottom tab bar within thumb reach, five
- * targets, each with its own label rather than an icon a stranger has to guess.
- * On a wide screen the tab bar moves to the top and the cards form a grid; the
- * information hierarchy does not change.
+ * On a wide screen the cards form a grid; the information hierarchy does not
+ * change.
  *
  * There is no table. Each Peregrina is a card whose whole surface is the link,
  * with the Código the largest thing on it, because a Referente arrives holding
@@ -19,14 +17,6 @@ import { MODALIDAD_LABELS, TIPO_LABELS } from "./prototipo-datos";
  * Filters are behind one button that opens a native dialog, so the list is not
  * pushed off the first screen by controls used once a session.
  */
-
-const NAV = [
-  { href: "/dashboard", etiqueta: "Inicio" },
-  { href: "/peregrina", etiqueta: "Peregrinas", activo: true },
-  { href: "/misionero", etiqueta: "Misioneros" },
-  { href: "/asignacion/new", etiqueta: "Entregar" },
-  { href: "/admin/users", etiqueta: "Usuarios" },
-];
 
 const ANILLO =
   "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-400 focus-visible:ring-offset-2";
@@ -60,15 +50,15 @@ export default function PrototipoVarianteB({
   peregrinas: PeregrinaDTO[];
 }) {
   return (
-    <div className="min-h-screen bg-neutral-100 text-[18px] text-neutral-900">
-      <header className="sticky top-0 z-20 border-b-2 border-neutral-300 bg-white px-4 py-3">
+    <div>
+      <div className="sticky top-0 z-20 border-b-2 border-neutral-300 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Peregrinas</h1>
           <span className="rounded-full bg-neutral-200 px-3 py-1 text-base font-semibold">
             {peregrinas.length}
           </span>
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto max-w-3xl px-4 pb-40 pt-4">
         <div className="mb-4 flex gap-3">
@@ -125,29 +115,6 @@ export default function PrototipoVarianteB({
           ))}
         </ul>
       </main>
-
-      <nav
-        aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-20 border-t-2 border-neutral-300 bg-white pb-[env(safe-area-inset-bottom)]"
-      >
-        <ul className="mx-auto flex max-w-3xl">
-          {NAV.map((item) => (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                aria-current={item.activo ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center px-1 text-center text-sm font-semibold leading-tight ${ANILLO} ${
-                  item.activo
-                    ? "border-t-4 border-blue-800 text-blue-900"
-                    : "border-t-4 border-transparent text-neutral-700"
-                }`}
-              >
-                {item.etiqueta}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
     </div>
   );
 }

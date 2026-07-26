@@ -1,17 +1,34 @@
 import { getCurrentUser } from "@/lib/get-current-user";
 import { ROLE_LABELS } from "@/lib/permissions";
 import Link from "next/link";
-import styles from "./dashboard.module.css";
-import OcultarSiHayVariante from "./OcultarSiHayVariante";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Dashboard group layout — shared sidebar shell for all routes inside
- * the (dashboard) route group: /dashboard, /peregrina, /misionero, /admin.
+ * The shell for everything inside the (dashboard) group.
  *
- * Calls getCurrentUser() which redirects to /handler/sign-in if not authenticated.
+ * There is no sidebar, and its absence is the decision. Inicio is a hub of three
+ * buttons, so a permanent list of every destination would be a second, competing
+ * navigation that says the same thing worse — and on a phone it would cost the
+ * width the content needs. What is left is the smallest thing that keeps
+ * somebody oriented: where they are, and one way back.
+ *
+ * This used to hang eleven classNames off `dashboard.module.css`, which was a
+ * zero-byte file. Every one of them resolved to `undefined`, so the shell had
+ * rendered completely unstyled since before issue #1. The file is deleted rather
+ * than filled in: Tailwind is the only styling system (issue #4).
+ *
+ * `getCurrentUser()` redirects to sign-in when there is no session, and to
+ * /sin-autorizacion when there is a session but no Usuario.
+ *
+ * Usuarios is reachable from here rather than from Inicio because Inicio is for
+ * the three things a Referente does; administering accounts is not one of them,
+ * and only some rols may do it at all.
  */
+
+const ANILLO =
+  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-400 focus-visible:ring-offset-2";
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -19,73 +36,46 @@ export default async function DashboardLayout({
 }) {
   const user = await getCurrentUser();
 
+  const puedeAdministrar =
+    user.role === "admin" ||
+    user.role === "asesor_nacional" ||
+    user.role === "responsable_diocesano";
+
   return (
-    <div className={styles.shell}>
-      {/* ── Sidebar ── */}
-      {/* PROTOTIPO: OcultarSiHayVariante steps the shell aside while a design
-          variant is on screen. Remove it with the variants. */}
-      <OcultarSiHayVariante>
-      <aside className={styles.sidebar}>
-        <div className={styles.sidebarTop}>
-          <div className={styles.logo}>
-            <span className={styles.logoMark}>◆</span>
-            <span className={styles.logoText}>Campaña del Rosario</span>
-          </div>
+    <div className="min-h-screen bg-neutral-100 text-[18px] text-neutral-900">
+      <header className="border-b-2 border-neutral-300 bg-white">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+          <Link
+            href="/dashboard"
+            className={`inline-flex min-h-12 items-center gap-2 rounded-lg px-2 text-lg font-bold ${ANILLO}`}
+          >
+            <span aria-hidden>◆</span>
+            Campaña del Rosario
+          </Link>
 
-          <nav className={styles.nav}>
-            <span className={styles.navSection}>General</span>
-            <Link href="/dashboard" className={styles.navLink}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-              Inicio
-            </Link>
-
-            <span className={styles.navSection}>Entidades</span>
-            <Link href="/peregrina" className={styles.navLink}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" /></svg>
-              Peregrinas
-            </Link>
-            <Link href="/misionero" className={styles.navLink}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-              Misioneros
-            </Link>
-
-            {/* The action, not an entity: registering that an image changed hands
-                is the thing a Referente opens the system to do. */}
-            <span className={styles.navSection}>Movimientos</span>
-            <Link href="/asignacion/new" className={styles.navLink}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-              Entregar una imagen
-            </Link>
-
-            {(user.role === "admin" || user.role === "asesor_nacional" || user.role === "responsable_diocesano") && (
-              <>
-                <span className={styles.navSection}>Administración</span>
-                <Link href="/admin/users" className={styles.navLink}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                  Usuarios
-                </Link>
-              </>
+          <div className="ml-auto flex items-center gap-3">
+            {puedeAdministrar && (
+              <Link
+                href="/admin/users"
+                className={`inline-flex min-h-12 items-center rounded-lg px-3 text-lg font-semibold underline ${ANILLO}`}
+              >
+                Usuarios
+              </Link>
             )}
-          </nav>
-        </div>
 
-        {/* ── User badge ── */}
-        <div className={styles.userBadge}>
-          <div className={styles.userAvatar}>
-            {(user.displayName ?? user.email)[0].toUpperCase()}
-          </div>
-          <div className={styles.userInfo}>
-            <span className={styles.userName}>
-              {user.displayName ?? user.email.split("@")[0]}
+            <span className="text-base leading-tight">
+              <span className="block font-semibold">
+                {user.displayName ?? user.email.split("@")[0]}
+              </span>
+              <span className="block text-neutral-700">
+                {ROLE_LABELS[user.role]}
+              </span>
             </span>
-            <span className={styles.userRole}>{ROLE_LABELS[user.role]}</span>
           </div>
         </div>
-      </aside>
-      </OcultarSiHayVariante>
+      </header>
 
-      {/* ── Main content ── */}
-      <main className={styles.main}>{children}</main>
+      {children}
     </div>
   );
 }
