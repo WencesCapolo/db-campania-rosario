@@ -31,7 +31,7 @@ export async function setup() {
 }
 
 /**
- * A stand-in for `neon_auth.users_sync`.
+ * A stand-in for `neon_auth."user"`.
  *
  * Neon owns and migrates that schema (ADR 0002), so it is deliberately absent
  * from our migrations — which would leave the suite unable to exercise the join
@@ -39,21 +39,43 @@ export async function setup() {
  * Usuario" warning. So the harness creates the shape Neon publishes, and the
  * tests run the same SQL production will.
  *
+ * That last sentence was false until this was fixed. The stand-in described
+ * `users_sync`, the older Neon Auth (Stack) table, and so did
+ * `src/db/schema/neon-auth.ts` — while the actual Managed Better Auth project
+ * has `user`, with camelCase column names. The two agreed with each other, the
+ * suite passed, and every authenticated page in production threw
+ * `relation "neon_auth.users_sync" does not exist`.
+ *
+ * The column names are quoted deliberately: Better Auth creates them camelCase,
+ * and an unquoted `createdAt` in DDL would fold to `createdat` and reintroduce
+ * exactly the same class of mismatch this comment exists to describe.
+ *
+ * `id` is `uuid` for the same reason, and it is the more dangerous half: our own
+ * `users.id` is `text`, Postgres has no implicit `uuid = text`, and a `text`
+ * column here would have made every join across the boundary pass in the suite
+ * and fail in production with `operator does not exist: uuid = text`. The cast
+ * that makes it work lives in `identidadIdComoTexto`.
+ *
  * Kept in step with `src/db/schema/neon-auth.ts` by hand. If a query starts
- * failing here for a missing column, that is the file to compare against.
+ * failing here for a missing column, compare against that file — and against a
+ * real Neon project, because this file agreeing with that one is not evidence.
  */
 async function crearNeonAuthDePrueba(pool: Pool): Promise<void> {
   await pool.query("DROP SCHEMA IF EXISTS neon_auth CASCADE");
   await pool.query("CREATE SCHEMA neon_auth");
   await pool.query(`
-    create table neon_auth.users_sync (
-      id          text primary key,
-      name        text,
-      email       text,
-      created_at  timestamptz default now(),
-      updated_at  timestamptz,
-      deleted_at  timestamptz,
-      raw_json    jsonb
+    create table neon_auth."user" (
+      id              uuid primary key,
+      name            text,
+      email           text,
+      "emailVerified" boolean default false,
+      image           text,
+      "createdAt"     timestamptz default now(),
+      "updatedAt"     timestamptz,
+      role            text,
+      banned          boolean default false,
+      "banReason"     text,
+      "banExpires"    timestamptz
     )
   `);
 }

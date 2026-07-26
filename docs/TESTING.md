@@ -35,7 +35,7 @@ Diocesano sees their own Diócesis passes just as well when they see everybody's
 | `src/test/setup.ts` | Before each test: truncates every table |
 | `src/test/factories.ts` | Fabricates an Actor for a rol and territory, and seeds fixtures |
 
-`global-setup.ts` also creates a stand-in for `neon_auth.users_sync`. Neon owns
+`global-setup.ts` also creates a stand-in for `neon_auth."user"`. Neon owns
 and migrates that schema (ADR 0002), so it is deliberately absent from our
 migrations — which would otherwise leave the suite unable to exercise the join
 that puts emails on the user-management screen, or the warning about an identity

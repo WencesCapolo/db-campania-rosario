@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
-import { usersSync } from "@/db/schema/neon-auth";
+import { identidades, identidadIdComoTexto } from "@/db/schema/neon-auth";
 import { and, asc, eq, isNull, isNotNull, sql } from "drizzle-orm";
 import type { User, NewUser, Role } from "./user.schema";
 import {
@@ -29,18 +29,18 @@ export interface UsuarioConIdentidad {
 }
 
 /** Emails are compared case-insensitively; Neon Auth does not normalise them. */
-const emailNormalizado = sql<string>`lower(trim(${usersSync.email}))`;
+const emailNormalizado = sql<string>`lower(trim(${identidades.email}))`;
 
 function conIdentidad() {
   return db
     .select({
       usuario: users,
-      identidad: { email: usersSync.email, name: usersSync.name },
+      identidad: { email: identidades.email, name: identidades.name },
       diocesis: diocesisLocalidad,
       provincia,
     })
     .from(users)
-    .leftJoin(usersSync, eq(usersSync.id, users.id))
+    .leftJoin(identidades, eq(identidadIdComoTexto, users.id))
     .leftJoin(diocesisLocalidad, eq(diocesisLocalidad.id, users.diocesisLocalidadId))
     .leftJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
 }
@@ -85,7 +85,7 @@ export class UserRepository {
     const [row] = await db
       .select({ usuario: users })
       .from(users)
-      .innerJoin(usersSync, eq(usersSync.id, users.id))
+      .innerJoin(identidades, eq(identidadIdComoTexto, users.id))
       .where(eq(emailNormalizado, email.trim().toLowerCase()))
       .limit(1);
     return row?.usuario;
@@ -141,22 +141,25 @@ export class UserRepository {
    * Identities Neon Auth knows about that have no application row — user story
    * 17. A half-finished provisioning, or somebody who signed in and was refused.
    *
-   * Excludes identities Neon has marked deleted: those are gone, not pending.
+   * There used to be an `is null deleted_at` here, guarding against identities
+   * Neon had marked deleted. Better Auth has no such column: deleting an
+   * identity removes the row, so a deleted one cannot appear in this result and
+   * needs no filtering out.
    */
   static async findIdentidadesSinUsuario(): Promise<
     { id: string; email: string | null; name: string | null; createdAt: Date | null }[]
   > {
     return db
       .select({
-        id: usersSync.id,
-        email: usersSync.email,
-        name: usersSync.name,
-        createdAt: usersSync.createdAt,
+        id: identidadIdComoTexto,
+        email: identidades.email,
+        name: identidades.name,
+        createdAt: identidades.createdAt,
       })
-      .from(usersSync)
-      .leftJoin(users, eq(users.id, usersSync.id))
-      .where(and(isNull(users.id), isNull(usersSync.deletedAt)))
-      .orderBy(asc(usersSync.createdAt));
+      .from(identidades)
+      .leftJoin(users, eq(users.id, identidadIdComoTexto))
+      .where(isNull(users.id))
+      .orderBy(asc(identidades.createdAt));
   }
 
   /**

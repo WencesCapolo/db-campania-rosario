@@ -31,13 +31,13 @@ export const ROLE_HIERARCHY: Role[] = [
 
 // -----------------------------------------------
 // Users
-// References neon_auth.users_sync (managed by Neon Auth / Stack Auth).
+// References neon_auth."user" (managed by Neon Auth).
 // We store only app-level data here: role + audit fields.
 // -----------------------------------------------
 export const users = pgTable(
     "users",
     {
-        // Must match the id in neon_auth.users_sync
+        // Must match the id in neon_auth."user"
         id: text("id").primaryKey(),
 
         role: roleEnum("role").notNull().default("referente_local"),

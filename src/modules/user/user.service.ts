@@ -212,7 +212,7 @@ export class UserService {
    *
    * Scoped like everything else: an Asesor Nacional sees the country, a
    * Responsable Diocesano sees their own Diócesis. Emails come from
-   * `neon_auth.users_sync` — they used to be a hardcoded "—" for everybody,
+   * `neon_auth."user"` — they used to be a hardcoded "—" for everybody,
    * which made the screen unusable for its actual purpose.
    */
   static async listarUsuarios(

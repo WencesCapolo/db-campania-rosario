@@ -3,9 +3,9 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 
 /**
- * Every test starts from an empty database — including neon_auth, whose
- * users_sync stand-in the global setup creates. An identity left behind by an
- * earlier test would make an invitation refuse as a duplicate.
+ * Every test starts from an empty database — including neon_auth, whose `user`
+ * stand-in the global setup creates. An identity left behind by an earlier test
+ * would make an invitation refuse as a duplicate.
  *
  * Truncating beats wrapping each test in a rolled-back transaction here,
  * because services call the shared `db` client directly and have no way to

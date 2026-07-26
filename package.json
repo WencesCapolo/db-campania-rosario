@@ -11,7 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx --tsconfig tsconfig.seed.json src/db/seeds/territorio.ts",
+    "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local --tsconfig tsconfig.seed.json src/db/seeds/territorio.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db:up": "podman run -d --rm --name campania-test-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=campania_test -p 55432:5432 docker.io/library/postgres:17-alpine",

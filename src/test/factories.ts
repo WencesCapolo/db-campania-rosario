@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
-import { usersSync } from "@/db/schema/neon-auth";
+import { identidades } from "@/db/schema/neon-auth";
 import type { Role } from "@/db/schema/users";
 import {
   diocesisLocalidad,
@@ -27,6 +28,19 @@ function siguiente(): number {
   return contador;
 }
 
+/**
+ * Identity ids are real UUIDs because Neon's column is `uuid`, not `text`.
+ *
+ * Our own `users.id` stays `text` holding the same value spelled out, which is
+ * exactly the arrangement production has — and the reason every join across the
+ * boundary goes through `identidadIdComoTexto`. A readable
+ * `identidad-de-prueba-3` here would not insert, and a harness that changed the
+ * column type to accept it would be back to testing a shape Neon does not have.
+ */
+function nuevoIdDeIdentidad(): string {
+  return randomUUID();
+}
+
 // ── Actor ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -40,10 +54,12 @@ export async function crearIdentidad(
   opts: { email?: string; nombre?: string | null; id?: string } = {}
 ): Promise<{ id: string; email: string; displayName: string | null }> {
   const n = siguiente();
-  const id = opts.id ?? `identidad-de-prueba-${n}`;
-  const email = (opts.email ?? `${id}@ejemplo.test`).toLowerCase();
+  const id = opts.id ?? nuevoIdDeIdentidad();
+  const email = (
+    opts.email ?? `identidad-de-prueba-${n}@ejemplo.test`
+  ).toLowerCase();
 
-  await db.insert(usersSync).values({
+  await db.insert(identidades).values({
     id,
     email,
     name: opts.nombre ?? null,
@@ -58,7 +74,7 @@ export async function crearIdentidad(
  *
  * The row is real because every entity carries `createdById` as a foreign key:
  * an Actor with no row cannot create anything. The identity is real because the
- * user-management screen reads emails out of `neon_auth.users_sync`, so a Usuario
+ * user-management screen reads emails out of `neon_auth."user"`, so a Usuario
  * with no identity is the *orphan* case and should be built on purpose, not by
  * accident — pass `sinIdentidad` for that.
  *
@@ -72,11 +88,13 @@ export async function crearActor(opts: {
   email?: string;
   sinIdentidad?: boolean;
 }): Promise<CurrentUser> {
-  const id = `usuario-de-prueba-${siguiente()}`;
-  const email = (opts.email ?? `${id}@ejemplo.test`).toLowerCase();
+  const id = nuevoIdDeIdentidad();
+  const email = (
+    opts.email ?? `usuario-de-prueba-${siguiente()}@ejemplo.test`
+  ).toLowerCase();
 
   if (!opts.sinIdentidad) {
-    await db.insert(usersSync).values({ id, email, name: null });
+    await db.insert(identidades).values({ id, email, name: null });
   }
 
   await db.insert(users).values({

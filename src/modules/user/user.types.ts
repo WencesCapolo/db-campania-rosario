@@ -33,7 +33,7 @@ export interface CurrentUser {
 export interface UserDTO {
   id: string;
   role: Role;
-  /** From `neon_auth.users_sync`. Empty when the identity is gone — see below. */
+  /** From `neon_auth."user"`. Empty when the identity is gone — see below. */
   email: string;
   displayName: string | null;
   diocesisLocalidad: DiocesisLocalidadDTO | null;
