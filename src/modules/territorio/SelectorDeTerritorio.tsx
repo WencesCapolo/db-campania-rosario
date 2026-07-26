@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Eleccion from "@/components/Eleccion";
+import { Cargando, PanelDeError, Vacio } from "@/components/EstadosAsincronicos";
 import {
   getDiocesisLocalidadesAction,
   getProvinciasAction,
@@ -18,19 +20,20 @@ import type { DiocesisLocalidadDTO, ProvinciaDTO } from "./territorio.types";
  * Referente Local it would be a list of one, and a control with one option is
  * noise. An Asesor Nacional gets it, because their list is the country.
  *
- * Native `<select>`: the OS picker is large, familiar, and scrolls with a thumb.
- * Styling here is deliberately plain — issue 4 brings the design system, and
- * this component is meant to be restyled rather than rebuilt. The behaviour is
- * the part worth getting right now: three states, full names, no colour-only
- * signals, 48px targets.
+ * Native `<select>` through `Eleccion`: the OS picker is large, familiar, and
+ * scrolls with a thumb. On the primitives now rather than on its own CAMPO and
+ * ETIQUETA constants, which is not only a visual change — `Eleccion` binds the
+ * label, the help text, the error and the derived facts to the control with one
+ * `useId`, and the hand-written version bound the label and left the derived
+ * `<dl>` associated by an id it built itself.
+ *
+ * The three states go through the shared components, and the distinction they
+ * enforce is the one that matters here: the wide read this makes reaches one
+ * level past the Actor's own territory, to their Provincia, so a picker is not a
+ * list of one. A refusal is still a refusal — it lands on `PanelDeError` with a
+ * retry, never on `Vacio`, because "no hay Diócesis en tu territorio" told to
+ * somebody who was refused is a different sentence from the truth.
  */
-
-const CAMPO =
-  "min-h-12 w-full rounded-lg border-2 border-neutral-400 bg-white px-3 text-lg " +
-  "text-neutral-900 focus-visible:outline-none focus-visible:ring-4 " +
-  "focus-visible:ring-blue-700 focus-visible:border-blue-700";
-
-const ETIQUETA = "block text-lg font-semibold text-neutral-900";
 
 interface Props {
   /** Currently selected Diócesis/Localidad, if any. */
@@ -43,7 +46,7 @@ interface Props {
 
 type Estado =
   | { fase: "cargando" }
-  | { fase: "error"; mensaje: string }
+  | { fase: "error" }
   | { fase: "listo"; provincias: ProvinciaDTO[]; diocesis: DiocesisLocalidadDTO[] };
 
 export default function SelectorDeTerritorio({
@@ -54,8 +57,6 @@ export default function SelectorDeTerritorio({
 }: Props) {
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" });
   const [provinciaId, setProvinciaId] = useState<string>("");
-  const idProvincia = useId();
-  const idDiocesis = useId();
 
   // Bumped by the retry button to re-run the effect. The state is only ever
   // written from inside the promise, never synchronously in the effect body,
@@ -70,12 +71,7 @@ export default function SelectorDeTerritorio({
         if (vigente) setEstado({ fase: "listo", provincias, diocesis });
       },
       () => {
-        if (vigente) {
-          setEstado({
-            fase: "error",
-            mensaje: "No pudimos cargar el listado de territorios.",
-          });
-        }
+        if (vigente) setEstado({ fase: "error" });
       }
     );
 
@@ -104,36 +100,25 @@ export default function SelectorDeTerritorio({
   );
 
   if (estado.fase === "cargando") {
-    return (
-      <p role="status" className="py-4 text-lg text-neutral-700">
-        Cargando territorios…
-      </p>
-    );
+    return <Cargando filas={2} etiqueta="Cargando territorios…" />;
   }
 
   if (estado.fase === "error") {
     return (
-      <div role="alert" className="space-y-3 py-4">
-        <p className="text-lg text-neutral-900">{estado.mensaje}</p>
-        <button
-          type="button"
-          onClick={reintentar}
-          className="min-h-12 rounded-lg border-2 border-neutral-900 px-4 text-lg font-semibold text-neutral-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-        >
-          Reintentar
-        </button>
-      </div>
+      <PanelDeError
+        titulo="No pudimos cargar los territorios"
+        mensaje="Puede ser la conexión. Probá de nuevo; si sigue sin cargar, avisale a un Asesor Nacional."
+        alReintentar={reintentar}
+      />
     );
   }
 
   if (estado.diocesis.length === 0) {
     return (
-      <div role="status" className="py-4">
-        <p className="text-lg text-neutral-900">
-          Todavía no hay Diócesis/Localidades cargadas en tu territorio. Pedile a
-          un Asesor Nacional que agregue la tuya.
-        </p>
-      </div>
+      <Vacio
+        titulo="No hay Diócesis/Localidades cargadas"
+        mensaje="Todavía no hay ninguna en tu territorio. Pedile a un Asesor Nacional que agregue la tuya."
+      />
     );
   }
 
@@ -142,73 +127,56 @@ export default function SelectorDeTerritorio({
   return (
     <div className="space-y-5">
       {mostrarProvincias && (
-        <div className="space-y-2">
-          <label htmlFor={idProvincia} className={ETIQUETA}>
-            Provincia{" "}
-            <span className="font-normal text-neutral-700">
-              (para acortar la lista)
-            </span>
-          </label>
-          <select
-            id={idProvincia}
-            className={CAMPO}
-            value={provinciaId}
-            onChange={(e) => {
-              setProvinciaId(e.target.value);
-              onChange(null);
-            }}
-          >
-            <option value="">Todas las Provincias</option>
-            {estado.provincias.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Eleccion
+          etiqueta="Provincia"
+          ayuda="Sirve para acortar la lista de abajo. No hace falta elegirla."
+          vacia="Todas las Provincias"
+          value={provinciaId}
+          opciones={estado.provincias.map((p) => ({
+            valor: p.id,
+            etiqueta: p.nombre,
+          }))}
+          onChange={(e) => {
+            setProvinciaId(e.target.value);
+            // The chosen Diócesis may not be in the new Provincia's list, and a
+            // select whose value is not among its options renders as blank while
+            // the form still holds the old id.
+            onChange(null);
+          }}
+        />
       )}
 
-      <div className="space-y-2">
-        <label htmlFor={idDiocesis} className={ETIQUETA}>
-          Diócesis/Localidad
-        </label>
-        <select
-          id={idDiocesis}
-          name={name}
-          required={required}
-          className={CAMPO}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value || null)}
-          aria-describedby={elegida ? `${idDiocesis}-derivado` : undefined}
-        >
-          <option value="">Elegí una Diócesis/Localidad</option>
-          {diocesisVisibles.map((d) => (
-            <option key={d.id} value={d.id}>
-              {/* Full names, never abbreviations — "Córdoba", not "CBA". */}
-              {mostrarProvincias && !provinciaId
-                ? `${d.nombre} — ${d.provincia.nombre}`
-                : d.nombre}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Provincia and Región follow from the choice. Shown, never asked for. */}
-      {elegida && (
-        <dl
-          id={`${idDiocesis}-derivado`}
-          className="grid grid-cols-1 gap-3 rounded-lg bg-neutral-100 p-4 text-lg sm:grid-cols-2"
-        >
-          <div>
-            <dt className="font-semibold text-neutral-700">Provincia</dt>
-            <dd className="text-neutral-900">{elegida.provincia.nombre}</dd>
-          </div>
-          <div>
-            <dt className="font-semibold text-neutral-700">Región</dt>
-            <dd className="text-neutral-900">{elegida.region}</dd>
-          </div>
-        </dl>
-      )}
+      <Eleccion
+        etiqueta="Diócesis/Localidad"
+        name={name}
+        required={required}
+        vacia="Elegí una Diócesis/Localidad"
+        value={value ?? ""}
+        opciones={diocesisVisibles.map((d) => ({
+          valor: d.id,
+          // Full names, never abbreviations — "Córdoba", not "CBA".
+          etiqueta:
+            mostrarProvincias && !provinciaId
+              ? `${d.nombre} — ${d.provincia.nombre}`
+              : d.nombre,
+        }))}
+        onChange={(e) => onChange(e.target.value || null)}
+        // Provincia and Región follow from the choice. Shown, never asked for.
+        derivado={
+          elegida && (
+            <dl className="grid grid-cols-1 gap-3 rounded-control bg-fondo p-4 text-base sm:grid-cols-2">
+              <div>
+                <dt className="font-semibold text-tinta-suave">Provincia</dt>
+                <dd className="text-tinta">{elegida.provincia.nombre}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-tinta-suave">Región</dt>
+                <dd className="text-tinta">{elegida.region}</dd>
+              </div>
+            </dl>
+          )
+        }
+      />
     </div>
   );
 }

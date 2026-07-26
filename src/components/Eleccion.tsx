@@ -37,6 +37,18 @@ interface Props
   vacia?: string;
   ayuda?: string;
   error?: string | null;
+  /**
+   * What follows from the choice, rendered under the select and announced as
+   * part of its description.
+   *
+   * `ayuda` cannot do this job: it is what to know *before* choosing, and it
+   * renders above the control. Derived facts are output, they belong after it,
+   * and they still have to be announced — the territory picker shows the
+   * Provincia and Región that follow from a Diócesis, and a sighted user reads
+   * them without being told to look while a screen-reader user would never
+   * reach them.
+   */
+  derivado?: React.ReactNode;
 }
 
 export default function Eleccion({
@@ -45,13 +57,19 @@ export default function Eleccion({
   vacia,
   ayuda,
   error,
+  derivado,
   ...resto
 }: Props) {
   const id = useId();
   const idAyuda = `${id}-ayuda`;
   const idError = `${id}-error`;
+  const idDerivado = `${id}-derivado`;
 
-  const descrito = [ayuda ? idAyuda : null, error ? idError : null]
+  const descrito = [
+    ayuda ? idAyuda : null,
+    error ? idError : null,
+    derivado ? idDerivado : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -84,6 +102,8 @@ export default function Eleccion({
           </option>
         ))}
       </select>
+
+      {derivado && <div id={idDerivado}>{derivado}</div>}
 
       {error && (
         <p
