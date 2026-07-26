@@ -1,13 +1,13 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
 import {
-  ESTADO_LABELS,
   MODALIDAD_LABELS,
   TIPO_LABELS,
 } from "@/modules/peregrina/peregrina.types";
-import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
+import EstadoDePeregrina from "@/modules/peregrina/EstadoDePeregrina";
 import Tarjeta from "@/components/Tarjeta";
-import Insignia, { type TonoDeInsignia } from "@/components/Insignia";
+import Insignia from "@/components/Insignia";
+import Mensaje from "@/components/Mensaje";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreCompleto } from "@/lib/formato";
@@ -26,13 +26,6 @@ import BajaDePeregrina from "./BajaDePeregrina";
  * error boundary, and a Peregrina somebody may not see rendering as "no existe"
  * would be a different lie from the one issue #2 refused to tell.
  */
-
-const TONO_POR_ESTADO: Record<PeregrinaEstado, TonoDeInsignia> = {
-  activa: "exito",
-  en_reparacion: "aviso",
-  extraviada: "alerta",
-  inactiva: "neutro",
-};
 
 export const dynamic = "force-dynamic";
 
@@ -58,9 +51,7 @@ export default async function PeregrinaPage({
         </h1>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Insignia tono={TONO_POR_ESTADO[peregrina.estado]}>
-            {ESTADO_LABELS[peregrina.estado]}
-          </Insignia>
+          <EstadoDePeregrina estado={peregrina.estado} />
           {peregrina.deBaja && <Insignia tono="neutro">Dada de baja</Insignia>}
         </div>
 
@@ -85,11 +76,13 @@ export default async function PeregrinaPage({
               // marked extraviada: the last holder is the only lead anybody
               // has, and hiding it deletes the answer to the question this
               // screen exists to answer — user story 6.
-              <p className="rounded-control border-2 border-alerta-tinta bg-alerta-fondo p-4 text-base leading-relaxed text-alerta-tinta">
-                La imagen está registrada como extraviada. Éste es el último
-                Misionero que la tuvo, y es por donde conviene empezar a
-                buscarla.
-              </p>
+              <Mensaje tono="alerta">
+                <p>
+                  La imagen está registrada como extraviada. Éste es el último
+                  Misionero que la tuvo, y es por donde conviene empezar a
+                  buscarla.
+                </p>
+              </Mensaje>
             )}
 
             <BotonEnlace

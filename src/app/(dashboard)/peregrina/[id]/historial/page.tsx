@@ -1,8 +1,13 @@
-import Link from "next/link";
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
-import { ESTADO_LABELS } from "@/modules/peregrina/peregrina.types";
-import type { AsignacionDTO } from "@/modules/asignacion/asignacion.types";
+import EstadoDePeregrina from "@/modules/peregrina/EstadoDePeregrina";
+import Tarjeta from "@/components/Tarjeta";
+import Insignia from "@/components/Insignia";
+import Mensaje from "@/components/Mensaje";
+import Volver from "@/components/Volver";
+import { BotonEnlace } from "@/components/Boton";
+import { Vacio } from "@/components/EstadosAsincronicos";
+import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
 import RegistrarDevolucion from "./RegistrarDevolucion";
 
 /**
@@ -17,7 +22,13 @@ import RegistrarDevolucion from "./RegistrarDevolucion";
  * history somebody may not see rendering as "sin historial" would confirm the
  * record exists.
  *
- * Plain Tailwind on purpose — issue #4 restyles this rather than rebuilding it.
+ * On the primitives, and the three helper functions that used to sit at the bottom
+ * of this file are gone. `fecha`, `dias` and `registro` live in
+ * `src/lib/formato.ts` — they were lifted out of here when the Misionero detail
+ * page needed the same three, and this copy was the one left behind to drift.
+ * `registro` is the one that matters: it takes a `RegistroDTO`, which has no name
+ * field in it at all, so no screen can render "registrada por María Pérez" about
+ * a login that a whole territory shares.
  */
 
 export const dynamic = "force-dynamic";
@@ -37,103 +48,112 @@ export default async function HistorialPage({
   const abierta = historial.find((a) => a.abierta) ?? null;
 
   return (
-    <div className="space-y-8 p-6 text-lg">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold text-neutral-900">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
+      <div className="space-y-2">
+        <Volver href={`/peregrina/${peregrina.id}`}>
+          Volver a {peregrina.codigo}
+        </Volver>
+
+        <h1 className="font-mono text-3xl font-bold text-tinta">
           {peregrina.codigo}
         </h1>
-        <p className="text-lg text-neutral-700">
-          {ESTADO_LABELS[peregrina.estado]} — {peregrina.diocesisLocalidad.nombre}
-          {peregrina.deBaja ? " — dada de baja" : ""}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <EstadoDePeregrina estado={peregrina.estado} />
+          {peregrina.deBaja && <Insignia tono="neutro">Dada de baja</Insignia>}
+        </div>
+
+        <p className="text-base text-tinta-suave">
+          {peregrina.diocesisLocalidad.nombre}, {peregrina.provincia}
         </p>
       </div>
 
-      {/* ── Tenencia actual ── */}
-      <section className="space-y-3">
-        <h2 className="text-2xl font-bold text-neutral-900">
-          ¿Quién la tiene ahora?
-        </h2>
-
+      <Tarjeta titulo="¿Quién la tiene ahora?">
         {abierta ? (
-          <div className="space-y-3 rounded-lg border-2 border-neutral-900 bg-neutral-100 p-4">
-            <p className="text-lg text-neutral-900">
-              <strong>
-                {abierta.misionero.nombre} {abierta.misionero.apellido}
-              </strong>
-              , desde el {fecha(abierta.abiertaAt)} — {dias(abierta.diasEnCargo)}.
-              {abierta.misionero.deBaja ? " (dado de baja)" : ""}
+          <div className="space-y-4">
+            <p className="text-base leading-relaxed">
+              La tiene <strong>{nombreCompleto(abierta.misionero)}</strong>
+              {abierta.misionero.deBaja ? " (dado de baja)" : ""}, desde el{" "}
+              {fecha(abierta.abiertaAt)} — {dias(abierta.diasEnCargo)}.
             </p>
 
             {peregrina.estado === "extraviada" && (
-              // Marking a Peregrina Extraviada leaves this period open on purpose:
-              // it is the only lead anybody has — user story 6.
-              <p className="text-lg text-neutral-900">
-                La imagen está registrada como extraviada. Éste es el último
-                Misionero que la tuvo, y es por donde conviene empezar a buscarla.
-              </p>
+              // Marking a Peregrina Extraviada leaves this period open on
+              // purpose: the last holder is the only lead anybody has, and
+              // closing it would delete the answer to the question this screen
+              // exists to answer — user story 6.
+              <Mensaje tono="alerta">
+                <p>
+                  La imagen está registrada como extraviada. Éste es el último
+                  Misionero que la tuvo, y es por donde conviene empezar a
+                  buscarla.
+                </p>
+              </Mensaje>
             )}
 
             <RegistrarDevolucion
               peregrinaId={peregrina.id}
               codigo={peregrina.codigo}
-              misionero={`${abierta.misionero.nombre} ${abierta.misionero.apellido}`}
+              misionero={nombreCompleto(abierta.misionero)}
             />
           </div>
         ) : (
-          <p className="rounded-lg border-2 border-neutral-400 p-4 text-lg text-neutral-700">
-            No está a cargo de nadie.{" "}
-            <Link
-              href="/asignacion/new"
-              className="font-semibold text-neutral-900 underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-            >
-              Entregarla a un Misionero
-            </Link>
-            .
-          </p>
+          <div className="space-y-4">
+            <p className="text-base leading-relaxed text-tinta-suave">
+              No está a cargo de nadie.
+            </p>
+            {!peregrina.deBaja && (
+              <BotonEnlace href="/asignacion/new">
+                Entregarla a un Misionero
+              </BotonEnlace>
+            )}
+          </div>
         )}
-      </section>
+      </Tarjeta>
 
-      {/* ── La cadena entera ── */}
-      <section className="space-y-3">
-        <h2 className="text-2xl font-bold text-neutral-900">Historial</h2>
-
+      <Tarjeta titulo="Historial completo">
         {historial.length === 0 ? (
-          <p className="rounded-lg border-2 border-neutral-400 p-4 text-lg text-neutral-700">
-            Esta Peregrina no estuvo nunca a cargo de nadie.
-          </p>
+          <Vacio
+            titulo="Nunca estuvo a cargo de nadie"
+            mensaje="Esta imagen todavía no se entregó. Cuando se entregue, cada período va a quedar acá."
+          />
         ) : (
-          <ol className="space-y-3">
+          <ol className="space-y-5">
             {historial.map((a) => (
               <li
                 key={a.id}
-                className="space-y-1 rounded-lg border-2 border-neutral-400 p-4"
+                className="space-y-1 border-b-2 border-borde pb-5 last:border-b-0 last:pb-0"
               >
-                <p className="text-lg font-semibold text-neutral-900">
-                  {a.misionero.nombre} {a.misionero.apellido}
+                <p className="text-base font-bold text-tinta">
+                  {nombreCompleto(a.misionero)}
                   {a.misionero.deBaja ? " (dado de baja)" : ""}
                 </p>
-                <p className="text-lg text-neutral-900">
-                  {fecha(a.abiertaAt)} —{" "}
-                  {a.cerradaAt ? fecha(a.cerradaAt) : "sigue a cargo"} (
+
+                <p className="text-base leading-relaxed text-tinta">
+                  {fecha(a.abiertaAt)} a{" "}
+                  {a.cerradaAt ? fecha(a.cerradaAt) : "hoy, sigue a cargo"} (
                   {dias(a.diasEnCargo)})
                 </p>
 
                 {a.notaApertura && (
-                  <p className="text-base text-neutral-700">
+                  <p className="text-base text-tinta-suave">
                     Al entregar: {a.notaApertura}
                   </p>
                 )}
                 {a.notaCierre && (
-                  <p className="text-base text-neutral-700">
+                  <p className="text-base text-tinta-suave">
                     Al devolver: {a.notaCierre}
                   </p>
                 )}
 
-                <p className="text-base text-neutral-700">{registro(a)}</p>
+                {/* A territory, never a person. */}
+                <p className="text-base text-tinta-suave">{registro(a)}</p>
 
                 {a.corregidaAt && (
-                  // The correction is itself visible — user story 17.
-                  <p className="text-base text-neutral-700">
+                  // The correction is itself visible — user story 17. A record
+                  // that was edited and does not say so is a record nobody can
+                  // trust twice.
+                  <p className="text-base text-tinta-suave">
                     Corregida el {fecha(a.corregidaAt)}
                     {a.corregidaPor?.diocesisLocalidad
                       ? ` desde ${a.corregidaPor.diocesisLocalidad}`
@@ -145,37 +165,7 @@ export default async function HistorialPage({
             ))}
           </ol>
         )}
-      </section>
-    </div>
+      </Tarjeta>
+    </main>
   );
-}
-
-/**
- * Who registered the period, as a *territory*.
- *
- * Referentes Locales share one login per territory, so the record identifies a
- * place and never a person. Copy that said "registrada por María Pérez" would be
- * asserting something the data cannot support.
- */
-function registro(a: AsignacionDTO): string {
-  const entrega = a.registradaPor.diocesisLocalidad
-    ? `Entrega registrada desde ${a.registradaPor.diocesisLocalidad}`
-    : "Entrega registrada a nivel nacional";
-
-  if (!a.cerradaPor) return `${entrega}.`;
-
-  const devolucion = a.cerradaPor.diocesisLocalidad
-    ? `devolución desde ${a.cerradaPor.diocesisLocalidad}`
-    : "devolución a nivel nacional";
-
-  return `${entrega}; ${devolucion}.`;
-}
-
-function fecha(d: Date): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(d);
-}
-
-function dias(n: number): string {
-  if (n === 0) return "hoy mismo";
-  return n === 1 ? "1 día" : `${n} días`;
 }

@@ -37,7 +37,15 @@ const CONFIRMADO = "confirmado";
 
 export interface ControlDeDialogo {
   abrir: () => void;
+  /** The action went through. `alCerrar` is told it was not a cancel. */
   cerrar: () => void;
+  /**
+   * The person backed out. Indistinguishable, to `alCerrar`, from Escape or a
+   * backdrop click — which is the point: a "No, volver" button and the Escape key
+   * mean the same thing, and a dialog where only one of them counted as a cancel
+   * would be a dialog whose cleanup ran on two paths out of three.
+   */
+  cancelar: () => void;
 }
 
 export default function Dialogo({
@@ -65,6 +73,12 @@ export default function Dialogo({
 
   const cerrar = useCallback(() => elemento?.close(CONFIRMADO), [elemento]);
 
+  // `close()` with no argument leaves `returnValue` as `showModal()` set it — the
+  // empty string — which is exactly what Escape and the backdrop do. So a Cancel
+  // button and Escape arrive at `alCerrar` as the same event, without this file
+  // having to know which one happened.
+  const cancelar = useCallback(() => elemento?.close(), [elemento]);
+
   useEffect(() => {
     if (!elemento || !alCerrar) return;
     const alCerrarse = () => alCerrar(elemento.returnValue !== CONFIRMADO);
@@ -72,7 +86,7 @@ export default function Dialogo({
     return () => elemento.removeEventListener("close", alCerrarse);
   }, [elemento, alCerrar]);
 
-  const control: ControlDeDialogo = { abrir, cerrar };
+  const control: ControlDeDialogo = { abrir, cerrar, cancelar };
   const idTitulo = `titulo-${titulo.replace(/\W+/g, "-").toLowerCase()}`;
 
   return (

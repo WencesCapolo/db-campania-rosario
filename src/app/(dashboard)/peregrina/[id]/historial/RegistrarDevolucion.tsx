@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { devolverAction } from "@/modules/asignacion/asignacion.router";
+import Boton from "@/components/Boton";
+import Dialogo from "@/components/Dialogo";
+import AreaDeTexto from "@/components/AreaDeTexto";
+import Mensaje from "@/components/Mensaje";
 
 /**
  * Registrar que una Peregrina volvió, sin entregarla a nadie más — historia 3.
@@ -11,14 +15,25 @@ import { devolverAction } from "@/modules/asignacion/asignacion.router";
  * image is held centrally now. The previous system could only express this by
  * blanking a pointer, which read as "never had a Misionero".
  *
- * Native `<dialog>`: the browser gives focus trapping, Escape and focus restore for
- * free, and a hand-rolled modal gets at most two of the three right.
+ * This was the hand-rolled `<dialog>` that `Dialogo` was generalised from, which
+ * is why it is rewritten onto it rather than restyled. Two things it could not
+ * do:
+ *
+ *  - It called `close()` for Cancel and got `close()` from Escape, with no way to
+ *    tell them apart. Everything that should happen on the way out therefore
+ *    happened on neither path or on both.
+ *  - It kept the note in state between openings. Open it, type half a note, press
+ *    Escape, open it again — and the half a note was still sitting there,
+ *    attached to a devolución somebody had already decided not to register.
+ *
+ * `alCerrar` fires on every way out, and clears.
+ *
+ * `ConfirmarAccion` was the near miss. It is the right shape — a consequential
+ * action behind a dialog that names its subject — but it takes no input, and this
+ * one has a note that belongs to the moment of returning ("quedó en la casa
+ * diocesana"). Giving `ConfirmarAccion` a slot for one caller would turn the
+ * confirmation dialog into a form container for every caller.
  */
-
-const BOTON =
-  "min-h-12 rounded-lg px-5 text-lg font-semibold focus-visible:outline-none " +
-  "focus-visible:ring-4 focus-visible:ring-blue-700 disabled:opacity-60";
-
 export default function RegistrarDevolucion({
   peregrinaId,
   codigo,
@@ -29,89 +44,85 @@ export default function RegistrarDevolucion({
   misionero: string;
 }) {
   const router = useRouter();
-  const [pendiente, startTransition] = useTransition();
+  const [pendiente, empezar] = useTransition();
   const [nota, setNota] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [dialogo, setDialogo] = useState<HTMLDialogElement | null>(null);
-
-  function registrar() {
-    setError(null);
-    startTransition(async () => {
-      const resultado = await devolverAction({
-        peregrinaId,
-        notaCierre: nota.trim() || null,
-      });
-
-      if (!resultado.ok) {
-        setError(resultado.error);
-        return;
-      }
-
-      dialogo?.close();
-      router.refresh();
-    });
-  }
 
   return (
-    <>
-      <button
-        type="button"
-        className={`${BOTON} border-2 border-neutral-900 text-neutral-900`}
-        onClick={() => dialogo?.showModal()}
-      >
-        Registrar devolución
-      </button>
-
-      <dialog
-        ref={setDialogo}
-        className="max-w-lg rounded-lg border-2 border-neutral-900 bg-white p-6 text-lg text-neutral-900 backdrop:bg-neutral-900/50"
-      >
-        <h2 className="text-2xl font-bold">Registrar devolución</h2>
-        <p className="mt-2">
-          La Peregrina <strong>{codigo}</strong> deja de estar a cargo de{" "}
-          <strong>{misionero}</strong>. Su período queda en el historial.
-        </p>
-
-        {error && (
-          <p
-            role="alert"
-            className="mt-4 rounded-lg border-2 border-red-800 bg-red-50 p-4 text-red-900"
-          >
-            {error}
+    <Dialogo
+      titulo="Registrar devolución"
+      alCerrar={() => {
+        setNota("");
+        setError(null);
+      }}
+      disparador={(control) => (
+        <Boton tono="secundario" onClick={control.abrir}>
+          Registrar devolución
+        </Boton>
+      )}
+    >
+      {(control) => (
+        <>
+          <p className="mt-3 text-base leading-relaxed">
+            La Peregrina <strong className="font-mono">{codigo}</strong> deja de
+            estar a cargo de <strong>{misionero}</strong>. Su período queda en el
+            historial.
           </p>
-        )}
 
-        <label className="mt-4 block font-semibold" htmlFor="nota-devolucion">
-          ¿Algo que anotar? (opcional)
-        </label>
-        <textarea
-          id="nota-devolucion"
-          className="mt-2 min-h-24 w-full rounded-lg border-2 border-neutral-400 px-3 py-2 focus-visible:border-blue-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-          value={nota}
-          maxLength={500}
-          onChange={(e) => setNota(e.target.value)}
-          placeholder="Quedó en la casa diocesana."
-        />
+          {error && (
+            <div className="mt-4">
+              <Mensaje tono="alerta">
+                <p>{error}</p>
+              </Mensaje>
+            </div>
+          )}
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            className={`${BOTON} bg-neutral-900 text-white`}
-            disabled={pendiente}
-            onClick={registrar}
-          >
-            {pendiente ? "Registrando…" : "Registrar"}
-          </button>
-          <button
-            type="button"
-            className={`${BOTON} border-2 border-neutral-900 text-neutral-900`}
-            disabled={pendiente}
-            onClick={() => dialogo?.close()}
-          >
-            Cancelar
-          </button>
-        </div>
-      </dialog>
-    </>
+          <div className="mt-4">
+            <AreaDeTexto
+              etiqueta="¿Algo que anotar?"
+              ayuda="Opcional. Dónde quedó la imagen, o en qué estado volvió."
+              value={nota}
+              maxLength={500}
+              contador
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="Quedó en la casa diocesana."
+            />
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Boton
+              disabled={pendiente}
+              onClick={() =>
+                empezar(async () => {
+                  setError(null);
+                  const resultado = await devolverAction({
+                    peregrinaId,
+                    notaCierre: nota.trim() || null,
+                  });
+
+                  if (!resultado.ok) {
+                    setError(resultado.error);
+                    return;
+                  }
+
+                  control.cerrar();
+                  router.refresh();
+                })
+              }
+            >
+              {pendiente ? "Registrando…" : "Registrar la devolución"}
+            </Boton>
+
+            <Boton
+              tono="secundario"
+              disabled={pendiente}
+              onClick={control.cancelar}
+            >
+              No, volver
+            </Boton>
+          </div>
+        </>
+      )}
+    </Dialogo>
   );
 }

@@ -102,10 +102,13 @@ export default function ConfirmarAccion({
                 : (etiquetaDeConfirmacion ?? etiqueta)}
             </Boton>
 
+            {/* `cancelar`, not `cerrar`: pressing this means the same thing as
+                pressing Escape, and `alCerrar` should hear the same event from
+                both. */}
             <Boton
               tono="secundario"
               disabled={pendiente}
-              onClick={control.cerrar}
+              onClick={control.cancelar}
             >
               No, volver
             </Boton>
