@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Mensaje from "@/components/Mensaje";
 import {
   CUENTA_DADA_DE_BAJA,
   SIN_AUTORIZACION,
@@ -14,10 +15,12 @@ import {
  * Spanish, that provisioning is deliberate and who to ask.
  *
  * Outside the (dashboard) group on purpose — that layout calls getCurrentUser(),
- * and a page about not having an Actor cannot require one.
+ * and a page about not having an Actor cannot require one. That also means it
+ * gets no shell, so it carries its own `<main>` and its own width.
  *
- * Styled plainly. Issue #4 owns the design system; what matters here is 18px
- * type, contrast, a 48px target and a message that names the next step.
+ * `aviso` rather than `alerta`: nothing is broken, and the second paragraph is
+ * the whole point of the screen — an account that does not exist yet is the
+ * system working. Red on arrival would say otherwise.
  */
 
 const MENSAJES: Record<string, string> = {
@@ -37,25 +40,27 @@ export default async function SinAutorizacionPage({
   const mensaje = MENSAJES[motivo ?? ""] ?? SIN_AUTORIZACION;
 
   return (
-    <main className="mx-auto max-w-xl space-y-6 p-6 text-lg">
-      <h1 className="text-3xl font-bold text-neutral-900">
-        Todavía no tenés acceso
-      </h1>
+    <main className="mx-auto w-full max-w-xl space-y-6 px-5 py-6">
+      <h1 className="text-3xl font-bold text-tinta">Todavía no tenés acceso</h1>
 
-      <p className="text-lg leading-relaxed text-neutral-900">{mensaje}</p>
+      <Mensaje tono="aviso">
+        <p>{mensaje}</p>
+      </Mensaje>
 
-      <p className="text-lg leading-relaxed text-neutral-700">
+      <p className="text-base leading-relaxed text-tinta-suave">
         Esto no es un error del sistema: los accesos se dan de uno en uno, a
         propósito, para que la información de la Campaña quede con quien tiene
         que estar.
       </p>
 
-      <Link
-        href="/handler/sign-out"
-        className="inline-flex min-h-12 items-center rounded-lg border-2 border-neutral-900 px-4 text-lg font-semibold text-neutral-900 underline focus-visible:border-blue-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-      >
-        Cerrar sesión
-      </Link>
+      <p>
+        <Link
+          href="/handler/sign-out"
+          className="inline-flex min-h-12 items-center text-base font-semibold text-accion underline"
+        >
+          Cerrar sesión
+        </Link>
+      </p>
     </main>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { PanelDeError } from "@/components/EstadosAsincronicos";
+
 /**
  * The dashboard's error boundary.
  *
@@ -14,7 +16,17 @@
  * lives where it can be trusted — in the action results the forms render, and in
  * the authorization log.
  *
- * Plain styling; issue #4 restyles.
+ * The copy is not repeated here any more. It was written out twice — once in this
+ * file and once as `PanelDeError`'s default — which is how the two would have
+ * come to disagree about what a refusal looks like. This is the boundary; the
+ * panel is the wording, and `reset` is what makes it a retry rather than a dead
+ * end.
+ *
+ * `PanelDeError` renders an `<h2>`, so the page keeps an `<h1>` of its own: a
+ * document whose outline starts at level two is a document a screen-reader user
+ * cannot navigate. The heading is `sr-only` because the panel is already
+ * carrying the same sentence visually, and saying it twice on screen reads as a
+ * stutter.
  */
 export default function ErrorDelTablero({
   error,
@@ -24,28 +36,10 @@ export default function ErrorDelTablero({
   reset: () => void;
 }) {
   return (
-    <main className="mx-auto max-w-xl space-y-6 p-6 text-lg">
-      <h1 className="text-3xl font-bold text-neutral-900">No se pudo mostrar</h1>
+    <main className="mx-auto w-full max-w-xl space-y-6 px-5 py-6">
+      <h1 className="sr-only">No se pudo mostrar</h1>
 
-      <p className="text-lg leading-relaxed text-neutral-900">
-        Puede ser que eso pertenezca a otro territorio, o que algo haya fallado al
-        buscarlo. Si es de tu Diócesis/Localidad y sigue sin aparecer, avisale a un
-        Asesor Nacional.
-      </p>
-
-      <button
-        type="button"
-        onClick={reset}
-        className="min-h-12 rounded-lg border-2 border-neutral-900 bg-neutral-900 px-4 text-lg font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-      >
-        Probar de nuevo
-      </button>
-
-      {error.digest ? (
-        <p className="text-base text-neutral-700">
-          Si tenés que reportarlo, este es el número: {error.digest}
-        </p>
-      ) : null}
+      <PanelDeError alReintentar={reset} referencia={error.digest} />
     </main>
   );
 }
