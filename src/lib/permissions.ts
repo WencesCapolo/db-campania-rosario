@@ -38,6 +38,29 @@ export function isAdmin(role: Role): boolean {
 }
 
 /**
+ * The rols bounded by a territory.
+ *
+ * The other two cover the country, and `derivarAlcance` gives them no filter at
+ * all. Two forms need this — inviting somebody and changing what they are — and
+ * each had, or was about to have, its own copy of the list. A rol added to the
+ * enum and forgotten in one of those copies is a Usuario created with no
+ * territory, which `derivarAlcance` then refuses on every request: a form that
+ * successfully creates an account nobody can use.
+ *
+ * This is a UI concern and lives here rather than in `UserService`, which decides
+ * the same question for itself from the rol it was handed. Two independent
+ * answers on purpose: this one shapes a form, and the service's one is the rule.
+ */
+export const ROLES_CON_TERRITORIO: readonly Role[] = [
+    "responsable_diocesano",
+    "referente_local",
+];
+
+export function llevaTerritorio(rol: Role): boolean {
+    return ROLES_CON_TERRITORIO.includes(rol);
+}
+
+/**
  * Readable Spanish labels for each role.
  */
 export const ROLE_LABELS: Record<Role, string> = {

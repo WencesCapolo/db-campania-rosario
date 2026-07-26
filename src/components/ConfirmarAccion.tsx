@@ -11,10 +11,15 @@ import type { ActionResult } from "@/lib/action-result";
  *
  * Story 17 asks for two things and the second is the one usually skipped: the
  * dialog must say *what* is about to change, not just ask "are you sure?". So
- * `sujeto` is required, and it is the Peregrina's Código or the Misionero's
- * name — never the Usuario. Referentes Locales share one login per territory, so
- * a sentence naming the account would name a place while appearing to name a
- * person.
+ * `sujeto` is required: the Peregrina's Código, the Misionero's name, or — on the
+ * account screens, and only there — the email an access belongs to.
+ *
+ * The distinction is worth keeping straight, because Referentes Locales share one
+ * login per territory. A sentence that names an account while *attributing* an
+ * action names a place and appears to name a person; that is why `registro()`
+ * exists and why `RegistroDTO` has no name in it. Administering the account is
+ * the one case where the account genuinely is the subject, and the copy there
+ * says "el acceso de …" rather than treating the email as somebody's name.
  *
  * The action is passed in rather than chosen here. Whether this Actor may give
  * this record de baja, and whether an open Asignación blocks it, are service

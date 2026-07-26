@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/get-current-user";
 import {
@@ -6,25 +5,41 @@ import {
   getUsersAction,
 } from "@/modules/user/user.router";
 import { getInvitacionesPendientesAction } from "@/modules/invitacion/invitacion.router";
-import { ROLE_LABELS, creatableRoles } from "@/lib/permissions";
+import { ROLE_LABELS, canManageRole, creatableRoles } from "@/lib/permissions";
 import type { Role } from "@/modules/user/user.schema";
+import Tarjeta from "@/components/Tarjeta";
+import Insignia from "@/components/Insignia";
+import Mensaje from "@/components/Mensaje";
+import { BotonEnlace } from "@/components/Boton";
+import { Vacio } from "@/components/EstadosAsincronicos";
 import RevocarInvitacion from "./RevocarInvitacion";
+import EditarUsuario from "./EditarUsuario";
+import BajaDeUsuario from "./BajaDeUsuario";
 
 /**
  * Usuarios e invitaciones.
  *
- * Deliberately plain Tailwind. Issue #4 owns the design system and will restyle
- * this; building it beautifully now means paying for it twice. What is
- * load-bearing here is that the screen tells the truth: who has access, who was
- * invited and has not arrived yet, and which identities exist in the auth
- * provider with no Usuario behind them (user story 17, and the orphan ADR 0002
- * names).
+ * The screen tells the truth about three different things, which is why it is
+ * three sections and not one list: who has access, who was invited and has not
+ * arrived yet, and which identities exist in the auth provider with no Usuario
+ * behind them (user story 17, and the orphan ADR 0002 names).
+ *
+ * Cards, not the table this was. Four columns of email, rol, territory and estado
+ * is exactly the dense table the audience requirement rules out — it needed
+ * `overflow-x-auto` to fit a phone, which means the estado column was off-screen
+ * on the device most of these people use. It also had nowhere to put a control:
+ * the two things this screen could not do, ending an access and reassigning one,
+ * would each have arrived as a fifth and sixth column.
+ *
+ * Whether a row carries those controls is decided here, on the server, from the
+ * hierarchy — `canManageRole` is strictly-lower, so nobody is offered a button
+ * that would only refuse them. The services ask again. What is deliberately not
+ * offered is a baja on your own row: `UserService` refuses that, the rule lives
+ * there and is not re-implemented here, but there is no reason to render a button
+ * whose only possible outcome is that sentence.
  */
 
 export const dynamic = "force-dynamic";
-
-const CELDA = "px-3 py-3 text-left align-top text-lg text-neutral-900";
-const ENCABEZADO = "px-3 py-3 text-left text-base font-bold text-neutral-700";
 
 export default async function UsuariosPage() {
   const actor = await getCurrentUser();
@@ -42,136 +57,160 @@ export default async function UsuariosPage() {
       : Promise.resolve([]),
   ]);
 
+  const asignables = creatableRoles(actor.role);
+
   return (
-    <div className="space-y-10 p-6 text-lg">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Usuarios</h1>
-          <p className="text-lg text-neutral-700">
+          <h1 className="text-3xl font-bold text-tinta">Usuarios</h1>
+          <p className="mt-1 text-base text-tinta-suave">
             {usuarios.length === 1 ? "1 usuario" : `${usuarios.length} usuarios`}{" "}
             en tu territorio
           </p>
         </div>
 
-        <Link
-          href="/admin/users/new"
-          className="inline-flex min-h-12 items-center rounded-lg border-2 border-neutral-900 bg-neutral-900 px-4 text-lg font-semibold text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-        >
-          Invitar a alguien
-        </Link>
+        <BotonEnlace href="/admin/users/new">Invitar a alguien</BotonEnlace>
       </div>
 
       {/* ── Usuarios ── */}
-      <section className="space-y-3">
-        <h2 className="text-2xl font-bold text-neutral-900">Con acceso</h2>
-
+      <Tarjeta titulo="Con acceso">
         {usuarios.length === 0 ? (
-          <p className="rounded-lg border-2 border-neutral-400 p-4 text-lg text-neutral-700">
-            Todavía no hay usuarios en tu territorio.
-          </p>
+          <Vacio
+            titulo="Todavía no hay usuarios en tu territorio"
+            mensaje="Los accesos se dan de uno en uno, por invitación. Nadie se registra por su cuenta."
+            accion={
+              <BotonEnlace href="/admin/users/new">
+                Invitar a alguien
+              </BotonEnlace>
+            }
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b-2 border-neutral-400">
-                  <th className={ENCABEZADO}>Email</th>
-                  <th className={ENCABEZADO}>Rol</th>
-                  <th className={ENCABEZADO}>Diócesis/Localidad</th>
-                  <th className={ENCABEZADO}>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <tr key={u.id} className="border-b border-neutral-300">
-                    <td className={CELDA}>
-                      {u.email || "— sin identidad —"}
-                      {u.displayName ? (
-                        <span className="block text-base text-neutral-700">
-                          {u.displayName}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className={CELDA}>{ROLE_LABELS[u.role]}</td>
-                    <td className={CELDA}>
-                      {u.diocesisLocalidad
-                        ? `${u.diocesisLocalidad.nombre} (${u.diocesisLocalidad.provincia.nombre})`
-                        : "Todo el país"}
-                    </td>
-                    <td className={CELDA}>
-                      {u.deBaja ? "Dado de baja" : "Activo"}
-                      {u.sinIdentidad ? (
-                        <span className="block text-base font-semibold text-neutral-900">
-                          Sin identidad en el proveedor
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="space-y-5">
+            {usuarios.map((u) => {
+              const administrable = canManageRole(actor.role, u.role);
+
+              return (
+                <li
+                  key={u.id}
+                  className="space-y-3 border-b-2 border-borde pb-5 last:border-b-0 last:pb-0"
+                >
+                  <div>
+                    <p className="text-base font-bold text-tinta">
+                      {u.email || "Sin identidad en el proveedor"}
+                    </p>
+                    {u.displayName && (
+                      <p className="text-base text-tinta-suave">
+                        {u.displayName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Insignia tono={u.deBaja ? "neutro" : "exito"}>
+                      {u.deBaja ? "Sin acceso" : "Con acceso"}
+                    </Insignia>
+                    <Insignia tono="neutro">{ROLE_LABELS[u.role]}</Insignia>
+                  </div>
+
+                  <p className="text-base text-tinta-suave">
+                    {u.diocesisLocalidad
+                      ? `${u.diocesisLocalidad.nombre}, ${u.diocesisLocalidad.provincia.nombre}`
+                      : "Todo el país"}
+                  </p>
+
+                  {u.sinIdentidad && (
+                    // ADR 0002 declines a foreign key into neon_auth, because
+                    // Neon migrates that schema beneath us. So somebody deleted
+                    // from the Neon console leaves this row behind, and the
+                    // screen has to say so rather than listing an account that
+                    // cannot be signed into as though it were fine.
+                    <Mensaje tono="aviso">
+                      <p>
+                        Este usuario no existe en el proveedor de identidad, así
+                        que no puede entrar. Suele ser alguien borrado desde la
+                        consola de Neon.
+                      </p>
+                    </Mensaje>
+                  )}
+
+                  {administrable && (
+                    <div className="flex flex-wrap gap-3">
+                      <EditarUsuario
+                        id={u.id}
+                        email={u.email}
+                        rolActual={u.role}
+                        diocesisLocalidadIdActual={
+                          u.diocesisLocalidad?.id ?? null
+                        }
+                        rolesDisponibles={asignables}
+                      />
+
+                      {u.id !== actor.id && (
+                        <BajaDeUsuario
+                          id={u.id}
+                          email={u.email}
+                          deBaja={u.deBaja}
+                        />
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </section>
+      </Tarjeta>
 
       {/* ── Invitaciones pendientes — historia 13 ── */}
-      <section className="space-y-3">
-        <h2 className="text-2xl font-bold text-neutral-900">
-          Invitados que todavía no entraron
-        </h2>
-
+      <Tarjeta titulo="Invitados que todavía no entraron">
         {pendientes.length === 0 ? (
-          <p className="rounded-lg border-2 border-neutral-400 p-4 text-lg text-neutral-700">
+          <p className="text-base leading-relaxed text-tinta-suave">
             No hay invitaciones pendientes.
           </p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-5">
             {pendientes.map((i) => (
               <li
                 key={i.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-neutral-400 p-4"
+                className="space-y-3 border-b-2 border-borde pb-5 last:border-b-0 last:pb-0"
               >
-                <div>
-                  <p className="text-lg font-semibold text-neutral-900">
-                    {i.email}
-                  </p>
-                  <p className="text-base text-neutral-700">
-                    {ROLE_LABELS[i.rol]}
-                    {i.diocesisLocalidad
-                      ? ` — ${i.diocesisLocalidad.nombre}`
-                      : " — todo el país"}
-                  </p>
-                </div>
+                <p className="text-base font-bold text-tinta">{i.email}</p>
+                <p className="text-base text-tinta-suave">
+                  {ROLE_LABELS[i.rol]}
+                  {i.diocesisLocalidad
+                    ? ` — ${i.diocesisLocalidad.nombre}`
+                    : " — todo el país"}
+                </p>
 
                 <RevocarInvitacion id={i.id} email={i.email} />
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Tarjeta>
 
       {/* ── Identidades sin Usuario — historia 17 ── */}
-      {huerfanas.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-2xl font-bold text-neutral-900">
-            Identidades sin usuario
-          </h2>
-          <p className="text-lg text-neutral-700">
-            Estas personas pueden iniciar sesión en el proveedor pero no tienen
-            acceso al sistema. Suele ser un aprovisionamiento a medias.
-          </p>
-          <ul className="space-y-2">
-            {huerfanas.map((i) => (
-              <li
-                key={i.id}
-                className="rounded-lg border-2 border-neutral-400 p-4 text-lg text-neutral-900"
-              >
-                {i.email ?? i.id}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </div>
+      {huerfanas.length > 0 && (
+        <Tarjeta titulo="Identidades sin usuario">
+          <div className="space-y-4">
+            <p className="text-base leading-relaxed text-tinta-suave">
+              Estas personas pueden iniciar sesión en el proveedor pero no tienen
+              acceso al sistema. Suele ser un aprovisionamiento a medias: o les
+              falta la invitación, o entraron antes de tenerla.
+            </p>
+
+            <ul className="space-y-2">
+              {huerfanas.map((i) => (
+                <li key={i.id} className="text-base text-tinta">
+                  {i.email ?? i.id}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Tarjeta>
+      )}
+    </main>
   );
 }
 

@@ -12,6 +12,11 @@ import Link from "next/link";
  * "Entregar una imagen" is the verb rather than the noun on purpose: the other
  * two are places you go to look something up, this one is the thing you came to
  * record. It is last because it is the one with consequences.
+ *
+ * On the tokens now. This screen shipped with the same `ring-amber-400` the shell
+ * had — 1.8:1 against white, so the largest, most-used targets in the app carried
+ * the one focus indicator that failed. The global `:focus-visible` rule handles
+ * all three, which is why there is no ring in this file at all.
  */
 
 const ACCESOS = [
@@ -32,27 +37,24 @@ const ACCESOS = [
   },
 ];
 
-const ANILLO =
-  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-400 focus-visible:ring-offset-2";
-
 export const dynamic = "force-dynamic";
 
 export default function Page() {
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-8">
-      <h1 className="text-3xl font-bold text-neutral-900">¿Qué querés hacer?</h1>
+      <h1 className="text-3xl font-bold text-tinta">¿Qué querés hacer?</h1>
 
       <ul className="mt-6 space-y-4">
         {ACCESOS.map((acceso) => (
           <li key={acceso.href}>
             <Link
               href={acceso.href}
-              className={`flex min-h-24 flex-col justify-center gap-1 rounded-xl border-2 border-neutral-900 bg-white px-6 py-5 hover:bg-neutral-100 ${ANILLO}`}
+              className="flex min-h-24 flex-col justify-center gap-1 rounded-tarjeta border-2 border-borde-fuerte bg-papel px-6 py-5 no-underline hover:bg-fondo"
             >
-              <span className="text-2xl font-bold text-neutral-900">
+              <span className="text-2xl font-bold text-tinta">
                 {acceso.titulo}
               </span>
-              <span className="text-lg text-neutral-700">
+              <span className="text-base text-tinta-suave">
                 {acceso.descripcion}
               </span>
             </Link>
