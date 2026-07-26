@@ -7,19 +7,19 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 ## 2. Read these first
 
 - **`CONTEXT.md`** (repo root) — the domain glossary. It is authoritative for vocabulary. Use these exact terms in code, UI copy, and commit messages. Do not invent synonyms.
-- **`docs/adr/`** — decisions that are hard to reverse. Read before changing authorization or user provisioning.
+- **`docs/adr/`** — six decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, and 0006 before changing how the UI is tested.
 - **`docs/PRODUCTION-PLAN.md`** — current state, phases, and open questions.
 
 ## 3. Tech stack
 
-- **Framework:** Next.js 15.5 (App Router), TypeScript strict. The discarded prototype ran Next 16; upgrading the baseline is a separate task, sequenced with issue 4
+- **Framework:** Next.js 16 (App Router), TypeScript strict. `next lint` no longer exists; the entry point is the ESLint CLI, and `eslint-config-next` ships flat config directly
 - **Database:** Neon Postgres
 - **ORM:** Drizzle
 - **Auth:** Neon Auth (Managed Better Auth), identity in the `neon_auth` schema
 - **Styling:** Tailwind CSS v4, with own primitives — no component library
-- **Client data:** TanStack Query over typed wrappers
+- **Client data:** server components and server actions. TanStack Query is the chosen answer *when* a screen needs client-side fetching, and is deliberately **not installed yet** — nothing does. The one client-side read in the app, the territory picker, is an effect with three explicit states
 - **Validation:** Zod
-- **Tests:** Vitest against a real Postgres
+- **Tests:** Vitest, in two projects. `node` runs the services against a real Postgres; `navegador` runs the accessibility suite in Chromium through Playwright, with axe-core. `pnpm test` runs both — see `docs/TESTING.md` and ADR 0006
 
 ## 4. Architecture
 
@@ -54,7 +54,11 @@ Misioneros are data entities. They have no credentials and never sign in.
 
 The primary users are often older adults, entering every record by hand — there is no bulk importer. The forms carry the whole project.
 
-- **Accessibility:** large typography (18px base), high contrast (4.5:1 minimum), 48px minimum tap targets, visible focus rings that do not rely on colour alone. Never use a subtle hover effect as the only affordance.
+- **The design system exists; use it, do not restate it.** Tokens are declared in `src/app/globals.css` and nowhere else: `tinta`/`tinta-suave` for text, `papel`/`fondo` for surfaces, `borde`/`borde-fuerte` for edges, `accion`/`peligro` for the two kinds of consequence, the four `*-fondo`/`*-tinta` state pairs, and `radius-control`/`radius-tarjeta`. The primitives in `src/components/` read them: `Boton`/`BotonEnlace`, `Campo`, `AreaDeTexto`, `Eleccion`, `Tarjeta`, `Insignia`, `Mensaje`, `Volver`, `Dialogo`, `ConfirmarAccion`, and the three separate `EstadosAsincronicos`. A screen that writes its own `border-neutral-400` has opted out of the accessibility floor, which is a property of the token layer rather than something each page remembers.
+- **Accessibility, and what enforces each part.** 18px root on `html`; 4.5:1 for text and 3:1 for borders and focus, verified pairing by pairing in `src/app/contraste.test.ts`; 48px minimum targets, which `min-h-12` clears at 54px; one `:focus-visible` rule in `globals.css` whose ring is *geometry* rather than hue, so it works for somebody who cannot tell the colours apart. Never use a subtle hover effect as the only affordance — every `Boton` variant carries a border, which is why there is no ghost variant.
+- **The two test files are complementary.** `contraste.test.ts` proves the token values clear their ratios against each other. The `navegador` project proves the components actually use them, by mounting them with the real stylesheet and reading computed styles. A perfect palette applied to nothing passes the first and fails the second.
+- **Status never lives in colour alone.** Roughly one man in twelve cannot use the hue. `Insignia` and `Mensaje` each carry a glyph and a word; the glyph is `aria-hidden` because it is reinforcement, not a second thing to learn.
+- **`Mensaje` derives its ARIA role from its tone.** `alerta` interrupts, everything else does not. A confirmation announced as an alert cuts a screen reader off mid-sentence; a refusal announced as a status is never read out at all. Do not choose the role at the call site.
 - **Simplicity over density:** no nested menus, no dense tables.
 - **Stepped flows:** complex actions are paginated — "Paso 1: Elegir Misionero" → "Paso 2: Elegir Imagen" → "Confirmar".
 - **Every async surface has three states:** loading, error with a retry, and empty. A silently blank table is a bug.
@@ -64,9 +68,10 @@ The primary users are often older adults, entering every record by hand — ther
 
 ## 7. Coding rules
 
-- **Styling:** Tailwind utilities only. Tokens in a `@theme` block. No inline `style={{}}`, no bespoke CSS class systems, no CSS modules in new code.
+- **Styling:** Tailwind utilities only. Tokens in a `@theme` block. No inline `style={{}}`, no bespoke CSS class systems, no CSS modules. This is a lint rule and not an aspiration: `no-restricted-syntax` in `eslint.config.mjs` fails `pnpm lint` on a `style={{}}` attribute, a `.module.css` import, or any `.css` import that is not `globals.css`. Do not add an `eslint-disable`; if a value is missing, add it to `@theme`.
+- **Write the utility, not the variable.** Tailwind v4 mints utilities from `@theme`, so it is `bg-accion`, `text-tinta`, `rounded-control` — never `bg-[var(--color-accion)]`. Anything that is *not* meant to become a utility belongs in `:root` instead, which is why the focus ring's geometry lives there.
 - **Validation:** Zod schemas are the source of truth for input shapes; infer types from them. Parse at the router boundary — invalid input must never reach a service.
-- **Códigos are generated, never typed.** Format `[Provincia Modalidad Número]`, sequential per provincia + modalidad pair. Never parse a código to derive territory or permissions.
+- **Códigos are generated, never typed.** Format `[Provincia Modalidad Número]`, sequential per Provincia + Modalidad pair. There are **sixteen** Modalidades, as three-letter codes — build any picker from the enum through `MODALIDAD_LABELS`, never from a hand-written list. Never parse a Código to derive territory or permissions.
 - **Soft delete only.** Records are given de baja, never destroyed, because Asignación history must keep resolving to real names. Peregrina, Misionero and Usuario each carry `bajaAt`; repositories exclude those rows by default and a caller wanting them passes `incluirBajas`. There is no `delete` on any service. Both bajas are **refused while an Asignación is open** — an image in somebody's house has not left the inventory.
 - **Charge changes in exactly one place.** `AsignacionService.asignar`, `entregar`, `devolver` and `corregir`. A Peregrina has at most one open Asignación, enforced in the service *and* by a partial unique index on open rows. Never write `peregrina.misioneroActualId` outside `AsignacionRepository`: it is derived from the open Asignación, in the same transaction.
 - **Estado is about the image, not about who has it.** `activa`, `en_reparacion`, `extraviada`, plus the legacy `inactiva`, which is readable and excluded from new entry (`ESTADOS_SELECCIONABLES`). Marking a Peregrina `extraviada` deliberately leaves the open Asignación open — closing it deletes the answer to "who had it".
@@ -77,7 +82,7 @@ The primary users are often older adults, entering every record by hand — ther
 
 ## 8. Notes for agents
 
-- `agents.md` previously conflated Modalidad with Tipo and called the territory a "zone". If this file and `CONTEXT.md` ever disagree, `CONTEXT.md` wins — and fix this file.
+- If this file and `CONTEXT.md` ever disagree, `CONTEXT.md` wins — and fix this file.
 - **A new enum value cannot be used in the transaction that adds it**, and Drizzle wraps each migration file in one. Split the addition and the first use into two files.
 - **`drizzle-kit generate` prompts interactively** when a column is added while another is dropped, and there is no `--force`. Split the diff into an additive migration and a dropping one — which is also the order a backfill needs.
 - **Transactions work in production now.** `src/db/index.ts` uses `neon-serverless`, not `neon-http`, which throws on `db.transaction` — a bug that would have passed the suite and failed only on deploy (ADR 0004).

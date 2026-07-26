@@ -1,13 +1,22 @@
 # Pruebas
 
-Vitest against a real Postgres. There is one seam — the service — and one command:
+Two Vitest projects, one command:
 
 ```bash
-pnpm test:db:up   # once per machine; starts a throwaway Postgres on :55432
+pnpm test:db:up                            # once per machine; throwaway Postgres on :55432
+pnpm exec playwright install chromium      # once per machine; ~115 MB
 pnpm test
 ```
 
-`pnpm test:db:down` removes the container. `pnpm test:watch` reruns on change.
+| Project | What it is | Where it runs |
+|---|---|---|
+| `node` | The services, against a real Postgres. One seam, and the rules of the project live behind it | Node |
+| `navegador` | The accessibility suite. Components mounted with the real stylesheet, plus axe-core | Chromium, through Playwright, at 390×844 |
+
+`pnpm test` runs both, and that is the default on purpose — an accessibility suite you
+have to remember to run is not run. `pnpm test:node` and `pnpm test:navegador` exist
+for when you want one of them. `pnpm test:db:down` removes the container.
+`pnpm test:watch` reruns on change.
 
 ## Why a real database, and only one seam
 
@@ -17,10 +26,11 @@ with whatever the test author already believed. So the suite calls
 `Service.method(actor, input)` against real Postgres and asserts on what comes
 back.
 
-That means: no repository tests, no component tests, no asserting on query
-builders or row shapes. A test that reaches past the service is testing the
-plumbing rather than the rule. (Issue 4 adds browser-level accessibility checks
-and says so explicitly — that is the one exception.)
+That means: no repository tests, no asserting on query builders or row shapes. A test
+that reaches past the service is testing the plumbing rather than the rule.
+
+The `navegador` project is the one stated exception, and it is a different kind of
+question — see below and ADR 0006.
 
 **A scope filter change requires a test proving out-of-territory data stays
 invisible.** The negative half is the test: asserting that a Responsable
@@ -34,14 +44,22 @@ Diocesano sees their own Diócesis passes just as well when they see everybody's
 | `src/test/global-setup.ts` | Once per run: drops `public` and replays every migration onto it |
 | `src/test/setup.ts` | Before each test: truncates every table |
 | `src/test/factories.ts` | Fabricates an Actor for a rol and territory, and seeds fixtures |
+| `src/test/setup-navegador.ts` | The browser project's setup: imports the real stylesheet, unmounts between tests |
+| `src/test/accesibilidad.ts` | Contrast, target size, focus order and axe, measured from computed values |
 
-`global-setup.ts` also creates a stand-in for `neon_auth."user"`. Neon owns
-and migrates that schema (ADR 0002), so it is deliberately absent from our
-migrations — which would otherwise leave the suite unable to exercise the join
-that puts emails on the user-management screen, or the warning about an identity
-with no Usuario. The stand-in is kept in step with `src/db/schema/neon-auth.ts`
-by hand; if a query fails there for a missing column, that is the file to
-compare against.
+`global-setup.ts` also creates a stand-in for the identity table. Neon owns and
+migrates that schema (ADR 0002), so it is deliberately absent from our migrations —
+which would otherwise leave the suite unable to exercise the join that puts emails on
+the user-management screen, or the warning about an identity with no Usuario.
+
+**The stand-in is the one place in this suite that can agree with itself and with
+nothing else,** and it did. This is a Managed Better Auth project, so the table is
+`neon_auth."user"` and not `neon_auth.users_sync`, and its `id` is `uuid` while
+`users.id` is `text`. The harness built its stand-in from our own schema file, so
+both mismatches were invisible here and every authenticated page threw in
+production. If you touch `src/db/schema/neon-auth.ts` or anything in
+`src/modules/user/`, the thing to compare against is the live database, not this
+file — a green suite is not evidence about a table we do not own.
 
 Migrations are **replayed**, not pushed. The tests exercise the same SQL
 production will, so a migration that is wrong fails here instead of on deploy.
@@ -141,6 +159,49 @@ transaction that adds it**, and Drizzle wraps each file in one — so adding
 whether a column added alongside a column dropped is a rename, with no `--force`, so
 the additive migration and the dropping one are separate — which is also the order a
 backfill needs, since it reads the column that is about to go.
+
+## The accessibility suite
+
+`src/test/setup-navegador.ts`, `src/test/accesibilidad.ts`, and four test files:
+`Dialogo`, `ConfirmarAccion`, the primitives together, and `FlujoDeAsignacion`. Named
+`*.test.tsx` — the `node` project takes `*.test.ts` only, so a component test cannot
+be collected there and fail for want of a DOM.
+
+Every assertion reads a **computed** value: `getComputedStyle` for contrast,
+`getBoundingClientRect` for target size, `Element.checkVisibility` for what the
+keyboard can actually reach. That is what the setup file's stylesheet import is for.
+`min-h-12` is a class name and not a height until Tailwind has turned it into one, so
+a suite run against unstyled markup would pass while asserting nothing — which is not
+hypothetical: the dashboard shell rendered completely unstyled for three issues
+because eleven classNames came from a zero-byte CSS module.
+
+Two files, two halves of the same promise. `src/app/contraste.test.ts` runs in the
+**node** project and verifies the token *values* against each other, pairing by
+pairing. The `navegador` project verifies that the components use them. A perfect
+palette applied to nothing passes the first and fails the second, so neither is
+sufficient and neither replaces the other.
+
+axe-core runs with the WCAG 2.0/2.1/2.2 A and AA tags — wider than its default, since
+target size and focus appearance are 2.2 additions. Only `violations` are asserted
+on; `incomplete` means "axe cannot tell", and treating that as a failure would make
+the suite noisy in exactly the cases a person has to look at anyway. axe is the floor.
+It cannot tell whether a confirmation names what it is about to change, or whether
+Escape means cancel, so the interesting tests are hand-written.
+
+**What only this suite can catch.** Escape must not confirm: the platform fires one
+`close` event for the Escape key and for `close()`, so a component treating every
+close as a confirmation would give records de baja by keystroke — and would look
+entirely correct to anybody testing with a mouse. And `FlujoDeAsignacion` chooses
+between `asignar` and `entregar` depending on whether the image is already out; both
+services are tested, and which one the screen calls is a UI fact.
+
+The two mocks are deliberate and minimal. `next/navigation` is spread from the real
+module and only `useRouter` replaced, and `"use server"` routers are replaced by
+spies — importing one in a browser would pull in the service, the repository and
+`src/db`. Whether the Actor may do the thing is the node project's question.
+
+Failure screenshots land in `__screenshots__/` and are git-ignored: artefacts of a
+run, never of the repository.
 
 ## Environment
 
