@@ -88,34 +88,38 @@ export async function addResumenAnualAction(
   return result;
 }
 
-export async function deleteMisioneroAction(
+/**
+ * Gives a Misionero de baja — user stories 12 to 15.
+ *
+ * There is no delete action, and there is no `assignPeregrinaAction` either. The
+ * first would destroy the history; the second was the pointer-and-overwrite
+ * mechanism Asignación replaces, and leaving it would have been a second,
+ * unguarded way to change charge. Charge changes through
+ * `asignacion.router.ts` — nowhere else.
+ */
+export async function darDeBajaMisioneroAction(
   id: string
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await aResultado(() => MisioneroService.delete(actor, id));
+  const result = await aResultado(() => MisioneroService.darDeBaja(actor, id));
 
-  if (result.ok) revalidatePath("/misionero");
+  if (result.ok) {
+    revalidatePath("/misionero");
+    revalidatePath(`/misionero/${id}`);
+  }
 
   return result;
 }
 
-/**
- * Assigns (or unassigns) a Peregrina to a Misionero.
- * The FK lives on `misionero.peregrinaId`, so this mutation belongs here.
- */
-export async function assignPeregrinaAction(
-  misioneroId: string,
-  peregrinaId: string | null
+export async function reactivarMisioneroAction(
+  id: string
 ): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await aResultado(() =>
-    MisioneroService.update(actor, misioneroId, { peregrinaId })
-  );
+  const result = await aResultado(() => MisioneroService.reactivar(actor, id));
 
   if (result.ok) {
     revalidatePath("/misionero");
-    revalidatePath(`/misionero/${misioneroId}`);
-    revalidatePath("/peregrina");
+    revalidatePath(`/misionero/${id}`);
   }
 
   return result;

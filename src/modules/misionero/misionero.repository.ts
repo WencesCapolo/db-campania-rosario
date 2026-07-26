@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { misionero } from "./misionero.schema";
-import { eq, desc, ilike, or, and, sql } from "drizzle-orm";
+import { eq, desc, ilike, or, and, sql, isNull, asc } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { MisioneroRow, NewMisioneroRow, MisioneroEstado } from "./misionero.schema";
 import {
@@ -24,6 +24,19 @@ export interface MisioneroConTerritorio {
   provincia: ProvinciaRow;
 }
 
+/**
+ * Whether a read includes Misioneros given de baja.
+ *
+ * Excluded by default: user story 12 is precisely "they stop appearing in my
+ * active lists". History is the exception, and it does not come through this
+ * repository — `AsignacionRepository` joins `misionero` without the filter, so a
+ * Misionero who has left the Campaña keeps resolving by name inside every period
+ * they held (user story 15).
+ */
+export interface OpcionesDeLectura {
+  incluirBajas?: boolean;
+}
+
 function conTerritorio() {
   return db
     .select({ misionero, diocesis: diocesisLocalidad, provincia })
@@ -42,10 +55,16 @@ function condicionDeAlcance(alcance: Alcance) {
     : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId);
 }
 
-function conAlcance(alcance: Alcance, ...extras: (SQL | undefined)[]) {
-  const filtros = [condicionDeAlcance(alcance), ...extras].filter(
-    (f) => f !== undefined
-  );
+function conAlcance(
+  alcance: Alcance,
+  opts: OpcionesDeLectura,
+  ...extras: (SQL | undefined)[]
+) {
+  const filtros = [
+    condicionDeAlcance(alcance),
+    opts.incluirBajas ? undefined : isNull(misionero.bajaAt),
+    ...extras,
+  ].filter((f) => f !== undefined);
   return filtros.length ? and(...filtros) : undefined;
 }
 
@@ -53,7 +72,8 @@ function conAlcance(alcance: Alcance, ...extras: (SQL | undefined)[]) {
  * MisioneroRepository
  *
  * Responsibility: raw database access for the `misionero` table.
- * No business logic. No permission checks.
+ * No business logic. No permission checks. Excludes records given de baja by
+ * default.
  *
  * Every read takes an `Alcance` first, required, so a read added later cannot
  * quietly omit the scope — it fails to compile instead (user story 20).
@@ -63,10 +83,11 @@ export class MisioneroRepository {
 
   static async findById(
     alcance: Alcance,
-    id: string
+    id: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio | undefined> {
     const [row] = await conTerritorio()
-      .where(conAlcance(alcance, eq(misionero.id, id)))
+      .where(conAlcance(alcance, opts, eq(misionero.id, id)))
       .limit(1);
     return row;
   }
@@ -75,6 +96,8 @@ export class MisioneroRepository {
    * The row regardless of territory, so a mutation can tell "does not exist"
    * apart from "not yours" before refusing. A primary-key lookup, named to make
    * the bypass visible; its callers compare the territory immediately.
+   *
+   * Includes records given de baja — reactivating one is a mutation too.
    */
   static async findByIdSinAlcance(
     id: string
@@ -83,38 +106,45 @@ export class MisioneroRepository {
     return row;
   }
 
-  static async findAll(alcance: Alcance): Promise<MisioneroConTerritorio[]> {
+  static async findAll(
+    alcance: Alcance,
+    opts: OpcionesDeLectura = {}
+  ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance))
+      .where(conAlcance(alcance, opts))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByEstado(
     alcance: Alcance,
-    estado: MisioneroEstado
+    estado: MisioneroEstado,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(misionero.estado, estado)))
+      .where(conAlcance(alcance, opts, eq(misionero.estado, estado)))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByRegion(
     alcance: Alcance,
-    region: Region
+    region: Region,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(provincia.region, region)))
+      .where(conAlcance(alcance, opts, eq(provincia.region, region)))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByDiocesisLocalidad(
     alcance: Alcance,
-    diocesisLocalidadId: string
+    diocesisLocalidadId: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
       .where(
         conAlcance(
           alcance,
+          opts,
           eq(misionero.diocesisLocalidadId, diocesisLocalidadId)
         )
       )
@@ -124,13 +154,15 @@ export class MisioneroRepository {
   /** ilike, not like: someone searching "gomez" means Gómez. */
   static async search(
     alcance: Alcance,
-    query: string
+    query: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     const term = `%${query}%`;
     return conTerritorio()
       .where(
         conAlcance(
           alcance,
+          opts,
           or(
             ilike(misionero.nombre, term),
             ilike(misionero.apellido, term),
@@ -143,11 +175,21 @@ export class MisioneroRepository {
 
   static async findByCreator(
     alcance: Alcance,
-    createdById: string
+    createdById: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(misionero.createdById, createdById)))
+      .where(conAlcance(alcance, opts, eq(misionero.createdById, createdById)))
       .orderBy(desc(misionero.createdAt));
+  }
+
+  /** Alphabetical, for the first step of the assignment flow. */
+  static async findParaElegir(
+    alcance: Alcance
+  ): Promise<MisioneroConTerritorio[]> {
+    return conTerritorio()
+      .where(conAlcance(alcance, {}))
+      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────
@@ -162,7 +204,9 @@ export class MisioneroRepository {
 
   static async update(
     id: string,
-    data: Partial<Omit<MisioneroRow, "id" | "createdById" | "createdAt">>
+    data: Partial<
+      Omit<MisioneroRow, "id" | "createdById" | "createdAt" | "bajaAt">
+    >
   ): Promise<MisioneroConTerritorio> {
     const [row] = await db
       .update(misionero)
@@ -199,14 +243,36 @@ export class MisioneroRepository {
     return actualizado;
   }
 
-  static async delete(id: string): Promise<void> {
-    await db.delete(misionero).where(eq(misionero.id, id));
+  /**
+   * Baja lógica — user stories 12 and 15. There is no `delete`: destroying a
+   * Misionero would destroy the record of what they were responsible for, which is
+   * exactly the history this issue exists to keep.
+   *
+   * `undefined` means they were already de baja.
+   */
+  static async darDeBaja(id: string): Promise<MisioneroRow | undefined> {
+    const [row] = await db
+      .update(misionero)
+      .set({ bajaAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(misionero.id, id), isNull(misionero.bajaAt)))
+      .returning();
+    return row;
+  }
+
+  static async reactivar(id: string): Promise<MisioneroRow | undefined> {
+    const [row] = await db
+      .update(misionero)
+      .set({ bajaAt: null, updatedAt: new Date() })
+      .where(and(eq(misionero.id, id), sql`${misionero.bajaAt} is not null`))
+      .returning();
+    return row;
   }
 
   // ── Stats helpers ──────────────────────────────────────────────────────────
 
   static async countByEstado(
-    alcance: Alcance
+    alcance: Alcance,
+    opts: OpcionesDeLectura = {}
   ): Promise<{ estado: string; count: number }[]> {
     return db
       .select({
@@ -214,7 +280,7 @@ export class MisioneroRepository {
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(misionero)
-      .where(conAlcance(alcance))
+      .where(conAlcance(alcance, opts))
       .groupBy(misionero.estado);
   }
 }

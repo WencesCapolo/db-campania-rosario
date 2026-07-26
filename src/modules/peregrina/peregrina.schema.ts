@@ -9,15 +9,39 @@ import {
 import { relations } from "drizzle-orm";
 import { users } from "@/db/schema/users";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
-// ↑ One-way import: peregrina → territorio. Territorio depends on nothing.
+import { misionero } from "@/modules/misionero/misionero.schema";
+// ↑ One-way imports: peregrina → territorio, peregrina → misionero.
+//
+// That second one reversed in issue #3. Misionero used to point at the Peregrina
+// in its charge; charge is now an Asignación, and the pointer that remains is
+// the denormalised `misioneroActualId` below. The chain is now
+// territorio → misionero → peregrina → asignacion, and misionero.schema no
+// longer imports this file.
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 // These live here because peregrina owns them.
-// misionero.schema imports them from here — no circular dependency.
 
+/**
+ * The condition of the image, and nothing about who has it.
+ *
+ * `en_reparacion` and `extraviada` are the two states anyone actually acts on,
+ * and until issue #3 they were indistinguishable from an image simply not in
+ * use. `inactiva` is kept because records already carry it: rewriting it to
+ * `activa` would assert something untrue about an image somebody marked inactive
+ * for a reason, and rewriting it to `extraviada` would invent a claim that
+ * images are lost. It stays readable and is excluded from new entry — see
+ * `ESTADOS_SELECCIONABLES` in peregrina.types — so a Referente corrects each one
+ * knowingly.
+ *
+ * Estado is independent of whether an Asignación is open. Marking a Peregrina
+ * `extraviada` deliberately leaves the open Asignación open: the image is still
+ * somebody's responsibility, and that is precisely the information needed.
+ */
 export const peregrinaEstadoEnum = pgEnum("peregrina_estado", [
   "activa",
   "inactiva",
+  "en_reparacion",
+  "extraviada",
 ]);
 
 export const peregrinaTipoEnum = pgEnum("peregrina_tipo", [
@@ -37,8 +61,6 @@ export const modalidadEnum = pgEnum("modalidad", [
 ]);
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-// Peregrina is fully independent — it has NO FK to misionero.
-// A misionero references the peregrina they are responsible for, not the other way around.
 
 export const peregrina = pgTable(
   "peregrina",
@@ -63,6 +85,29 @@ export const peregrina = pgTable(
 
     modalidad: modalidadEnum("modalidad").notNull(),
 
+    /**
+     * The Misionero who has this image right now — a *denormalised* copy of the
+     * open Asignación's `misioneroId`, so that a list of two hundred Peregrinas
+     * does not need a join per row.
+     *
+     * Derived, never written independently: every write goes through
+     * `AsignacionService`, which sets it in the same transaction that opens or
+     * closes an Asignación. The Asignación table is the source of truth; if the
+     * two ever disagree, this column is the one that is wrong.
+     */
+    misioneroActualId: text("misionero_actual_id").references(
+      () => misionero.id
+    ),
+
+    /**
+     * Baja lógica — user story 16. A Peregrina permanently out of service leaves
+     * the active inventory without erasing its history, because every Asignación
+     * has to keep resolving to a real Código and a real name. Refused while an
+     * Asignación is still open: an image that is physically with somebody has not
+     * left the inventory, whatever the paperwork says.
+     */
+    bajaAt: timestamp("baja_at", { withTimezone: true }),
+
     // Auditoría
     createdById: text("created_by_id")
       .notNull()
@@ -82,12 +127,14 @@ export const peregrina = pgTable(
     index("peregrina_diocesis_localidad_idx").on(t.diocesisLocalidadId),
     index("peregrina_estado_idx").on(t.estado),
     index("peregrina_modalidad_idx").on(t.modalidad),
+    // Active inventory excludes bajas, which is every list by default.
+    index("peregrina_baja_idx").on(t.bajaAt),
+    // "Who has this one" on a list screen reads straight off this column.
+    index("peregrina_misionero_actual_idx").on(t.misioneroActualId),
   ]
 );
 
 // ── Relations ─────────────────────────────────────────────────────────────────
-// The misionero → peregrina relation is declared in misionero.schema to avoid
-// a circular import. Here we only know about users and territorio.
 
 export const peregrinaRelations = relations(peregrina, ({ one }) => ({
   createdBy: one(users, {
@@ -97,6 +144,10 @@ export const peregrinaRelations = relations(peregrina, ({ one }) => ({
   diocesisLocalidad: one(diocesisLocalidad, {
     fields: [peregrina.diocesisLocalidadId],
     references: [diocesisLocalidad.id],
+  }),
+  misioneroActual: one(misionero, {
+    fields: [peregrina.misioneroActualId],
+    references: [misionero.id],
   }),
 }));
 

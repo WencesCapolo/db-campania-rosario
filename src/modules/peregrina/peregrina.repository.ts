@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { peregrina } from "./peregrina.schema";
-import { eq, desc, and, max, sql, asc } from "drizzle-orm";
+import { eq, desc, and, max, sql, asc, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type {
   PeregrinaRow,
@@ -17,27 +17,52 @@ import type {
   ProvinciaRow,
   Region,
 } from "@/modules/territorio/territorio.schema";
+import { misionero } from "@/modules/misionero/misionero.schema";
+import type { MisioneroRow } from "@/modules/misionero/misionero.schema";
 import type { Alcance } from "@/lib/authorization/alcance";
 
 /**
  * A Peregrina is never useful without its territory resolved — Provincia and
- * Región are derived by traversal, so every read joins them in.
+ * Región are derived by traversal, so every read joins them in — and a list is
+ * not useful without knowing who has each image, so the tenencia actual comes
+ * along too.
+ *
+ * That last join is on the denormalised `misioneroActualId`, which is one join for
+ * the whole query rather than a lookup per row. The Asignación table remains the
+ * source of truth; this is a cache of its open row, written only by
+ * `AsignacionRepository`.
  */
 export interface PeregrinaConTerritorio {
   peregrina: PeregrinaRow;
   diocesis: DiocesisLocalidadRow;
   provincia: ProvinciaRow;
+  misioneroActual: MisioneroRow | null;
+}
+
+/**
+ * Whether a read includes records given de baja.
+ *
+ * Excluded by default, everywhere: "the active inventory" is what a Referente
+ * means by a list. A caller that wants a retired record has to say so, which
+ * makes every such call visible at the call site.
+ */
+export interface OpcionesDeLectura {
+  incluirBajas?: boolean;
 }
 
 function conTerritorio() {
   return db
-    .select({ peregrina, diocesis: diocesisLocalidad, provincia })
+    .select({ peregrina, diocesis: diocesisLocalidad, provincia, misioneroActual: misionero })
     .from(peregrina)
     .innerJoin(
       diocesisLocalidad,
       eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
     )
-    .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
+    .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
+    // Left, and not filtered on the Misionero's own baja: if a Misionero given de
+    // baja still shows as holding an image, that is a fact worth seeing, not one
+    // worth hiding. `MisioneroService.darDeBaja` refuses precisely that pairing.
+    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId));
 }
 
 /**
@@ -55,11 +80,14 @@ function condicionDeAlcance(alcance: Alcance) {
 
 function conAlcance(
   alcance: Alcance,
+  opts: OpcionesDeLectura,
   ...extras: (SQL | undefined)[]
 ) {
-  const filtros = [condicionDeAlcance(alcance), ...extras].filter(
-    (f) => f !== undefined
-  );
+  const filtros = [
+    condicionDeAlcance(alcance),
+    opts.incluirBajas ? undefined : isNull(peregrina.bajaAt),
+    ...extras,
+  ].filter((f) => f !== undefined);
   return filtros.length ? and(...filtros) : undefined;
 }
 
@@ -67,21 +95,28 @@ function conAlcance(
  * PeregrinaRepository
  *
  * Responsibility: raw database access for the `peregrina` table.
- * No business logic. No permission checks.
+ * No business logic. No permission checks. Excludes records given de baja by
+ * default.
  *
  * Every read takes an `Alcance` as its first parameter, mirroring the Actor-first
  * rule one layer up. It is required rather than optional on purpose: a new read
  * that forgets to scope itself does not compile, which is user story 20.
+ *
+ * `misioneroActualId` is deliberately absent from every write signature here. It
+ * is derived from the open Asignación and written only by `AsignacionRepository`,
+ * inside the transaction that opens or closes one — a second writer is how a
+ * denormalised column starts lying.
  */
 export class PeregrinaRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   static async findById(
     alcance: Alcance,
-    id: string
+    id: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio | undefined> {
     const [row] = await conTerritorio()
-      .where(conAlcance(alcance, eq(peregrina.id, id)))
+      .where(conAlcance(alcance, opts, eq(peregrina.id, id)))
       .limit(1);
     return row;
   }
@@ -93,6 +128,9 @@ export class PeregrinaRepository {
    * Named so the bypass is visible at the call site. It is a primary-key lookup,
    * so it cannot enumerate anything, and its only callers immediately compare
    * the row's territory against the Actor's scope.
+   *
+   * Includes records given de baja, because reactivating one is a mutation too,
+   * and "no existe" would be a lie the operator has to debug.
    */
   static async findByIdSinAlcance(
     id: string
@@ -101,47 +139,55 @@ export class PeregrinaRepository {
     return row;
   }
 
-  static async findAll(alcance: Alcance): Promise<PeregrinaConTerritorio[]> {
+  static async findAll(
+    alcance: Alcance,
+    opts: OpcionesDeLectura = {}
+  ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance))
+      .where(conAlcance(alcance, opts))
       .orderBy(desc(peregrina.createdAt));
   }
 
   static async findByEstado(
     alcance: Alcance,
-    estado: PeregrinaEstado
+    estado: PeregrinaEstado,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(peregrina.estado, estado)))
+      .where(conAlcance(alcance, opts, eq(peregrina.estado, estado)))
       .orderBy(desc(peregrina.createdAt));
   }
 
   static async findByRegion(
     alcance: Alcance,
-    region: Region
+    region: Region,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(provincia.region, region)))
+      .where(conAlcance(alcance, opts, eq(provincia.region, region)))
       .orderBy(desc(peregrina.createdAt));
   }
 
   static async findByModalidad(
     alcance: Alcance,
-    modalidad: Modalidad
+    modalidad: Modalidad,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(peregrina.modalidad, modalidad)))
+      .where(conAlcance(alcance, opts, eq(peregrina.modalidad, modalidad)))
       .orderBy(desc(peregrina.createdAt));
   }
 
   static async findByDiocesisLocalidad(
     alcance: Alcance,
-    diocesisLocalidadId: string
+    diocesisLocalidadId: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(
         conAlcance(
           alcance,
+          opts,
           eq(peregrina.diocesisLocalidadId, diocesisLocalidadId)
         )
       )
@@ -150,20 +196,31 @@ export class PeregrinaRepository {
 
   static async findByProvincia(
     alcance: Alcance,
-    provinciaId: string
+    provinciaId: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(provincia.id, provinciaId)))
+      .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
       .orderBy(asc(peregrina.codigo));
   }
 
   static async findByCreator(
     alcance: Alcance,
-    createdById: string
+    createdById: string,
+    opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, eq(peregrina.createdById, createdById)))
+      .where(conAlcance(alcance, opts, eq(peregrina.createdById, createdById)))
       .orderBy(desc(peregrina.createdAt));
+  }
+
+  /** Images nobody has right now, for the assignment flow's second step. */
+  static async findDisponibles(
+    alcance: Alcance
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
+      .where(conAlcance(alcance, {}, isNull(peregrina.misioneroActualId)))
+      .orderBy(asc(peregrina.codigo));
   }
 
   /**
@@ -173,9 +230,10 @@ export class PeregrinaRepository {
    * which is what made the old numbering unreliable: "Córdoba" and "cordoba "
    * each ran their own sequence and produced colliding Códigos.
    *
-   * Deliberately not scoped. A Código is globally unique and its sequence runs
-   * per Provincia, so narrowing this to the Actor's Diócesis would restart the
-   * numbering inside each town and mint duplicates. It reads a max, never a row.
+   * Deliberately not scoped, and deliberately counting records given de baja. A
+   * Código is globally unique and physically written on an image; skipping a
+   * retired one's número would eventually mint a duplicate of something sitting
+   * in a cupboard.
    */
   static async nextCodigoNum(
     provinciaId: string,
@@ -210,7 +268,16 @@ export class PeregrinaRepository {
   static async update(
     id: string,
     data: Partial<
-      Omit<PeregrinaRow, "id" | "codigo" | "codigoNum" | "createdById" | "createdAt">
+      Omit<
+        PeregrinaRow,
+        | "id"
+        | "codigo"
+        | "codigoNum"
+        | "createdById"
+        | "createdAt"
+        | "misioneroActualId"
+        | "bajaAt"
+      >
     >
   ): Promise<PeregrinaConTerritorio> {
     const [row] = await db
@@ -224,14 +291,37 @@ export class PeregrinaRepository {
     return actualizada;
   }
 
-  static async delete(id: string): Promise<void> {
-    await db.delete(peregrina).where(eq(peregrina.id, id));
+  /**
+   * Baja lógica — user story 16. There is no `delete`, and that is the point:
+   * every Asignación has to keep resolving to a real Código, so a Peregrina that
+   * leaves the inventory leaves it as a row.
+   *
+   * `undefined` means it was already de baja, which the predicate makes a fact
+   * rather than a race.
+   */
+  static async darDeBaja(id: string): Promise<PeregrinaRow | undefined> {
+    const [row] = await db
+      .update(peregrina)
+      .set({ bajaAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(peregrina.id, id), isNull(peregrina.bajaAt)))
+      .returning();
+    return row;
+  }
+
+  static async reactivar(id: string): Promise<PeregrinaRow | undefined> {
+    const [row] = await db
+      .update(peregrina)
+      .set({ bajaAt: null, updatedAt: new Date() })
+      .where(and(eq(peregrina.id, id), sql`${peregrina.bajaAt} is not null`))
+      .returning();
+    return row;
   }
 
   // ── Stats helpers ──────────────────────────────────────────────────────────
 
   static async countByEstado(
-    alcance: Alcance
+    alcance: Alcance,
+    opts: OpcionesDeLectura = {}
   ): Promise<{ estado: string; count: number }[]> {
     return db
       .select({
@@ -239,12 +329,13 @@ export class PeregrinaRepository {
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(peregrina)
-      .where(conAlcance(alcance))
+      .where(conAlcance(alcance, opts))
       .groupBy(peregrina.estado);
   }
 
   static async countByRegion(
-    alcance: Alcance
+    alcance: Alcance,
+    opts: OpcionesDeLectura = {}
   ): Promise<{ region: string; count: number }[]> {
     return db
       .select({
@@ -257,7 +348,7 @@ export class PeregrinaRepository {
         eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
       )
       .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      .where(conAlcance(alcance))
+      .where(conAlcance(alcance, opts))
       .groupBy(provincia.region);
   }
 }

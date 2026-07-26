@@ -169,14 +169,13 @@ describe.each([
     ).rejects.toThrow(NoAutorizadoError);
   });
 
-  it("NO puede eliminar uno ajeno, y el registro sigue existiendo", async () => {
+  it("NO puede dar de baja uno ajeno, y el registro sigue activo", async () => {
     await expect(
-      MisioneroService.delete(obtenerActor(), ajeno.id)
+      MisioneroService.darDeBaja(obtenerActor(), ajeno.id)
     ).rejects.toThrow(NoAutorizadoError);
 
-    await expect(
-      MisioneroService.getById(asesor, ajeno.id)
-    ).resolves.toBeTruthy();
+    const intacto = await MisioneroService.getById(asesor, ajeno.id);
+    expect(intacto.deBaja).toBe(false);
   });
 
   it("NO puede registrar en la Diócesis vecina", async () => {

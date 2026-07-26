@@ -66,7 +66,8 @@ Whether a Peregrina is a `peregrina` or an `auxiliar`. Independent of Modalidad.
 _Avoid_: Modalidad
 
 **Estado**:
-The condition of a Peregrina: Activa, En reparación, or Extraviada.
+The condition of a Peregrina: Activa, En reparación, or Extraviada. It describes the image and says nothing about who has it — an Extraviada Peregrina keeps its open Asignación, because the last holder is where anyone starts looking. `Inactiva` is a legacy value: still displayed on records that carry it, never offered for new entry.
+_Avoid_: using it to mean "not currently assigned" (that is Tenencia actual), or "out of service" (that is De baja)
 
 **Centro**:
 The place where a Peregrina is venerated — a santuario, ermita, or parroquia, recorded with its name.
@@ -77,8 +78,12 @@ A period during which one Misionero had charge of one Peregrina, recorded with w
 _Avoid_: Ubicación, Préstamo
 
 **Tenencia actual**:
-The single open Asignación for a Peregrina — the Misionero responsible for it right now.
+The single open Asignación for a Peregrina — the Misionero responsible for it right now. A Peregrina has at most one, and no Asignación is ever overwritten: handing an image on closes one period and opens another.
 _Avoid_: Ubicación
+
+**De baja**:
+Retired rather than deleted. A Peregrina permanently out of service, a Misionero who has left the Campaña, or a Usuario whose access has ended — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real Código and a real name. Refused while an Asignación is still open: an image physically in somebody's house has not left the inventory.
+_Avoid_: Eliminar, Borrar, Baja (on its own, for a Peregrina that is merely unassigned)
 
 **Año de consagración**:
 The year a Misionero was consecrated.

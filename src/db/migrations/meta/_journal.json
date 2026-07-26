@@ -22,6 +22,20 @@
       "when": 1785025843402,
       "tag": "0002_autorizacion_e_invitaciones",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785028011912,
+      "tag": "0003_asignacion_historial_y_baja_logica",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785028114591,
+      "tag": "0004_retirar_puntero_de_misionero_a_peregrina",
+      "breakpoints": true
     }
   ]
 }

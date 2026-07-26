@@ -46,9 +46,15 @@ compare against.
 Migrations are **replayed**, not pushed. The tests exercise the same SQL
 production will, so a migration that is wrong fails here instead of on deploy.
 
-`src/db/index.ts` picks its driver from the connection string: Neon's HTTP driver
-for a `.neon.tech` URL, node-postgres for anything else. Nothing downstream
+`src/db/index.ts` picks its driver from the connection string: Neon's WebSocket
+pool for a `.neon.tech` URL, node-postgres for anything else. Nothing downstream
 knows which one it got.
+
+It used to be Neon's *HTTP* driver, which throws on `db.transaction` — so the
+transaction that closes one Asignación and opens the next would have passed here,
+on node-postgres, and failed only in production. Both drivers now support
+transactions, which is what makes this suite's word worth anything about them
+(ADR 0004).
 
 Files run serially (`fileParallelism: false`) because they share one database
 and truncate between tests.
@@ -85,20 +91,56 @@ it would make the rule untestable.
 
 ## The scoping matrix
 
-`peregrina.alcance.test.ts` and `misionero.alcance.test.ts` are the suite issue #2
-exists for: every rol, against every read and every write, asserting both halves.
-They must never be skipped. If a scope filter changes and these still pass
-unchanged, suspect the test rather than the change.
+`peregrina.alcance.test.ts`, `misionero.alcance.test.ts` and
+`asignacion.alcance.test.ts` are the suite issue #2 exists for: every rol, against
+every read and every write, asserting both halves. They must never be skipped. If a
+scope filter changes and these still pass unchanged, suspect the test rather than
+the change.
+
+The Asignación matrix is a separate file rather than a section, because it is the
+one that can fail differently. An Asignación has no territory of its own and is
+scoped through its Peregrina's (ADR 0004), so the filter lands on a joined row and
+a Peregrina that moves Diócesis takes its history with it — asserted there as
+behaviour, not left as a surprise.
+
+## The invariant
+
+`asignacion.service.test.ts` is where "a Peregrina has at most one open Asignación"
+is proved, and it is proved twice on purpose. The service half drives `asignar`,
+`entregar` and `devolver` and asserts the count of open rows stays at one. The
+storage half fires two concurrent `asignar` calls that both read "nobody has it"
+before either writes, so only the partial unique index can settle it — a test that
+only drives the service proves the service, not the constraint.
+
+The baja suites (`misionero.baja.test.ts`, `peregrina.baja.test.ts`) assert both
+halves of soft delete every time: gone from the active lists **and** still resolving
+by name inside the history. Either one alone is the wrong half.
 
 ## The migration suite
 
-`src/db/migrations/migracion-territorio.test.ts` is the one suite that does not
-go through a service, because the thing under test *is* a SQL file: it runs once,
-against production data, and there is no second chance. Each case creates a
-throwaway database, applies `0000`, seeds the messy free-text values a
-spreadsheet-era database contains, applies `0001` and asserts on the result —
-including that a contradictory row aborts the migration with a message naming it,
-rather than being quietly resolved by guesswork.
+`src/db/migrations/migracion-territorio.test.ts` and `migracion-asignacion.test.ts`
+are the two suites that do not go through a service, because the thing under test
+*is* a SQL file: it runs once, against production data, and there is no second
+chance.
+
+Each case creates a throwaway database, applies the migrations up to the one before,
+seeds the messy shape a real installation has, applies the file under test and
+asserts on the result. The territory one seeds the free-text spellings a
+spreadsheet-era database contains and checks, among other things, that a
+contradictory row aborts the migration with a message naming it rather than being
+quietly resolved by guesswork.
+
+The Asignación one does the same for the backfill: every existing
+Misionero→Peregrina link becomes exactly one Asignación, attributed to the record's
+creator and dated from its creation timestamp, and a Peregrina that the old schema
+let two Misioneros claim at once keeps both links while ending with one open period.
+
+Two things that will otherwise cost a day. A new enum value **cannot be used in the
+transaction that adds it**, and Drizzle wraps each file in one — so adding
+`en_reparacion` and using it are two files. And `drizzle-kit generate` stops to ask
+whether a column added alongside a column dropped is a rename, with no `--force`, so
+the additive migration and the dropping one are separate — which is also the order a
+backfill needs, since it reads the column that is about to go.
 
 ## Environment
 

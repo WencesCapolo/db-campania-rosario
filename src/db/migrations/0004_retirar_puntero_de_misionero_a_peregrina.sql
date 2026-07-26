@@ -1,0 +1,12 @@
+-- The pointer Asignación replaces.
+--
+-- Separate from 0003 for two reasons. The backfill there reads this column, so it
+-- has to still exist while that file runs; and a file that adds one column while
+-- dropping another makes `drizzle-kit generate` stop and ask whether it is a
+-- rename, which is not a question to answer under deploy pressure.
+--
+-- Nothing reads it any more: charge is expressed by Asignaciones, and "who has
+-- this image right now" is `peregrina.misionero_actual_id`, derived from the open
+-- Asignación. Leaving the column would leave a second, unguarded way to change
+-- charge — the one that skips the invariant and loses the previous holder.
+ALTER TABLE "misionero" DROP COLUMN "peregrina_id";

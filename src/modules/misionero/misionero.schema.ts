@@ -8,9 +8,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "@/db/schema/users";
-import { peregrina } from "@/modules/peregrina/peregrina.schema";
-// ↑ One-way import: misionero → peregrina. Peregrina does NOT import misionero.
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
+// The import direction reversed in issue #3, and this file is where it shows.
+// Misionero used to point at the Peregrina in its charge; charge is now an
+// Asignación, and the only pointer left is Peregrina's denormalised
+// `misioneroActualId`. So misionero no longer knows about peregrina at all, and
+// the one-way chain is now: territorio → misionero → peregrina → asignacion.
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
@@ -45,11 +48,6 @@ export const misionero = pgTable(
       .notNull()
       .references(() => diocesisLocalidad.id),
 
-    // La Peregrina que este misionero tiene a cargo (opcional — puede no tener ninguna)
-    peregrinaId: text("peregrina_id").references(() => peregrina.id, {
-      onDelete: "set null",
-    }),
-
     // Centro donde la Peregrina es venerada
     centroTipo: centroTipoEnum("centro_tipo"),
     centroNombre: text("centro_nombre"),
@@ -60,6 +58,13 @@ export const misionero = pgTable(
     // Resúmenes anuales: { "2024": "texto...", "2025": "texto..." }
     // Stored as text/JSONB; parsed in service layer
     resumenesAnuales: text("resumenes_anuales").default("{}"),
+
+    // Baja lógica. A Misionero who leaves the Campaña stops appearing in active
+    // lists, and their name keeps resolving inside every Asignación they ever
+    // held — which is the whole reason nothing here is ever destroyed. Refused
+    // while they still have a Peregrina: the image is physically with them, and
+    // closing the person out first is how images get lost.
+    bajaAt: timestamp("baja_at", { withTimezone: true }),
 
     // Auditoría
     createdById: text("created_by_id")
@@ -78,16 +83,14 @@ export const misionero = pgTable(
   (t) => [
     index("misionero_diocesis_localidad_idx").on(t.diocesisLocalidadId),
     index("misionero_estado_idx").on(t.estado),
+    // Active lists filter out bajas, which is now every list by default.
+    index("misionero_baja_idx").on(t.bajaAt),
   ]
 );
 
 // ── Relations ─────────────────────────────────────────────────────────────────
 
 export const misioneroRelations = relations(misionero, ({ one }) => ({
-  peregrina: one(peregrina, {
-    fields: [misionero.peregrinaId],
-    references: [peregrina.id],
-  }),
   createdBy: one(users, {
     fields: [misionero.createdById],
     references: [users.id],

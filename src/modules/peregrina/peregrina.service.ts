@@ -17,7 +17,16 @@ import {
   exigirDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
-import { NoEncontradoError, ValidacionError } from "@/lib/errors";
+import {
+  ConflictoError,
+  NoEncontradoError,
+  ValidacionError,
+} from "@/lib/errors";
+import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
+// ↑ The one import that runs against the module direction, and it is deliberate:
+//   the guard below has to know whether an Asignación is open before it lets a
+//   Peregrina leave the inventory. Only the repository, never the service, so
+//   there is no cycle between the two services.
 
 /**
  * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
@@ -64,6 +73,15 @@ export class PeregrinaService {
       diocesisLocalidad,
       provincia: diocesisLocalidad.provincia.nombre,
       region: diocesisLocalidad.region,
+      tenenciaActual: row.misioneroActual
+        ? {
+            misioneroId: row.misioneroActual.id,
+            nombre: row.misioneroActual.nombre,
+            apellido: row.misioneroActual.apellido,
+            deBaja: row.misioneroActual.bajaAt !== null,
+          }
+        : null,
+      deBaja: row.peregrina.bajaAt !== null,
       createdById: row.peregrina.createdById,
       createdAt: row.peregrina.createdAt,
       updatedAt: row.peregrina.updatedAt,
@@ -135,6 +153,18 @@ export class PeregrinaService {
   ): Promise<PeregrinaDTO[]> {
     const alcance = derivarAlcance(actor, "PeregrinaService.listByRegion");
     const rows = await PeregrinaRepository.findByRegion(alcance, region);
+    return rows.map(PeregrinaService.toDTO);
+  }
+
+  /**
+   * The images nobody currently has — the second step of the assignment flow.
+   *
+   * Read off the denormalised pointer, which is what it is for: the alternative
+   * is an anti-join against Asignación on every keystroke of a picker.
+   */
+  static async listDisponibles(actor: CurrentUser): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listDisponibles");
+    const rows = await PeregrinaRepository.findDisponibles(alcance);
     return rows.map(PeregrinaService.toDTO);
   }
 
@@ -245,11 +275,73 @@ export class PeregrinaService {
     return PeregrinaService.toDTO(row);
   }
 
-  static async delete(actor: CurrentUser, id: string): Promise<void> {
-    const operacion = "PeregrinaService.delete";
+  /**
+   * Takes a Peregrina out of the active inventory without erasing its history —
+   * user story 16.
+   *
+   * There is no hard delete any more, and this method is why. An Asignación that
+   * cannot resolve its Código is a row of unreadable ids, so the record stays and
+   * only stops appearing in lists.
+   *
+   * Refused while somebody still has the image. A Peregrina that is physically in
+   * a Misionero's house has not left the inventory, whatever the paperwork says,
+   * and giving it de baja would hide the one record that says where it is.
+   */
+  static async darDeBaja(
+    actor: CurrentUser,
+    id: string
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.darDeBaja";
+    const alcance = derivarAlcance(actor, operacion);
+
+    const actual = await PeregrinaService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
+
+    // Unscoped on purpose — see the repository. A Misionero can be holding an
+    // image whose territory has since changed, and a guard that misses that case
+    // is a guard that loses images.
+    const abierta = await AsignacionRepository.findAbiertaDePeregrinaSinAlcance(
+      id
+    );
+    if (abierta) {
+      throw new ConflictoError(
+        `No se puede dar de baja la Peregrina ${actual.peregrina.codigo}: ` +
+          `todavía está a cargo de ${abierta.misioneroNombre} ${abierta.misioneroApellido}. ` +
+          "Registrá primero que fue devuelta."
+      );
+    }
+
+    const row = await PeregrinaRepository.darDeBaja(id);
+    if (!row) {
+      throw new ConflictoError("Esa Peregrina ya estaba dada de baja.");
+    }
+
+    return PeregrinaService.leerUna(id);
+  }
+
+  static async reactivar(
+    actor: CurrentUser,
+    id: string
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.reactivar";
     const alcance = derivarAlcance(actor, operacion);
 
     await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
-    await PeregrinaRepository.delete(id);
+
+    const row = await PeregrinaRepository.reactivar(id);
+    if (!row) throw new ConflictoError("Esa Peregrina no estaba dada de baja.");
+
+    return PeregrinaService.leerUna(id);
+  }
+
+  /** Reads a row back after a write, by primary key, already scope-checked. */
+  private static async leerUna(id: string): Promise<PeregrinaDTO> {
+    const row = await PeregrinaRepository.findByIdSinAlcance(id);
+    if (!row) throw new NoEncontradoError("No existe esa Peregrina.");
+    return PeregrinaService.toDTO(row);
   }
 }

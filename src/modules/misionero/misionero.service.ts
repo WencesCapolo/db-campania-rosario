@@ -13,11 +13,21 @@ import { TerritorioRepository } from "@/modules/territorio/territorio.repository
 import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
 import {
+  dentroDelAlcance,
   derivarAlcance,
   exigirDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
-import { NoEncontradoError, ValidacionError } from "@/lib/errors";
+import {
+  ConflictoError,
+  NoEncontradoError,
+  ValidacionError,
+} from "@/lib/errors";
+import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
+// ↑ A service reading another module's *repository* for a cross-entity guard.
+//   Only the repository, never the other service, so the two services stay free
+//   of a cycle — and the guard reads the Asignación table itself rather than the
+//   denormalised pointer, because a guard should consult the source of truth.
 
 /**
  * MisioneroService
@@ -56,7 +66,7 @@ export class MisioneroService {
       diocesisLocalidad,
       provincia: diocesisLocalidad.provincia.nombre,
       region: diocesisLocalidad.region,
-      peregrinaId: row.misionero.peregrinaId ?? null,
+      deBaja: row.misionero.bajaAt !== null,
       centroTipo: row.misionero.centroTipo ?? null,
       centroNombre: row.misionero.centroNombre ?? null,
       anioConsagracion: row.misionero.anioConsagracion ?? null,
@@ -202,9 +212,6 @@ export class MisioneroService {
       ...(input.anioConsagracion !== undefined && {
         anioConsagracion: input.anioConsagracion ?? null,
       }),
-      ...(input.peregrinaId !== undefined && {
-        peregrinaId: input.peregrinaId ?? null,
-      }),
     });
 
     return MisioneroService.toDTO(row);
@@ -237,11 +244,112 @@ export class MisioneroService {
     return MisioneroService.toDTO(row);
   }
 
-  static async delete(actor: CurrentUser, id: string): Promise<void> {
-    const operacion = "MisioneroService.delete";
+  /**
+   * A Misionero has left the Campaña — user stories 12, 13, 14 and 15.
+   *
+   * They stop appearing in active lists and keep resolving by name inside every
+   * Asignación they ever held, which is why the row is never destroyed: deleting
+   * it would destroy the record of what they were responsible for, and that record
+   * is the entire point of this issue.
+   *
+   * **Refused while they still have a Peregrina**, and the refusal names it. The
+   * image is physically with them; closing the person out first is how images stop
+   * being anybody's problem and then stop being findable.
+   */
+  static async darDeBaja(
+    actor: CurrentUser,
+    id: string
+  ): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.darDeBaja";
+    const alcance = derivarAlcance(actor, operacion);
+
+    const actual = await MisioneroService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
+
+    const pendientes =
+      await AsignacionRepository.findAbiertasDeMisioneroSinAlcance(id);
+    if (pendientes.length > 0) {
+      throw new ConflictoError(
+        MisioneroService.mensajeDePendientes(actual, alcance, pendientes)
+      );
+    }
+
+    const row = await MisioneroRepository.darDeBaja(id);
+    if (!row) throw new ConflictoError("Ese Misionero ya estaba dado de baja.");
+
+    return MisioneroService.leerUno(id);
+  }
+
+  static async reactivar(
+    actor: CurrentUser,
+    id: string
+  ): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.reactivar";
     const alcance = derivarAlcance(actor, operacion);
 
     await MisioneroService.exigirVisible(actor, alcance, id, operacion);
-    await MisioneroRepository.delete(id);
+
+    const row = await MisioneroRepository.reactivar(id);
+    if (!row) throw new ConflictoError("Ese Misionero no estaba dado de baja.");
+
+    return MisioneroService.leerUno(id);
+  }
+
+  // ── Helpers privados ───────────────────────────────────────────────────────
+
+  /**
+   * Says which Peregrina is outstanding — user story 14 — without saying it about
+   * a territory the Actor cannot see.
+   *
+   * The guard itself is deliberately unscoped, because an image can be moved to
+   * another Diócesis while this Misionero still physically holds it and a guard
+   * that missed that would let the person be closed out with the image in their
+   * house. But naming a Código from another territory would confirm a record the
+   * Actor is not allowed to read. So the Código appears when it was theirs to see
+   * anyway, and otherwise the refusal says what to do instead — which is what the
+   * story actually needs: a next step, not an identifier.
+   */
+  private static mensajeDePendientes(
+    actual: MisioneroConTerritorio,
+    alcance: Alcance,
+    pendientes: { peregrinaCodigo: string; peregrinaDiocesisLocalidadId: string }[]
+  ): string {
+    const nombre = `${actual.misionero.nombre} ${actual.misionero.apellido}`;
+    const visibles = pendientes.filter((p) =>
+      dentroDelAlcance(alcance, p.peregrinaDiocesisLocalidadId)
+    );
+
+    if (visibles.length === pendientes.length) {
+      const codigos = visibles.map((p) => p.peregrinaCodigo).join(", ");
+      const cuantas =
+        pendientes.length === 1
+          ? `la Peregrina ${codigos}`
+          : `${pendientes.length} Peregrinas a cargo: ${codigos}`;
+      return (
+        `No se puede dar de baja a ${nombre}: todavía tiene ${cuantas}. ` +
+        "Registrá primero que fue devuelta o que pasó a otro Misionero."
+      );
+    }
+
+    const ajenas = pendientes.length - visibles.length;
+    const detalle = visibles.length
+      ? `${visibles.map((p) => p.peregrinaCodigo).join(", ")}, y ${ajenas} de otro territorio`
+      : `${ajenas} de otro territorio`;
+
+    return (
+      `No se puede dar de baja a ${nombre}: todavía tiene Peregrinas a cargo (${detalle}). ` +
+      "Pedile a un Asesor Nacional que registre la devolución de las que no podés ver."
+    );
+  }
+
+  /** Reads a row back after a write, by primary key, already scope-checked. */
+  private static async leerUno(id: string): Promise<MisioneroDTO> {
+    const row = await MisioneroRepository.findByIdSinAlcance(id);
+    if (!row) throw new NoEncontradoError("No existe ese Misionero.");
+    return MisioneroService.toDTO(row);
   }
 }

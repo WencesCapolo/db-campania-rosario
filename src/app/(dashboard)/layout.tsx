@@ -45,6 +45,14 @@ export default async function DashboardLayout({
               Misioneros
             </Link>
 
+            {/* The action, not an entity: registering that an image changed hands
+                is the thing a Referente opens the system to do. */}
+            <span className={styles.navSection}>Movimientos</span>
+            <Link href="/asignacion/new" className={styles.navLink}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+              Entregar una imagen
+            </Link>
+
             {(user.role === "admin" || user.role === "asesor_nacional" || user.role === "responsable_diocesano") && (
               <>
                 <span className={styles.navSection}>Administración</span>

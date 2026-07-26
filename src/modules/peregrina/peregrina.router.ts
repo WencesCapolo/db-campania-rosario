@@ -82,13 +82,36 @@ export async function updatePeregrinaAction(
   return result;
 }
 
-export async function deletePeregrinaAction(
+/**
+ * Takes a Peregrina out of the active inventory — user story 16.
+ *
+ * There is no delete action. An Asignación that cannot resolve its Código is a
+ * row of unreadable ids, so records are given de baja and never destroyed.
+ */
+export async function darDeBajaPeregrinaAction(
   id: string
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<PeregrinaDTO>> {
   const actor = await getCurrentUser();
-  const result = await aResultado(() => PeregrinaService.delete(actor, id));
+  const result = await aResultado(() => PeregrinaService.darDeBaja(actor, id));
 
-  if (result.ok) revalidatePath("/peregrina");
+  if (result.ok) {
+    revalidatePath("/peregrina");
+    revalidatePath(`/peregrina/${id}`);
+  }
+
+  return result;
+}
+
+export async function reactivarPeregrinaAction(
+  id: string
+): Promise<ActionResult<PeregrinaDTO>> {
+  const actor = await getCurrentUser();
+  const result = await aResultado(() => PeregrinaService.reactivar(actor, id));
+
+  if (result.ok) {
+    revalidatePath("/peregrina");
+    revalidatePath(`/peregrina/${id}`);
+  }
 
   return result;
 }

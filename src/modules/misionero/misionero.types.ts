@@ -19,7 +19,12 @@ export interface MisioneroDTO {
   diocesisLocalidad: DiocesisLocalidadDTO;
   provincia: string;
   region: Region;
-  peregrinaId: string | null;
+  /**
+   * Given de baja — they have left the Campaña. Excluded from every list by
+   * default and still resolving by name inside historical Asignaciones, which is
+   * the whole reason the row is never destroyed (user story 15).
+   */
+  deBaja: boolean;
   centroTipo: CentroTipo | null;
   centroNombre: string | null;
   anioConsagracion: number | null;
@@ -75,8 +80,11 @@ export const updateMisioneroSchema = z.object({
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),
   centroNombre: z.string().trim().max(200).nullish(),
   anioConsagracion,
-  /** FK to peregrina — null unassigns. */
-  peregrinaId: z.string().nullish(),
+  // There is deliberately no `peregrinaId` here any more. Charge used to be a
+  // pointer this input overwrote, which is exactly how the previous holder
+  // disappeared. It is an Asignación now — see `AsignacionService.asignar`,
+  // `entregar` and `devolver`. Leaving this field would be a second, unguarded
+  // way to change charge, and the one that skips the invariant.
 });
 
 export const addResumenAnualSchema = z.object({

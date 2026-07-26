@@ -165,6 +165,13 @@ export class TerritorioRepository {
   // ── Uso ─────────────────────────────────────────────────────────────────────
   // How many live records point at a territory. Drives both the "are you sure"
   // count and the guard that refuses to give a referenced territory de baja.
+  //
+  // "Live" gained a meaning in issue #3. Before soft delete existed these counted
+  // every row, and left alone they would have kept counting records given de baja
+  // — so a Diócesis whose whole inventory had been retired could never be retired
+  // itself, and the guard would refuse forever with a count of things nobody can
+  // see. A retired record is not a reference worth protecting; its Asignaciones
+  // still resolve either way, because nothing is ever destroyed.
 
   static async countUsoDiocesisLocalidad(
     id: string
@@ -173,11 +180,15 @@ export class TerritorioRepository {
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(peregrina)
-        .where(eq(peregrina.diocesisLocalidadId, id)),
+        .where(
+          and(eq(peregrina.diocesisLocalidadId, id), isNull(peregrina.bajaAt))
+        ),
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(misionero)
-        .where(eq(misionero.diocesisLocalidadId, id)),
+        .where(
+          and(eq(misionero.diocesisLocalidadId, id), isNull(misionero.bajaAt))
+        ),
     ]);
 
     return { peregrinas: per?.n ?? 0, misioneros: mis?.n ?? 0 };
@@ -195,11 +206,21 @@ export class TerritorioRepository {
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(peregrina)
-        .where(sql`${peregrina.diocesisLocalidadId} in ${hijas}`),
+        .where(
+          and(
+            sql`${peregrina.diocesisLocalidadId} in ${hijas}`,
+            isNull(peregrina.bajaAt)
+          )
+        ),
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(misionero)
-        .where(sql`${misionero.diocesisLocalidadId} in ${hijas}`),
+        .where(
+          and(
+            sql`${misionero.diocesisLocalidadId} in ${hijas}`,
+            isNull(misionero.bajaAt)
+          )
+        ),
     ]);
 
     return { peregrinas: per?.n ?? 0, misioneros: mis?.n ?? 0 };

@@ -173,15 +173,15 @@ describe.each([
     const modificada = await PeregrinaService.update(
       obtenerActor(),
       propia.id,
-      { estado: "inactiva" }
+      { estado: "en_reparacion" }
     );
 
-    expect(modificada.estado).toBe("inactiva");
+    expect(modificada.estado).toBe("en_reparacion");
   });
 
   it("NO puede modificar la de la Diócesis vecina, y el registro queda intacto", async () => {
     await expect(
-      PeregrinaService.update(obtenerActor(), vecina.id, { estado: "inactiva" })
+      PeregrinaService.update(obtenerActor(), vecina.id, { estado: "en_reparacion" })
     ).rejects.toThrow(NoAutorizadoError);
 
     const sinCambios = await PeregrinaService.getById(asesor, vecina.id);
@@ -190,18 +190,17 @@ describe.each([
 
   it("NO puede modificar la de otra Región", async () => {
     await expect(
-      PeregrinaService.update(obtenerActor(), ajena.id, { estado: "inactiva" })
+      PeregrinaService.update(obtenerActor(), ajena.id, { estado: "en_reparacion" })
     ).rejects.toThrow(NoAutorizadoError);
   });
 
-  it("NO puede eliminar una ajena, y el registro sigue existiendo", async () => {
+  it("NO puede dar de baja una ajena, y el registro sigue activo", async () => {
     await expect(
-      PeregrinaService.delete(obtenerActor(), ajena.id)
+      PeregrinaService.darDeBaja(obtenerActor(), ajena.id)
     ).rejects.toThrow(NoAutorizadoError);
 
-    await expect(
-      PeregrinaService.getById(asesor, ajena.id)
-    ).resolves.toBeTruthy();
+    const intacta = await PeregrinaService.getById(asesor, ajena.id);
+    expect(intacta.deBaja).toBe(false);
   });
 
   it("puede registrar en su propia Diócesis", async () => {
@@ -240,10 +239,10 @@ describe.each([
 describe("escrituras de un Asesor Nacional", () => {
   it("puede modificar cualquier registro del país", async () => {
     const modificada = await PeregrinaService.update(asesor, ajena.id, {
-      estado: "inactiva",
+      estado: "en_reparacion",
     });
 
-    expect(modificada.estado).toBe("inactiva");
+    expect(modificada.estado).toBe("en_reparacion");
   });
 
   it("puede mover un registro entre Provincias", async () => {
@@ -254,10 +253,14 @@ describe("escrituras de un Asesor Nacional", () => {
     expect(movida.region).toBe("R. PAT");
   });
 
-  it("puede eliminar cualquier registro del país", async () => {
-    await PeregrinaService.delete(asesor, ajena.id);
+  it("puede dar de baja cualquier registro del país, y sale del inventario activo sin desaparecer", async () => {
+    await PeregrinaService.darDeBaja(asesor, ajena.id);
 
+    // Fuera de las listas activas…
     expect(await PeregrinaService.listAll(asesor)).toHaveLength(2);
+    // …y todavía legible por id, porque su historial tiene que seguir resolviendo.
+    const deBaja = await PeregrinaService.getById(asesor, ajena.id);
+    expect(deBaja.deBaja).toBe(true);
   });
 });
 
