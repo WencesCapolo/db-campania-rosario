@@ -94,7 +94,11 @@ describe("lecturas de los roles nacionales", () => {
     expect(
       [...byRegion].sort((a, b) => a.region.localeCompare(b.region))
     ).toEqual([
-      { region: "CENTRO", count: 2 },
+      // Three Regiones from two Provincias: Villa María is CENTRO and Río
+      // Cuarto is CUYO, though both are in Córdoba. Grouping through the
+      // Provincia would collapse these two into one row of 2.
+      { region: "CENTRO", count: 1 },
+      { region: "CUYO", count: 1 },
       { region: "R. PAT", count: 1 },
     ]);
   });

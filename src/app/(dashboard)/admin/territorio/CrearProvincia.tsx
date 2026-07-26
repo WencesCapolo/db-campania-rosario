@@ -4,10 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
-import Eleccion from "@/components/Eleccion";
 import Dialogo from "@/components/Dialogo";
 import { crearProvinciaAction } from "@/modules/territorio/territorio.router";
-import { REGIONES } from "@/modules/territorio/territorio.schema";
 
 /**
  * Agregar una Provincia.
@@ -21,6 +19,10 @@ import { REGIONES } from "@/modules/territorio/territorio.schema";
  * Código this Provincia ever generates, and Códigos are globally unique, so two
  * Provincias sharing one would collide. The service enforces that; the field
  * just says so before somebody types the wrong thing.
+ *
+ * There is no Región field. A Provincia does not have one — the Campaña's
+ * regions cut across provincial borders, so Región is asked for when adding a
+ * Diócesis/Localidad, which is the level that actually belongs to one.
  */
 
 export default function CrearProvincia() {
@@ -29,7 +31,6 @@ export default function CrearProvincia() {
 
   const [nombre, setNombre] = useState("");
   const [abreviatura, setAbreviatura] = useState("");
-  const [region, setRegion] = useState<string>(REGIONES[0]);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -48,7 +49,6 @@ export default function CrearProvincia() {
               const resultado = await crearProvinciaAction({
                 nombre,
                 abreviatura,
-                region,
               });
               if (!resultado.ok) {
                 setError(resultado.error);
@@ -76,13 +76,6 @@ export default function CrearProvincia() {
             maxLength={4}
             error={error}
             required
-          />
-
-          <Eleccion
-            etiqueta="Región"
-            opciones={REGIONES.map((r) => ({ valor: r, etiqueta: r }))}
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
           />
 
           <div className="flex flex-col gap-3 sm:flex-row">

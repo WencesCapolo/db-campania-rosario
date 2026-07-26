@@ -1,6 +1,10 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
-import { ESTADO_LABELS } from "@/modules/peregrina/peregrina.types";
+import {
+  ESTADO_LABELS,
+  MODALIDAD_LABELS,
+  TIPO_LABELS,
+} from "@/modules/peregrina/peregrina.types";
 import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia, { type TonoDeInsignia } from "@/components/Insignia";
@@ -28,18 +32,6 @@ const TONO_POR_ESTADO: Record<PeregrinaEstado, TonoDeInsignia> = {
   en_reparacion: "aviso",
   extraviada: "alerta",
   inactiva: "neutro",
-};
-
-const MODALIDADES: Record<string, string> = {
-  JOV: "Jóvenes",
-  FAM: "Familias",
-  INF: "Infancia",
-  ADU: "Adultos",
-};
-
-const TIPOS: Record<string, string> = {
-  peregrina: "Peregrina",
-  auxiliar: "Auxiliar",
 };
 
 export const dynamic = "force-dynamic";
@@ -73,7 +65,7 @@ export default async function PeregrinaPage({
         </div>
 
         <p className="text-base text-tinta-suave">
-          {TIPOS[peregrina.tipo]} · {MODALIDADES[peregrina.modalidad]} ·{" "}
+          {TIPO_LABELS[peregrina.tipo]} · {MODALIDAD_LABELS[peregrina.modalidad]} ·{" "}
           {peregrina.diocesisLocalidad.nombre}, {peregrina.provincia}
         </p>
       </header>

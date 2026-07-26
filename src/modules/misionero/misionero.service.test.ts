@@ -32,7 +32,7 @@ const juan = {
 };
 
 describe("el territorio de un Misionero", () => {
-  it("se elige una vez y la Provincia y la Región se derivan", async () => {
+  it("se elige una vez, y la Provincia y la Región salen de esa Diócesis", async () => {
     const creado = await MisioneroService.create(actor, {
       ...juan,
       diocesisLocalidadId: territorio.rioCuarto.id,
@@ -40,7 +40,11 @@ describe("el territorio de un Misionero", () => {
 
     expect(creado.diocesisLocalidad.nombre).toBe("Río Cuarto");
     expect(creado.provincia).toBe("Córdoba");
-    expect(creado.region).toBe("CENTRO");
+    // CUYO, not CENTRO — and the fixture makes them differ on purpose. Río
+    // Cuarto and Villa María are both in Córdoba and in different Regiones,
+    // because that is the shape the Campaña's real list has (Santa Fe spans
+    // NEA and CENTRO). A Región read off the Provincia would say CENTRO here.
+    expect(creado.region).toBe("CUYO");
   });
 
   it("no se puede registrar un Misionero en una Diócesis/Localidad inexistente", async () => {

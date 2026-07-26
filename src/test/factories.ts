@@ -129,54 +129,53 @@ export async function crearActorDeSistema(): Promise<CurrentUser> {
 export async function crearProvincia(opts: {
   nombre: string;
   abreviatura: string;
-  region: Region;
-}): Promise<{ id: string; nombre: string; abreviatura: string; region: Region }> {
+}): Promise<{ id: string; nombre: string; abreviatura: string }> {
   const [row] = await db
     .insert(provincia)
-    .values({
-      nombre: opts.nombre,
-      abreviatura: opts.abreviatura,
-      region: opts.region,
-    })
+    .values({ nombre: opts.nombre, abreviatura: opts.abreviatura })
     .returning();
   if (!row) throw new Error("No se pudo crear la Provincia de prueba");
-  return {
-    id: row.id,
-    nombre: row.nombre,
-    abreviatura: row.abreviatura,
-    region: row.region,
-  };
+  return { id: row.id, nombre: row.nombre, abreviatura: row.abreviatura };
 }
 
 export async function crearDiocesisLocalidad(opts: {
   nombre: string;
   provinciaId: string;
-}): Promise<{ id: string; nombre: string }> {
+  region: Region;
+}): Promise<{ id: string; nombre: string; region: Region }> {
   const [row] = await db
     .insert(diocesisLocalidad)
-    .values({ nombre: opts.nombre, provinciaId: opts.provinciaId })
+    .values({
+      nombre: opts.nombre,
+      provinciaId: opts.provinciaId,
+      region: opts.region,
+    })
     .returning();
   if (!row) throw new Error("No se pudo crear la Diócesis/Localidad de prueba");
-  return { id: row.id, nombre: row.nombre };
+  return { id: row.id, nombre: row.nombre, region: row.region };
 }
 
 /**
- * Two Provincias in different Regiones, each with two Diócesis.
+ * Two Provincias, four Diócesis, three Regiones.
  *
  * Deliberately a country and not a single territory: a scoping test that only
  * has one Provincia to look at cannot prove that the other one stays invisible,
  * and the negative half is the test.
+ *
+ * Córdoba's two Diócesis are deliberately in *different* Regiones, which is not
+ * a tidy fixture — it is the shape the real data turned out to have. Santa Fe
+ * spans NEA and CENTRO and Buenos Aires spans BS. AS and R. PAM, and a fixture
+ * where Región were uniform per Provincia would let a query that joined through
+ * the Provincia keep passing.
  */
 export async function crearTerritorioDePrueba() {
   const cordoba = await crearProvincia({
     nombre: "Córdoba",
     abreviatura: "CBA",
-    region: "CENTRO",
   });
   const neuquen = await crearProvincia({
     nombre: "Neuquén",
     abreviatura: "NEU",
-    region: "R. PAT",
   });
 
   return {
@@ -185,18 +184,22 @@ export async function crearTerritorioDePrueba() {
     villaMaria: await crearDiocesisLocalidad({
       nombre: "Villa María",
       provinciaId: cordoba.id,
+      region: "CENTRO",
     }),
     rioCuarto: await crearDiocesisLocalidad({
       nombre: "Río Cuarto",
       provinciaId: cordoba.id,
+      region: "CUYO",
     }),
     zapala: await crearDiocesisLocalidad({
       nombre: "Zapala",
       provinciaId: neuquen.id,
+      region: "R. PAT",
     }),
     chosMalal: await crearDiocesisLocalidad({
       nombre: "Chos Malal",
       provinciaId: neuquen.id,
+      region: "R. PAT",
     }),
   };
 }

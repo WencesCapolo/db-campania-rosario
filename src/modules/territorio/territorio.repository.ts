@@ -30,18 +30,50 @@ export interface DiocesisLocalidadConProvincia {
 export class TerritorioRepository {
   // ── Provincia ───────────────────────────────────────────────────────────────
 
+  /**
+   * Provincias, optionally those that reach into a given Región.
+   *
+   * "In a Región" is no longer a column on this table — Región belongs to the
+   * Diócesis/Localidad, because the Campaña's regions cut across provincial
+   * borders. So a Provincia is in a Región when at least one of its
+   * Diócesis is, which makes Santa Fe answer to both NEA and CENTRO. That is
+   * the right answer and the reason the column moved.
+   *
+   * The join is only added when filtering. Without it this is the plain list,
+   * and joining unconditionally would duplicate a Provincia once per Diócesis.
+   */
   static async findProvincias(
     opts: { incluirBajas?: boolean; region?: Region } = {}
   ): Promise<ProvinciaRow[]> {
-    const filtros = [
-      opts.incluirBajas ? undefined : isNull(provincia.bajaAt),
-      opts.region ? eq(provincia.region, opts.region) : undefined,
-    ].filter((f) => f !== undefined);
+    const vivas = opts.incluirBajas ? undefined : isNull(provincia.bajaAt);
+
+    if (!opts.region) {
+      return db
+        .select()
+        .from(provincia)
+        .where(vivas)
+        .orderBy(asc(provincia.nombre));
+    }
+
+    const filtros = [vivas, eq(diocesisLocalidad.region, opts.region)].filter(
+      (f) => f !== undefined
+    );
 
     return db
-      .select()
+      .selectDistinct({
+        id: provincia.id,
+        nombre: provincia.nombre,
+        abreviatura: provincia.abreviatura,
+        bajaAt: provincia.bajaAt,
+        createdAt: provincia.createdAt,
+        updatedAt: provincia.updatedAt,
+      })
       .from(provincia)
-      .where(filtros.length ? and(...filtros) : undefined)
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.provinciaId, provincia.id)
+      )
+      .where(and(...filtros))
       .orderBy(asc(provincia.nombre));
   }
 
@@ -73,7 +105,7 @@ export class TerritorioRepository {
 
   static async updateProvincia(
     id: string,
-    data: Partial<Pick<ProvinciaRow, "nombre" | "abreviatura" | "region" | "bajaAt">>
+    data: Partial<Pick<ProvinciaRow, "nombre" | "abreviatura" | "bajaAt">>
   ): Promise<ProvinciaRow | undefined> {
     const [row] = await db
       .update(provincia)
@@ -98,7 +130,7 @@ export class TerritorioRepository {
       opts.provinciaId
         ? eq(diocesisLocalidad.provinciaId, opts.provinciaId)
         : undefined,
-      opts.region ? eq(provincia.region, opts.region) : undefined,
+      opts.region ? eq(diocesisLocalidad.region, opts.region) : undefined,
     ].filter((f) => f !== undefined);
 
     const rows = await db

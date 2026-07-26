@@ -164,7 +164,7 @@ export class PeregrinaRepository {
     opts: OpcionesDeLectura = {}
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(provincia.region, region)))
+      .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
       .orderBy(desc(peregrina.createdAt));
   }
 
@@ -339,7 +339,7 @@ export class PeregrinaRepository {
   ): Promise<{ region: string; count: number }[]> {
     return db
       .select({
-        region: provincia.region,
+        region: diocesisLocalidad.region,
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(peregrina)
@@ -349,6 +349,6 @@ export class PeregrinaRepository {
       )
       .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
       .where(conAlcance(alcance, opts))
-      .groupBy(provincia.region);
+      .groupBy(diocesisLocalidad.region);
   }
 }

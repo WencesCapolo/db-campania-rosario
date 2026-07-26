@@ -4,7 +4,12 @@ import {
   getPeregrinasPorEstadoAction,
   getPeregrinasPorModalidadAction,
 } from "@/modules/peregrina/peregrina.router";
-import { ESTADO_LABELS } from "@/modules/peregrina/peregrina.types";
+import {
+  ESTADO_LABELS,
+  MODALIDADES,
+  MODALIDAD_LABELS,
+  TIPO_LABELS,
+} from "@/modules/peregrina/peregrina.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 import type {
   Modalidad,
@@ -45,18 +50,6 @@ const TONO_POR_ESTADO: Record<PeregrinaEstado, TonoDeInsignia> = {
   en_reparacion: "aviso",
   extraviada: "alerta",
   inactiva: "neutro",
-};
-
-const MODALIDAD_LABELS: Record<string, string> = {
-  JOV: "Jóvenes",
-  FAM: "Familias",
-  INF: "Infancia",
-  ADU: "Adultos",
-};
-
-const TIPO_LABELS: Record<string, string> = {
-  peregrina: "Peregrina",
-  auxiliar: "Auxiliar",
 };
 
 export const dynamic = "force-dynamic";
@@ -205,5 +198,7 @@ function esEstado(v: string | undefined): v is PeregrinaEstado {
 }
 
 function esModalidad(v: string | undefined): v is Modalidad {
-  return v === "JOV" || v === "FAM" || v === "INF" || v === "ADU";
+  // Checked against the enum rather than a hand-written list, so adding a
+  // Modalidad cannot leave a filter silently rejecting it.
+  return MODALIDADES.some((m) => m === v);
 }

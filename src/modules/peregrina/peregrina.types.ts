@@ -33,6 +33,47 @@ export const ESTADO_LABELS: Record<PeregrinaEstado, string> = {
   inactiva: "Inactiva (en desuso)",
 };
 
+// ── Modalidades ───────────────────────────────────────────────────────────────
+
+/**
+ * The Campaña's own names for its apostolates.
+ *
+ * A `Record<Modalidad, string>` rather than a lookup with a fallback, so adding
+ * a Modalidad to the enum and forgetting to name it is a type error rather than
+ * a screen that renders "SOR".
+ *
+ * There is no `MODALIDADES_SELECCIONABLES` beside it, unlike Estado: every
+ * Modalidad here is one somebody may choose. The two placeholder values that
+ * were not real apostolates were removed from the enum outright in migration
+ * 0006, so there is nothing to exclude.
+ */
+export const MODALIDAD_LABELS: Record<Modalidad, string> = {
+  MIS: "Misioneritos",
+  FAM: "Familias",
+  MAT: "Matrimonios",
+  TRA: "Trabajo",
+  RIE: "Niños y Bebés en riesgo",
+  DUL: "Dulce Espera (niños por nacer)",
+  JOV: "Jóvenes",
+  NVI: "No Videntes",
+  SAL: "De la Salud",
+  SER: "Serenidad y Confianza",
+  TAX: "Taxistas",
+  HPR: "Hijo Pródigo",
+  CEN: "Cenáculo",
+  SOR: "Sordos",
+  SAC: "María Madre y Reina de los Sacerdotes",
+  VOC: "Vocaciones",
+};
+
+/** Ordered for a picker: the Campaña's own order, not alphabetical. */
+export const MODALIDADES: readonly Modalidad[] = modalidadEnum.enumValues;
+
+export const TIPO_LABELS: Record<PeregrinaTipo, string> = {
+  peregrina: "Peregrina",
+  auxiliar: "Auxiliar",
+};
+
 // ── DTO (what the UI receives) ────────────────────────────────────────────────
 // The territory arrives resolved: full names rather than abbreviations, with
 // Provincia and Región already traversed so that no caller has to do it and

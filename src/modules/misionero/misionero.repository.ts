@@ -131,7 +131,7 @@ export class MisioneroRepository {
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(provincia.region, region)))
+      .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
       .orderBy(desc(misionero.createdAt));
   }
 

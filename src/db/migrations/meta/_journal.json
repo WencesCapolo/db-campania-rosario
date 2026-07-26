@@ -36,6 +36,13 @@
       "when": 1785028114591,
       "tag": "0004_retirar_puntero_de_misionero_a_peregrina",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785038709138,
+      "tag": "0005_region_por_diocesis_y_modalidades",
+      "breakpoints": true
     }
   ]
 }

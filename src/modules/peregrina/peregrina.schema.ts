@@ -53,11 +53,38 @@ export const peregrinaTipoEnum = pgEnum("peregrina_tipo", [
 // @/modules/territorio/territorio.schema — it is deliberately not re-exported
 // here, so `export *` in the schema barrel cannot make the name ambiguous.
 
+/**
+ * The Campaña's Modalidades — the apostolate a Peregrina belongs to.
+ *
+ * These values are not internal identifiers. Each one is the middle segment of
+ * every Código that Modalidad ever generates ("CBA JOV 0001"), and a Código is
+ * physically written on the image, so a value here is a mark on an object in
+ * somebody's house. They are three letters for that reason, and changing one
+ * desynchronises the system from a shelf full of statues. Do not edit them.
+ *
+ * `INF` and `ADU` are gone. They were placeholders from before the Campaña's own
+ * list arrived, and that list does not contain them — unlike the legacy
+ * `inactiva` Estado, which is kept because real records carry it. Migration 0006
+ * refuses to run if any Peregrina still holds either, rather than quietly
+ * reassigning an image to an apostolate nobody chose for it.
+ */
 export const modalidadEnum = pgEnum("modalidad", [
-  "JOV", // Jóvenes
+  "MIS", // Misioneritos
   "FAM", // Familias
-  "INF", // Infancia
-  "ADU", // Adultos
+  "MAT", // Matrimonios
+  "TRA", // Trabajo
+  "RIE", // Niños y Bebés en riesgo
+  "DUL", // Dulce Espera (niños por nacer)
+  "JOV", // Jóvenes
+  "NVI", // No Videntes
+  "SAL", // De la Salud
+  "SER", // Serenidad y Confianza
+  "TAX", // Taxistas
+  "HPR", // Hijo Pródigo
+  "CEN", // Cenáculo
+  "SOR", // Sordos
+  "SAC", // María Madre y Reina de los Sacerdotes
+  "VOC", // Vocaciones
 ]);
 
 // ── Table ─────────────────────────────────────────────────────────────────────

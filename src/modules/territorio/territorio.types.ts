@@ -3,14 +3,21 @@ import { REGIONES, type Region } from "./territorio.schema";
 
 // ── DTOs (what the UI receives) ───────────────────────────────────────────────
 // Never a Drizzle row. A Diócesis/Localidad always arrives with its Provincia
-// and Región already resolved, because a caller that has to traverse for them
-// is a caller that can get them wrong.
+// resolved, because a caller that has to traverse for it is a caller that can
+// get it wrong.
 
+/**
+ * A Provincia has no Región.
+ *
+ * It used to. The Campaña's pastoral regions cut across provincial borders —
+ * Santa Fe is both NEA and CENTRO, Buenos Aires is both BS. AS and R. PAM — so
+ * one Región per Provincia was an answer that had to be wrong somewhere, and
+ * was wrong in eight places. Región belongs to the Diócesis/Localidad now.
+ */
 export interface ProvinciaDTO {
   id: string;
   nombre: string;
   abreviatura: string;
-  region: Region;
   deBaja: boolean;
 }
 
@@ -19,6 +26,7 @@ export interface DiocesisLocalidadDTO {
   nombre: string;
   deBaja: boolean;
   provincia: ProvinciaDTO;
+  /** This Diócesis's own Región, not its Provincia's — see ProvinciaDTO. */
   region: Region;
 }
 
@@ -51,7 +59,6 @@ export const crearProvinciaSchema = z.object({
     .min(2, "La abreviatura debe tener al menos 2 caracteres.")
     .max(4, "La abreviatura no puede superar los 4 caracteres.")
     .regex(/^[A-ZÑ]+$/, "La abreviatura solo puede tener letras."),
-  region: regionSchema,
 });
 
 export const renombrarProvinciaSchema = z.object({
@@ -62,6 +69,10 @@ export const renombrarProvinciaSchema = z.object({
 export const crearDiocesisLocalidadSchema = z.object({
   nombre: nombreTerritorio,
   provinciaId: z.string().min(1, "Elegí una Provincia."),
+  // Asked for rather than derived from the Provincia, because it is not
+  // derivable: Reconquista and Rosario are both in Santa Fe and in different
+  // Regiones. Whoever adds the Diócesis is the one who knows which.
+  region: regionSchema,
 });
 
 export const renombrarDiocesisLocalidadSchema = z.object({

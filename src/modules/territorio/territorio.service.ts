@@ -60,7 +60,6 @@ export class TerritorioService {
       id: row.id,
       nombre: row.nombre,
       abreviatura: row.abreviatura,
-      region: row.region,
       deBaja: row.bajaAt !== null,
     };
   }
@@ -269,7 +268,6 @@ export class TerritorioService {
     const row = await TerritorioRepository.createProvincia({
       nombre: input.nombre,
       abreviatura: input.abreviatura,
-      region: input.region,
     });
 
     return TerritorioService.toProvinciaDTO(row);
@@ -279,9 +277,9 @@ export class TerritorioService {
    * Renames a Provincia. The rename propagates everywhere the name is
    * displayed, because the name is stored once.
    *
-   * The abbreviation is not renameable and neither is the Región: the
-   * abbreviation is written into Códigos already printed on images, and the
-   * Región is structure.
+   * The abbreviation is not renameable: it is written into Códigos already
+   * printed on images. A Provincia no longer has a Región to rename — that
+   * belongs to each Diócesis/Localidad.
    */
   static async renombrarProvincia(
     actor: CurrentUser,
@@ -357,6 +355,7 @@ export class TerritorioService {
     const row = await TerritorioRepository.createDiocesisLocalidad({
       nombre: input.nombre,
       provinciaId: provincia.id,
+      region: input.region,
     });
 
     return mapearDiocesisLocalidad({ diocesis: row, provincia });

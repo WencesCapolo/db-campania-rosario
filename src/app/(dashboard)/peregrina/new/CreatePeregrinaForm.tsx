@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import type { Modalidad, PeregrinaTipo } from "@/modules/peregrina/peregrina.schema";
+import {
+  MODALIDADES,
+  MODALIDAD_LABELS,
+  TIPO_LABELS,
+} from "@/modules/peregrina/peregrina.types";
 
 /**
  * Registrar una Peregrina.
@@ -19,17 +24,15 @@ import type { Modalidad, PeregrinaTipo } from "@/modules/peregrina/peregrina.sch
  * these records get typed in by hand a batch at a time.
  */
 
-const MODALIDADES: { valor: Modalidad; etiqueta: string }[] = [
-  { valor: "JOV", etiqueta: "Jóvenes" },
-  { valor: "FAM", etiqueta: "Familias" },
-  { valor: "INF", etiqueta: "Infancia" },
-  { valor: "ADU", etiqueta: "Adultos" },
-];
+// Built from the enum through the shared label table, never listed by hand:
+// the Campaña has sixteen Modalidades, and a second copy of that list is a
+// second place to forget one.
+const MODALIDADES_ELEGIBLES: { valor: Modalidad; etiqueta: string }[] =
+  MODALIDADES.map((m) => ({ valor: m, etiqueta: MODALIDAD_LABELS[m] }));
 
-const TIPOS: { valor: PeregrinaTipo; etiqueta: string }[] = [
-  { valor: "peregrina", etiqueta: "Peregrina" },
-  { valor: "auxiliar", etiqueta: "Auxiliar" },
-];
+const TIPOS: { valor: PeregrinaTipo; etiqueta: string }[] = (
+  ["peregrina", "auxiliar"] as const
+).map((t) => ({ valor: t, etiqueta: TIPO_LABELS[t] }));
 
 const CAMPO =
   "min-h-12 w-full rounded-lg border-2 border-neutral-400 bg-white px-3 text-lg " +
@@ -136,7 +139,7 @@ export default function CreatePeregrinaForm() {
           value={modalidad}
           onChange={(e) => setModalidad(e.target.value as Modalidad)}
         >
-          {MODALIDADES.map((m) => (
+          {MODALIDADES_ELEGIBLES.map((m) => (
             <option key={m.valor} value={m.valor}>
               {m.etiqueta} ({m.valor})
             </option>

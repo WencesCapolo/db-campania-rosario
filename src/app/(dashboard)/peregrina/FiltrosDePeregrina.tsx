@@ -8,6 +8,8 @@ import Eleccion from "@/components/Eleccion";
 import {
   ESTADOS_SELECCIONABLES,
   ESTADO_LABELS,
+  MODALIDADES,
+  MODALIDAD_LABELS,
 } from "@/modules/peregrina/peregrina.types";
 
 /**
@@ -27,12 +29,10 @@ import {
  * for not reintroducing the value.
  */
 
-const MODALIDADES = [
-  { valor: "JOV", etiqueta: "Jóvenes" },
-  { valor: "FAM", etiqueta: "Familias" },
-  { valor: "INF", etiqueta: "Infancia" },
-  { valor: "ADU", etiqueta: "Adultos" },
-];
+const OPCIONES_DE_MODALIDAD = MODALIDADES.map((m) => ({
+  valor: m,
+  etiqueta: MODALIDAD_LABELS[m],
+}));
 
 const ESTADOS = ESTADOS_SELECCIONABLES.map((e) => ({
   valor: e,
@@ -92,7 +92,7 @@ export default function FiltrosDePeregrina({
         />
         <Eleccion
           etiqueta="Modalidad"
-          opciones={MODALIDADES}
+          opciones={OPCIONES_DE_MODALIDAD}
           vacia="Todas"
           value={modalidad}
           onChange={(e) => aplicar({ modalidad: e.target.value })}

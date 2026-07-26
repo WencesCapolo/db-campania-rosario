@@ -159,14 +159,13 @@ describe("una Región no es editable", () => {
     expect(escrituraDeRegion).toEqual([]);
   });
 
-  it("renombrar una Provincia no cambia su Región ni su abreviatura", async () => {
+  it("renombrar una Provincia no cambia su abreviatura", async () => {
     const provincia = await TerritorioService.renombrarProvincia(asesor, {
       id: territorio.cordoba.id,
       nombre: "Córdoba Capital",
     });
 
     expect(provincia.nombre).toBe("Córdoba Capital");
-    expect(provincia.region).toBe("CENTRO");
     expect(provincia.abreviatura).toBe("CBA");
   });
 });
@@ -248,7 +247,6 @@ describe("autorización de escritura", () => {
     const creada = await TerritorioService.crearProvincia(asesor, entradaProvincia);
 
     expect(creada.nombre).toBe("Santa Fe");
-    expect(creada.region).toBe("CENTRO");
   });
 
   it("un admin puede crear una Provincia", async () => {
@@ -283,6 +281,7 @@ describe("autorización de escritura", () => {
       TerritorioService.crearDiocesisLocalidad(referente, {
         nombre: "Alta Gracia",
         provinciaId: territorio.cordoba.id,
+        region: "CENTRO",
       })
     ).rejects.toThrow(NoAutorizadoError);
   });
@@ -321,6 +320,7 @@ describe("crear y renombrar territorio", () => {
     const creada = await TerritorioService.crearDiocesisLocalidad(asesor, {
       nombre: "Alta Gracia",
       provinciaId: territorio.cordoba.id,
+      region: "CENTRO",
     });
 
     expect(creada.provincia.nombre).toBe("Córdoba");
@@ -335,6 +335,7 @@ describe("crear y renombrar territorio", () => {
       TerritorioService.crearDiocesisLocalidad(asesor, {
         nombre: "  villa maria ",
         provinciaId: territorio.cordoba.id,
+        region: "CENTRO",
       })
     ).rejects.toThrow(/Ya existe/);
   });
@@ -343,6 +344,7 @@ describe("crear y renombrar territorio", () => {
     const creada = await TerritorioService.crearDiocesisLocalidad(asesor, {
       nombre: "Villa María",
       provinciaId: territorio.neuquen.id,
+      region: "R. PAT",
     });
 
     expect(creada.provincia.nombre).toBe("Neuquén");
@@ -353,7 +355,6 @@ describe("crear y renombrar territorio", () => {
       TerritorioService.crearProvincia(asesor, {
         nombre: "cordoba",
         abreviatura: "CDA",
-        region: "CENTRO",
       })
     ).rejects.toThrow(/Ya existe/);
   });
@@ -378,6 +379,7 @@ describe("crear y renombrar territorio", () => {
       TerritorioService.crearDiocesisLocalidad(asesor, {
         nombre: "Junín de los Andes",
         provinciaId: territorio.neuquen.id,
+        region: "R. PAT",
       })
     ).rejects.toThrow(/dada de baja/);
   });
@@ -441,11 +443,41 @@ describe("resolver texto libre sobre datos de referencia", () => {
   });
 });
 
-describe("una Diócesis/Localidad nueva bajo una Provincia existente", () => {
-  it("hereda la Región de su Provincia sin que nadie la escriba", async () => {
+describe("la Región es de la Diócesis, no de la Provincia", () => {
+  /**
+   * The Campaña's own list is the reason this changed. Santa Fe holds
+   * Reconquista in NEA and Rosario in CENTRO; Buenos Aires holds the conurbano
+   * in BS. AS and La Plata in R. PAM. Región used to be a column on Provincia,
+   * which made those pairs impossible to represent and filed eight real
+   * Diócesis under the wrong Región.
+   */
+  it("dos Diócesis de la misma Provincia pueden estar en Regiones distintas", async () => {
+    const santaFe = await TerritorioService.crearProvincia(asesor, {
+      nombre: "Santa Fe",
+      abreviatura: "SFE",
+    });
+
+    const reconquista = await TerritorioService.crearDiocesisLocalidad(asesor, {
+      nombre: "Reconquista",
+      provinciaId: santaFe.id,
+      region: "NEA",
+    });
+    const rosario = await TerritorioService.crearDiocesisLocalidad(asesor, {
+      nombre: "Arq. Rosario",
+      provinciaId: santaFe.id,
+      region: "CENTRO",
+    });
+
+    expect(reconquista.region).toBe("NEA");
+    expect(rosario.region).toBe("CENTRO");
+    expect(reconquista.provincia.id).toBe(rosario.provincia.id);
+  });
+
+  it("la Región elegida sobrevive a la lectura", async () => {
     const nueva = await crearDiocesisLocalidad({
       nombre: "San Martín de los Andes",
       provinciaId: territorio.neuquen.id,
+      region: "R. PAT",
     });
 
     const resuelta = await TerritorioService.obtenerDiocesisLocalidad(

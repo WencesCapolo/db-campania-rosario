@@ -144,7 +144,6 @@ export default async function TerritorioPage() {
                   <span className="font-mono text-base text-tinta-suave">
                     {p.abreviatura}
                   </span>
-                  <span className="text-base text-tinta-suave">{p.region}</span>
                   {p.deBaja && <Insignia tono="neutro">Retirada</Insignia>}
                 </span>
 

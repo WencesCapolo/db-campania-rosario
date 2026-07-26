@@ -31,7 +31,7 @@ export type Region = (typeof regionEnum.enumValues)[number];
 export const REGIONES: readonly Region[] = regionEnum.enumValues;
 
 // ── Provincia ─────────────────────────────────────────────────────────────────
-// An Argentine province, within exactly one Región.
+// An Argentine province. It has no Región: see the Diócesis/Localidad table.
 //
 // `abreviatura` is the three-letter form that goes into a Peregrina's Código
 // ("CBA JOV 0001"). It used to be a hardcoded map in peregrina.service; it lives
@@ -48,7 +48,6 @@ export const provincia = pgTable(
 
     nombre: text("nombre").notNull(),
     abreviatura: text("abreviatura").notNull(),
-    region: regionEnum("region").notNull(),
 
     // Soft delete. A Provincia given de baja stops appearing in selection
     // lists; the records referencing it keep resolving to a real name.
@@ -66,14 +65,24 @@ export const provincia = pgTable(
   (t) => [
     uniqueIndex("provincia_nombre_key").on(t.nombre),
     uniqueIndex("provincia_abreviatura_key").on(t.abreviatura),
-    index("provincia_region_idx").on(t.region),
   ]
 );
 
 // ── Diócesis/Localidad ────────────────────────────────────────────────────────
 // The narrowest territorial level, within exactly one Provincia. This is the
-// single value a Usuario picks; Provincia and Región follow from it by
-// traversal and are never stored again, so they cannot disagree with it.
+// single value a Usuario picks; the Provincia follows from it by traversal and
+// is never stored again, so the two cannot disagree.
+//
+// Región lives here, not on Provincia, because the Campaña's pastoral regions do
+// not follow provincial borders. Santa Fe spans two: Reconquista is NEA while
+// Rosario, Venado Tuerto, Santa Fe and Rafaela are CENTRO. Buenos Aires spans
+// two as well: the conurbano dioceses are BS. AS while San Nicolás, La Plata,
+// Mar del Plata, Bahía Blanca, Azul, 9 de Julio and Mercedes are R. PAM.
+//
+// It used to be a column on Provincia, which forced one answer per province and
+// therefore filed eight real Diócesis under the wrong Región. That was a guess
+// made before anybody had the Campaña's own list; the list arrived, and it
+// disagrees.
 
 export const diocesisLocalidad = pgTable(
   "diocesis_localidad",
@@ -87,6 +96,8 @@ export const diocesisLocalidad = pgTable(
     provinciaId: text("provincia_id")
       .notNull()
       .references(() => provincia.id),
+
+    region: regionEnum("region").notNull(),
 
     bajaAt: timestamp("baja_at", { withTimezone: true }),
 
@@ -106,6 +117,8 @@ export const diocesisLocalidad = pgTable(
       t.nombre
     ),
     index("diocesis_localidad_provincia_idx").on(t.provinciaId),
+    // Listing by Región is a dashboard filter, so it is covered.
+    index("diocesis_localidad_region_idx").on(t.region),
   ]
 );
 
