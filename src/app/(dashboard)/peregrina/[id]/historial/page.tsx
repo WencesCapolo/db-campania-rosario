@@ -1,5 +1,6 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
+import { getMisionerosAction } from "@/modules/misionero/misionero.router";
 import EstadoDePeregrina from "@/modules/peregrina/EstadoDePeregrina";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
@@ -9,6 +10,7 @@ import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
 import RegistrarDevolucion from "./RegistrarDevolucion";
+import CorregirAsignacion from "./CorregirAsignacion";
 
 /**
  * La cadena de custodia de una Peregrina — historias 4, 5, 6 y 18.
@@ -29,6 +31,12 @@ import RegistrarDevolucion from "./RegistrarDevolucion";
  * `registro` is the one that matters: it takes a `RegistroDTO`, which has no name
  * field in it at all, so no screen can render "registrada por María Pérez" about
  * a login that a whole territory shares.
+ *
+ * Every period carries a Corregir control — story 17. This is the right screen for
+ * it and the only one: a correction is made while reading the chain and noticing
+ * that a link in it is wrong, and it is the screen that already shows
+ * `corregidaAt`, so the record of the edit appears beside the thing that makes
+ * edits.
  */
 
 export const dynamic = "force-dynamic";
@@ -40,9 +48,15 @@ export default async function HistorialPage({
 }) {
   const { id } = await params;
 
-  const [peregrina, historial] = await Promise.all([
+  // The Misionero list is read here, alongside the history, because every period
+  // carries a correction dialog and each of those needs the same picker. One read
+  // for the page rather than one per period, and it is the Actor's own scoped list
+  // — `MisioneroService.listAll` derives its filter, so this cannot widen what a
+  // correction may point at.
+  const [peregrina, historial, misioneros] = await Promise.all([
     getPeregrinaByIdAction(id),
     getHistorialDePeregrinaAction(id),
+    getMisionerosAction(),
   ]);
 
   const abierta = historial.find((a) => a.abierta) ?? null;
@@ -161,6 +175,10 @@ export default async function HistorialPage({
                     .
                   </p>
                 )}
+
+                <div className="pt-2">
+                  <CorregirAsignacion asignacion={a} misioneros={misioneros} />
+                </div>
               </li>
             ))}
           </ol>
