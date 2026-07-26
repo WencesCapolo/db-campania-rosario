@@ -6,6 +6,12 @@ import {
   asignarAction,
   entregarAction,
 } from "@/modules/asignacion/asignacion.router";
+import Boton, { BotonEnlace } from "@/components/Boton";
+import Eleccion from "@/components/Eleccion";
+import AreaDeTexto from "@/components/AreaDeTexto";
+import Mensaje from "@/components/Mensaje";
+import { Vacio } from "@/components/EstadosAsincronicos";
+import { nombreCompleto } from "@/lib/formato";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 
@@ -24,30 +30,20 @@ import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
  * that period as it opens the next, which is exactly what "she passed it on to me"
  * means. Assigning an image nobody has and handing one on are different service
  * operations — `asignar` and `entregar` — and the flow picks between them so the
- * person does not have to know that.
+ * person does not have to know that. The confirmation states the consequence and
+ * names whose period closes, in the future tense, because that sentence is what
+ * they are agreeing to rather than a report of what already happened.
  *
- * Styling is deliberately plain — issue #4 brings the design system, and this is
- * meant to be **restyled, not rebuilt**. What is load-bearing is the behaviour:
- * 48px controls, native `<select>` for the OS picker, focus rings that do not
- * depend on colour, errors announced, and a confirmation that states the
- * consequence before it happens.
+ * On the primitives now, and two things about it changed. The empty state used to
+ * tell somebody to go and register a Misionero, with no link, to a route that did
+ * not exist; it links, and the route exists. And step 2 says who has each image in
+ * the option itself — finding that out at the confirmation is finding out after
+ * the point where choosing a different image was still easy.
  */
 
-const CAMPO =
-  "min-h-12 w-full rounded-lg border-2 border-neutral-400 bg-white px-3 text-lg " +
-  "text-neutral-900 focus-visible:outline-none focus-visible:ring-4 " +
-  "focus-visible:ring-blue-700 focus-visible:border-blue-700";
-
-const ETIQUETA = "block text-lg font-semibold text-neutral-900";
-
-const BOTON =
-  "min-h-12 rounded-lg px-5 text-lg font-semibold focus-visible:outline-none " +
-  "focus-visible:ring-4 focus-visible:ring-blue-700 disabled:opacity-60";
-
-const PRIMARIO = `${BOTON} bg-neutral-900 text-white`;
-const SECUNDARIO = `${BOTON} border-2 border-neutral-900 text-neutral-900`;
-
 type Paso = 1 | 2 | 3;
+
+const PASOS = 3;
 
 export default function FlujoDeAsignacion({
   misioneros,
@@ -72,14 +68,31 @@ export default function FlujoDeAsignacion({
   const tenencia = peregrina?.tenenciaActual ?? null;
 
   // Three states on every async surface, and this is the empty one. A picker with
-  // nothing in it has to say what to do, not sit there.
-  if (misioneros.length === 0 || peregrinas.length === 0) {
+  // nothing in it has to say what to do next and give somebody a way to get
+  // there, rather than sit there being empty.
+  if (misioneros.length === 0) {
     return (
-      <p className="rounded-lg border-2 border-neutral-900 bg-neutral-100 p-4 text-lg text-neutral-900">
-        {misioneros.length === 0
-          ? "Todavía no hay Misioneros en tu territorio. Registrá uno antes de entregar una imagen."
-          : "Todavía no hay Peregrinas en tu territorio. Registrá una antes de entregarla."}
-      </p>
+      <Vacio
+        titulo="Todavía no hay Misioneros en tu territorio"
+        mensaje="Una imagen se entrega a una persona, así que hay que cargar a la persona primero."
+        accion={
+          <BotonEnlace href="/misionero/new">Cargar un Misionero</BotonEnlace>
+        }
+      />
+    );
+  }
+
+  if (peregrinas.length === 0) {
+    return (
+      <Vacio
+        titulo="Todavía no hay Peregrinas en tu territorio"
+        mensaje="Registrá la imagen y su Código se genera solo. Después vas a poder entregarla."
+        accion={
+          <BotonEnlace href="/peregrina/new">
+            Registrar una Peregrina
+          </BotonEnlace>
+        }
+      />
     );
   }
 
@@ -106,110 +119,80 @@ export default function FlujoDeAsignacion({
         return;
       }
 
-      router.push(`/peregrina/${peregrina.id}/historial`);
+      // The Peregrina's own screen, not the historial: it opens with "¿Quién la
+      // tiene ahora?", which is the fact just registered, and the historial is
+      // one link from there. Landing on the chain of custody made somebody read
+      // a list to confirm the thing they had done.
+      router.push(`/peregrina/${peregrina.id}`);
     });
   }
 
   return (
     <div className="max-w-xl space-y-6">
-      <p className="text-lg text-neutral-700" aria-live="polite">
-        Paso {paso} de 3
+      {/* Announced on change, so somebody who is not looking at the heading still
+          learns the screen moved. */}
+      <p className="text-base font-semibold text-tinta-suave" aria-live="polite">
+        Paso {paso} de {PASOS}
       </p>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-lg border-2 border-red-800 bg-red-50 p-4 text-lg text-red-900"
-        >
-          {error}
-        </p>
+        <Mensaje tono="alerta">
+          <p>{error}</p>
+        </Mensaje>
       )}
 
       {/* ── Paso 1: Elegir Misionero ── */}
       {paso === 1 && (
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-neutral-900">
+          <h2 className="text-2xl font-bold text-tinta">
             Paso 1: Elegir Misionero
           </h2>
 
-          <div className="space-y-2">
-            <label className={ETIQUETA} htmlFor="misionero">
-              ¿A quién pasa la imagen?
-            </label>
-            <select
-              id="misionero"
-              className={CAMPO}
-              value={misioneroId}
-              onChange={(e) => setMisioneroId(e.target.value)}
-            >
-              <option value="">Elegí un Misionero…</option>
-              {misioneros.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.apellido}, {m.nombre} — {m.diocesisLocalidad.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Eleccion
+            etiqueta="¿A quién pasa la imagen?"
+            vacia="Elegí un Misionero…"
+            value={misioneroId}
+            opciones={misioneros.map((m) => ({
+              valor: m.id,
+              etiqueta: `${m.apellido}, ${m.nombre} — ${m.diocesisLocalidad.nombre}`,
+            }))}
+            onChange={(e) => setMisioneroId(e.target.value)}
+          />
 
-          <button
-            type="button"
-            className={PRIMARIO}
-            disabled={!misioneroId}
-            onClick={() => setPaso(2)}
-          >
+          <Boton disabled={!misioneroId} onClick={() => setPaso(2)}>
             Siguiente
-          </button>
+          </Boton>
         </div>
       )}
 
       {/* ── Paso 2: Elegir Imagen ── */}
-      {paso === 2 && (
+      {paso === 2 && misionero && (
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-neutral-900">
-            Paso 2: Elegir Imagen
-          </h2>
-          <p className="text-lg text-neutral-700">
-            Para {misionero?.nombre} {misionero?.apellido}.
+          <h2 className="text-2xl font-bold text-tinta">Paso 2: Elegir Imagen</h2>
+          <p className="text-base text-tinta-suave">
+            Para {nombreCompleto(misionero)}.
           </p>
 
-          <div className="space-y-2">
-            <label className={ETIQUETA} htmlFor="peregrina">
-              ¿Qué Peregrina?
-            </label>
-            <select
-              id="peregrina"
-              className={CAMPO}
-              value={peregrinaId}
-              onChange={(e) => setPeregrinaId(e.target.value)}
-            >
-              <option value="">Elegí una Peregrina…</option>
-              {peregrinas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.codigo}
-                  {p.tenenciaActual
-                    ? ` — la tiene ${p.tenenciaActual.nombre} ${p.tenenciaActual.apellido}`
-                    : " — sin entregar"}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Eleccion
+            etiqueta="¿Qué Peregrina?"
+            vacia="Elegí una Peregrina…"
+            value={peregrinaId}
+            opciones={peregrinas.map((p) => ({
+              valor: p.id,
+              etiqueta: p.tenenciaActual
+                ? `${p.codigo} — la tiene ${nombreCompleto(p.tenenciaActual)}`
+                : `${p.codigo} — sin entregar`,
+            }))}
+            onChange={(e) => setPeregrinaId(e.target.value)}
+          />
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              className={PRIMARIO}
-              disabled={!peregrinaId}
-              onClick={() => setPaso(3)}
-            >
+            <Boton disabled={!peregrinaId} onClick={() => setPaso(3)}>
               Siguiente
-            </button>
-            <button
-              type="button"
-              className={SECUNDARIO}
-              onClick={() => setPaso(1)}
-            >
+            </Boton>
+            <Boton tono="secundario" onClick={() => setPaso(1)}>
               Volver
-            </button>
+            </Boton>
           </div>
         </div>
       )}
@@ -217,76 +200,62 @@ export default function FlujoDeAsignacion({
       {/* ── Paso 3: Confirmar ── */}
       {paso === 3 && peregrina && misionero && (
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-neutral-900">Confirmar</h2>
+          <h2 className="text-2xl font-bold text-tinta">Confirmar</h2>
 
-          <div className="rounded-lg border-2 border-neutral-900 bg-neutral-100 p-4 text-lg text-neutral-900">
+          {/* `aviso` rather than `neutro` when a period is about to close. This
+              is the one step of the three that takes something away from
+              somebody, and it should not look like a summary. */}
+          <Mensaje tono={tenencia ? "aviso" : "neutro"}>
             <p>
-              La Peregrina <strong>{peregrina.codigo}</strong> queda a cargo de{" "}
-              <strong>
-                {misionero.nombre} {misionero.apellido}
-              </strong>
-              .
+              La Peregrina{" "}
+              <strong className="font-mono">{peregrina.codigo}</strong> queda a
+              cargo de <strong>{nombreCompleto(misionero)}</strong>.
             </p>
             {tenencia && (
-              // Say the consequence before it happens. Somebody's period of charge
-              // is about to close, and that is the sentence they have to agree with.
-              <p className="mt-2">
+              // Say the consequence before it happens. Somebody's period of
+              // charge is about to close, and that is the sentence they have to
+              // agree with.
+              <p>
                 Se cierra el período de{" "}
-                <strong>
-                  {tenencia.nombre} {tenencia.apellido}
-                </strong>
-                , que la tiene ahora. Su período queda en el historial.
+                <strong>{nombreCompleto(tenencia)}</strong>, que la tiene ahora.
+                Su período queda en el historial.
               </p>
             )}
-          </div>
+          </Mensaje>
 
           {tenencia && (
-            <div className="space-y-2">
-              <label className={ETIQUETA} htmlFor="nota-cierre">
-                ¿Algo que anotar sobre la devolución? (opcional)
-              </label>
-              <textarea
-                id="nota-cierre"
-                className={`${CAMPO} min-h-24 py-2`}
-                value={notaCierre}
-                maxLength={500}
-                onChange={(e) => setNotaCierre(e.target.value)}
-                placeholder="Volvió con el marco flojo."
-              />
-            </div>
+            <AreaDeTexto
+              etiqueta="¿Algo que anotar sobre la devolución?"
+              ayuda="Opcional."
+              value={notaCierre}
+              maxLength={500}
+              contador
+              onChange={(e) => setNotaCierre(e.target.value)}
+              placeholder="Volvió con el marco flojo."
+            />
           )}
 
-          <div className="space-y-2">
-            <label className={ETIQUETA} htmlFor="nota">
-              ¿Algo que anotar sobre la entrega? (opcional)
-            </label>
-            <textarea
-              id="nota"
-              className={`${CAMPO} min-h-24 py-2`}
-              value={nota}
-              maxLength={500}
-              onChange={(e) => setNota(e.target.value)}
-              placeholder="Entregada en la peregrinación diocesana."
-            />
-          </div>
+          <AreaDeTexto
+            etiqueta="¿Algo que anotar sobre la entrega?"
+            ayuda="Opcional."
+            value={nota}
+            maxLength={500}
+            contador
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Entregada en la peregrinación diocesana."
+          />
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              className={PRIMARIO}
-              disabled={pendiente}
-              onClick={confirmar}
-            >
+            <Boton disabled={pendiente} onClick={confirmar}>
               {pendiente ? "Registrando…" : "Registrar la entrega"}
-            </button>
-            <button
-              type="button"
-              className={SECUNDARIO}
+            </Boton>
+            <Boton
+              tono="secundario"
               disabled={pendiente}
               onClick={() => setPaso(2)}
             >
               Volver
-            </button>
+            </Boton>
           </div>
         </div>
       )}

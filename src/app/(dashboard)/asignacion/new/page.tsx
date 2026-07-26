@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { getOpcionesParaAsignarAction } from "@/modules/asignacion/asignacion.router";
+import Volver from "@/components/Volver";
 import FlujoDeAsignacion from "./FlujoDeAsignacion";
 
 /**
@@ -16,25 +16,17 @@ export default async function NuevaAsignacionPage() {
   const { misioneros, peregrinas } = await getOpcionesParaAsignarAction();
 
   return (
-    <div className="space-y-6 p-6 text-lg">
-      <div>
-        <h1 className="text-3xl font-bold text-neutral-900">
-          Entregar una imagen
-        </h1>
-        <p className="text-lg text-neutral-700">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
+      <div className="space-y-2">
+        <Volver href="/peregrina">Volver a Peregrinas</Volver>
+        <h1 className="text-3xl font-bold text-tinta">Entregar una imagen</h1>
+        <p className="text-base leading-relaxed text-tinta-suave">
           Registrá que una Peregrina pasó a un Misionero. Si ya la tiene otra
           persona, se cierra su período y queda en el historial.
         </p>
       </div>
 
       <FlujoDeAsignacion misioneros={misioneros} peregrinas={peregrinas} />
-
-      <Link
-        href="/peregrina"
-        className="inline-flex min-h-12 items-center text-lg font-semibold text-neutral-900 underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700"
-      >
-        Volver a Peregrinas
-      </Link>
-    </div>
+    </main>
   );
 }
