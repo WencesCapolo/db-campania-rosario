@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getMisioneroByIdAction } from "@/modules/misionero/misionero.router";
+import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
@@ -26,12 +27,6 @@ import BajaDeMisionero from "./BajaDeMisionero";
  * boundary; rendering it as "no tuvo ninguna imagen" would assert something
  * about a person this Actor is not allowed to see.
  */
-
-const CENTROS: Record<string, string> = {
-  santuario: "Santuario",
-  ermita: "Ermita",
-  parroquia: "Parroquia",
-};
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +70,7 @@ export default async function MisioneroPage({
             {misionero.centroNombre && (
               <>
                 {misionero.centroTipo
-                  ? `${CENTROS[misionero.centroTipo]}: `
+                  ? `${CENTRO_LABELS[misionero.centroTipo]}: `
                   : ""}
                 {misionero.centroNombre}
               </>

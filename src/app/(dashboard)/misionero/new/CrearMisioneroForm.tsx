@@ -1,0 +1,228 @@
+"use client";
+
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
+import { createMisioneroAction } from "@/modules/misionero/misionero.router";
+import Boton from "@/components/Boton";
+import Campo from "@/components/Campo";
+import Eleccion from "@/components/Eleccion";
+import Mensaje from "@/components/Mensaje";
+import type { CentroTipo } from "@/modules/misionero/misionero.schema";
+import {
+  CENTRO_LABELS,
+  CENTRO_TIPOS,
+} from "@/modules/misionero/misionero.types";
+
+/**
+ * Cargar un Misionero.
+ *
+ * This form did not exist. `MisioneroService.create` was written in issue #1,
+ * tested, and reachable from nothing — so a Misionero could not be created
+ * through the application at all, and the only way to get one in was a SQL
+ * insert. Everything downstream of it was therefore unreachable too: with no
+ * Misioneros there is nobody to hand an image to, which made the assignment flow
+ * a screen whose first picker was always empty.
+ *
+ * One page rather than the stepped flow the assignment uses, and that is a
+ * judgement about which kind of screen this is. A stepped flow earns its extra
+ * taps when each step is a *decision* — who, then which image, then confirm. This
+ * is transcription: somebody has a name and a phone number in front of them and
+ * is typing them in. Paginating that adds three taps and hides the fields
+ * somebody wants to check against their sheet of paper before saving.
+ *
+ * What it does borrow from a stepped flow is the split between what is required
+ * and what is not. Four of the seven fields are optional, and a form that mixes
+ * them at random reads as seven obligations; they are in their own fieldset,
+ * under a legend that says so.
+ *
+ * "Guardar y agregar otro" keeps the territory and clears the person, because
+ * these arrive a parish at a time, and moves focus back to Nombre — otherwise
+ * the caret is left on a button halfway down a phone screen and the next name
+ * gets typed nowhere.
+ */
+
+const CENTROS = CENTRO_TIPOS.map((t) => ({
+  valor: t,
+  etiqueta: CENTRO_LABELS[t],
+}));
+
+/** Named so "Guardar y agregar otro" can put the caret back in it. */
+const ID_NOMBRE = "misionero-nombre";
+
+export default function CrearMisioneroForm() {
+  const router = useRouter();
+  const [pendiente, empezar] = useTransition();
+
+  const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
+    null
+  );
+  const [centroTipo, setCentroTipo] = useState<CentroTipo | "">("");
+  const [centroNombre, setCentroNombre] = useState("");
+  const [anioConsagracion, setAnioConsagracion] = useState("");
+
+  const [error, setError] = useState<string | null>(null);
+  const [guardado, setGuardado] = useState<string | null>(null);
+  const formulario = useRef<HTMLFormElement>(null);
+
+  function guardar(seguirCargando: boolean) {
+    setError(null);
+    setGuardado(null);
+
+    if (!diocesisLocalidadId) {
+      setError("Elegí una Diócesis/Localidad.");
+      return;
+    }
+
+    // The year is a string in the input and a number in the service. An empty
+    // field is "not recorded" and must reach the service as null, not as NaN —
+    // `Number("")` is 0, which would claim a consagración in the year zero.
+    const anio = anioConsagracion.trim();
+    if (anio && !/^\d{4}$/.test(anio)) {
+      setError("El año de consagración tiene que ser un año de cuatro cifras.");
+      return;
+    }
+
+    empezar(async () => {
+      const resultado = await createMisioneroAction({
+        nombre,
+        apellido,
+        telefono: telefono.trim() || null,
+        diocesisLocalidadId,
+        centroTipo: centroTipo || null,
+        centroNombre: centroNombre.trim() || null,
+        anioConsagracion: anio ? Number(anio) : null,
+      });
+
+      if (!resultado.ok) {
+        setError(resultado.error);
+        return;
+      }
+
+      if (!seguirCargando) {
+        router.push(`/misionero/${resultado.data.id}`);
+        return;
+      }
+
+      // Keep the territory — the next person is almost always from the same
+      // Diócesis — and clear everything that belongs to this one. The centro
+      // stays too: a batch is usually one parish.
+      setGuardado(`${resultado.data.nombre} ${resultado.data.apellido}`);
+      setNombre("");
+      setApellido("");
+      setTelefono("");
+      setAnioConsagracion("");
+      formulario.current
+        ?.querySelector<HTMLInputElement>(`#${ID_NOMBRE}`)
+        ?.focus();
+    });
+  }
+
+  return (
+    <form
+      ref={formulario}
+      className="max-w-xl space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        guardar(false);
+      }}
+    >
+      {guardado && (
+        <Mensaje tono="exito">
+          <p>
+            <strong>{guardado}</strong> quedó cargado. Podés seguir con la
+            siguiente persona.
+          </p>
+        </Mensaje>
+      )}
+
+      {error && (
+        <Mensaje tono="alerta">
+          <p>{error}</p>
+        </Mensaje>
+      )}
+
+      <Campo
+        id={ID_NOMBRE}
+        etiqueta="Nombre"
+        required
+        autoComplete="given-name"
+        value={nombre}
+        onChange={(e) => setNombre(e.target.value)}
+      />
+
+      <Campo
+        etiqueta="Apellido"
+        required
+        autoComplete="family-name"
+        value={apellido}
+        onChange={(e) => setApellido(e.target.value)}
+      />
+
+      <Campo
+        etiqueta="Teléfono"
+        ayuda="Opcional. Sirve para poder ubicarla cuando haya que buscar una imagen."
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        value={telefono}
+        onChange={(e) => setTelefono(e.target.value)}
+      />
+
+      <SelectorDeTerritorio
+        value={diocesisLocalidadId}
+        onChange={setDiocesisLocalidadId}
+      />
+
+      <fieldset className="space-y-5 rounded-tarjeta border-2 border-borde p-5">
+        <legend className="px-2 text-base font-bold text-tinta">
+          El centro donde se venera la imagen (opcional)
+        </legend>
+
+        <p className="text-base leading-relaxed text-tinta-suave">
+          Si no lo sabés ahora, dejalo vacío. Se puede completar después.
+        </p>
+
+        <Eleccion
+          etiqueta="Tipo de centro"
+          vacia="Sin especificar"
+          value={centroTipo}
+          opciones={CENTROS}
+          onChange={(e) => setCentroTipo(e.target.value as CentroTipo | "")}
+        />
+
+        <Campo
+          etiqueta="Nombre del centro"
+          value={centroNombre}
+          onChange={(e) => setCentroNombre(e.target.value)}
+        />
+
+        <Campo
+          etiqueta="Año de consagración"
+          ayuda="Cuatro cifras, por ejemplo 1998."
+          type="text"
+          inputMode="numeric"
+          maxLength={4}
+          value={anioConsagracion}
+          onChange={(e) => setAnioConsagracion(e.target.value)}
+        />
+      </fieldset>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Boton type="submit" disabled={pendiente}>
+          {pendiente ? "Guardando…" : "Guardar"}
+        </Boton>
+        <Boton
+          tono="secundario"
+          disabled={pendiente}
+          onClick={() => guardar(true)}
+        >
+          Guardar y agregar otro
+        </Boton>
+      </div>
+    </form>
+  );
+}

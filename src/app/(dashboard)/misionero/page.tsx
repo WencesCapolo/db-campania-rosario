@@ -40,12 +40,19 @@ export default async function MisioneroPage() {
               : `${misioneros.length} personas en tu territorio`}
           </p>
         </div>
+
+        <BotonEnlace href="/misionero/new">Cargar un Misionero</BotonEnlace>
       </header>
 
       {misioneros.length === 0 ? (
         <Vacio
           titulo="Todavía no hay Misioneros cargados"
           mensaje="Cuando cargues la primera persona va a aparecer acá, y vas a poder entregarle una imagen."
+          accion={
+            <BotonEnlace href="/misionero/new">
+              Cargar el primer Misionero
+            </BotonEnlace>
+          }
         />
       ) : (
         <ul className="space-y-3">

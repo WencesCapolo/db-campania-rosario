@@ -8,6 +8,27 @@ import {
 import type { Region } from "@/modules/territorio/territorio.schema";
 import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 
+// ── Labels ────────────────────────────────────────────────────────────────────
+
+/**
+ * How each kind of centro is written on screen.
+ *
+ * Here rather than in a page, because two screens need it: the detail page had
+ * its own copy and the creation form would have been the second. A label table
+ * duplicated per screen is how "Ermita" becomes "ermita" on one of them.
+ *
+ * Typed as a total `Record`, so adding a value to `centroTipoEnum` without a
+ * Spanish label for it fails the typecheck rather than rendering the enum's raw
+ * value at somebody.
+ */
+export const CENTRO_LABELS: Record<CentroTipo, string> = {
+  santuario: "Santuario",
+  ermita: "Ermita",
+  parroquia: "Parroquia",
+};
+
+export const CENTRO_TIPOS: readonly CentroTipo[] = centroTipoEnum.enumValues;
+
 // ── DTO (what the UI receives) ────────────────────────────────────────────────
 
 export interface MisioneroDTO {
