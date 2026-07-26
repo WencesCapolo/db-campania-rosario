@@ -35,6 +35,14 @@ Diocesano sees their own Diócesis passes just as well when they see everybody's
 | `src/test/setup.ts` | Before each test: truncates every table |
 | `src/test/factories.ts` | Fabricates an Actor for a rol and territory, and seeds fixtures |
 
+`global-setup.ts` also creates a stand-in for `neon_auth.users_sync`. Neon owns
+and migrates that schema (ADR 0002), so it is deliberately absent from our
+migrations — which would otherwise leave the suite unable to exercise the join
+that puts emails on the user-management screen, or the warning about an identity
+with no Usuario. The stand-in is kept in step with `src/db/schema/neon-auth.ts`
+by hand; if a query fails there for a missing column, that is the file to
+compare against.
+
 Migrations are **replayed**, not pushed. The tests exercise the same SQL
 production will, so a migration that is wrong fails here instead of on deploy.
 
@@ -63,7 +71,24 @@ for genuinely unscoped work — seeds, migrations, cron — per ADR 0001.
 `crearTerritorioDePrueba()` builds two Provincias in different Regiones, each
 with two Diócesis. Deliberately a country and not a single territory: a scoping
 test with only one Provincia in the database cannot prove the other one stays
-invisible.
+invisible. And two Diócesis *within* one Provincia, because data is scoped to the
+Diócesis while selection lists reach the whole Provincia — a suite that only ever
+looked at the other Provincia would pass on a provincial scope.
+
+`crearActor` also inserts the identity Neon Auth would hold, so emails resolve.
+Pass `sinIdentidad` to build the orphan ADR 0002 describes, and `crearIdentidad`
+for the opposite case: somebody the provider knows and the Campaña does not.
+
+A lower rol with no `diocesisLocalidadId` is buildable on purpose. That pairing is
+what authorization has to fail closed on, and a factory that refused to construct
+it would make the rule untestable.
+
+## The scoping matrix
+
+`peregrina.alcance.test.ts` and `misionero.alcance.test.ts` are the suite issue #2
+exists for: every rol, against every read and every write, asserting both halves.
+They must never be skipped. If a scope filter changes and these still pass
+unchanged, suspect the test rather than the change.
 
 ## The migration suite
 

@@ -18,5 +18,8 @@ export default defineConfig({
     // import time — hence here rather than in a setup file.
     env: { DATABASE_URL: TEST_DATABASE_URL },
     testTimeout: 30_000,
+    // The migration suite creates a throwaway database per case inside its
+    // hooks, and 10s (the default) is not enough for that on a cold container.
+    hookTimeout: 30_000,
   },
 });

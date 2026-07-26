@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
+import { usersSync } from "@/db/schema/neon-auth";
 import type { Role } from "@/db/schema/users";
 import {
   diocesisLocalidad,
@@ -10,6 +11,7 @@ import { peregrina } from "@/modules/peregrina/peregrina.schema";
 import type { Modalidad, PeregrinaTipo } from "@/modules/peregrina/peregrina.schema";
 import { misionero } from "@/modules/misionero/misionero.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
+import { asegurarActorDeSistema } from "@/lib/authorization/actor-de-sistema";
 
 /**
  * Fixtures for the service-seam suite.
@@ -28,17 +30,54 @@ function siguiente(): number {
 // ── Actor ─────────────────────────────────────────────────────────────────────
 
 /**
- * Creates a real Usuario row and returns the Actor for it.
+ * Creates the identity Neon Auth would hold, with no application row behind it.
  *
- * The row is real because every entity carries `createdById` as a foreign key —
- * an Actor with no row cannot create anything, which is exactly the property
- * issue #2 will come to rely on.
+ * This is the shape of a person who has signed in and is not authorized: the
+ * provider knows them, the Campaña does not. Tests use it to prove that such an
+ * identity resolves to nothing rather than to a Referente Local.
+ */
+export async function crearIdentidad(
+  opts: { email?: string; nombre?: string | null; id?: string } = {}
+): Promise<{ id: string; email: string; displayName: string | null }> {
+  const n = siguiente();
+  const id = opts.id ?? `identidad-de-prueba-${n}`;
+  const email = (opts.email ?? `${id}@ejemplo.test`).toLowerCase();
+
+  await db.insert(usersSync).values({
+    id,
+    email,
+    name: opts.nombre ?? null,
+  });
+
+  return { id, email, displayName: opts.nombre ?? null };
+}
+
+/**
+ * Creates a real Usuario row — and the identity behind it — then returns the
+ * Actor.
+ *
+ * The row is real because every entity carries `createdById` as a foreign key:
+ * an Actor with no row cannot create anything. The identity is real because the
+ * user-management screen reads emails out of `neon_auth.users_sync`, so a Usuario
+ * with no identity is the *orphan* case and should be built on purpose, not by
+ * accident — pass `sinIdentidad` for that.
+ *
+ * A lower rol with no `diocesisLocalidadId` is buildable on purpose too: that
+ * pairing is the one authorization has to fail closed on, and a factory that
+ * refused to construct it would make the rule untestable.
  */
 export async function crearActor(opts: {
   rol: Role;
   diocesisLocalidadId?: string | null;
+  email?: string;
+  sinIdentidad?: boolean;
 }): Promise<CurrentUser> {
   const id = `usuario-de-prueba-${siguiente()}`;
+  const email = (opts.email ?? `${id}@ejemplo.test`).toLowerCase();
+
+  if (!opts.sinIdentidad) {
+    await db.insert(usersSync).values({ id, email, name: null });
+  }
 
   await db.insert(users).values({
     id,
@@ -49,7 +88,7 @@ export async function crearActor(opts: {
   return {
     id,
     role: opts.rol,
-    email: `${id}@ejemplo.test`,
+    email,
     displayName: null,
     diocesisLocalidadId: opts.diocesisLocalidadId ?? null,
   };
@@ -59,9 +98,12 @@ export async function crearActor(opts: {
  * The system actor: an explicit, visible stand-in for the operations that are
  * genuinely unscoped — seeds, migrations, cron. ADR 0001 requires the intent to
  * be legible rather than implied by an absent parameter.
+ *
+ * Delegates to `src/`, so the suite exercises the same Actor production seeds
+ * use rather than a lookalike (user story 18).
  */
 export async function crearActorDeSistema(): Promise<CurrentUser> {
-  return crearActor({ rol: "admin" });
+  return asegurarActorDeSistema();
 }
 
 // ── Territorio ────────────────────────────────────────────────────────────────

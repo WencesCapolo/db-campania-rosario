@@ -1,11 +1,10 @@
-import {
-  TerritorioRepository,
-  type DiocesisLocalidadConProvincia,
-} from "./territorio.repository";
+import { TerritorioRepository } from "./territorio.repository";
 import { REGIONES, type ProvinciaRow, type Region } from "./territorio.schema";
-import { normalizarNombre } from "./territorio.reference";
+import {
+  mapearDiocesisLocalidad,
+  normalizarNombre,
+} from "./territorio.reference";
 import type {
-  ActionResult,
   BuscarPorNombreInput,
   CrearDiocesisLocalidadInput,
   CrearProvinciaInput,
@@ -16,6 +15,14 @@ import type {
   UsoTerritorio,
 } from "./territorio.types";
 import type { CurrentUser } from "@/modules/user/user.types";
+import { esNacional } from "@/lib/authorization/alcance";
+import { registrarDenegacion } from "@/lib/authorization/registro";
+import {
+  ConflictoError,
+  NoAutorizadoError,
+  NoEncontradoError,
+  ValidacionError,
+} from "@/lib/errors";
 
 /**
  * TerritorioService
@@ -27,9 +34,19 @@ import type { CurrentUser } from "@/modules/user/user.types";
  *
  * Reads are available to every authenticated Actor, because everyone needs the
  * selection lists to enter a record at all. What differs is *how much* of the
- * list they get: an Asesor Nacional sees the country, a Responsable Diocesano
- * or Referente Local sees their own Provincia. Writes are Asesor Nacional and
- * above, so the canonical list cannot drift.
+ * list they get. Writes are Asesor Nacional and above, so the canonical list
+ * cannot drift.
+ *
+ * **A deliberate divergence, decided in issue #2 rather than inherited from
+ * issue #1.** Peregrina and Misionero data is scoped to the Actor's own
+ * Diócesis/Localidad. The *selection lists* here are scoped one level wider, to
+ * their Provincia. Two reasons, and neither is laziness: a picker containing
+ * exactly one entry is not a picker, and a Referente Local registering a
+ * Misionero venerating an image in the next town needs to be able to name that
+ * town. What the wider list does *not* do is widen anything: the Diócesis a
+ * Referente Local can *see in a list* is not a Diócesis whose records they can
+ * read — `derivarAlcance` decides that, separately, and it stops at their own.
+ * The PRD's scope table governs data; this governs vocabulary.
  *
  * Región is deliberately absent from the write surface. The seven pastoral
  * regions are structure, not reference data — there is no method to add,
@@ -48,46 +65,30 @@ export class TerritorioService {
     };
   }
 
-  private static toDiocesisDTO(
-    row: DiocesisLocalidadConProvincia
-  ): DiocesisLocalidadDTO {
-    const provincia = TerritorioService.toProvinciaDTO(row.provincia);
-    return {
-      id: row.diocesis.id,
-      nombre: row.diocesis.nombre,
-      deBaja: row.diocesis.bajaAt !== null,
-      provincia,
-      region: provincia.region,
-    };
-  }
-
   /**
    * Asesor Nacional and above. These Actors see the whole country, and they
    * are the only ones who may change the canonical list — one predicate
    * because it is one fact about them, not a coincidence.
    */
-  private static esNacional(actor: CurrentUser): boolean {
-    return actor.role === "admin" || actor.role === "asesor_nacional";
-  }
+  private static exigirNacional(actor: CurrentUser, operacion: string): void {
+    if (esNacional(actor.role)) return;
 
-  private static puedeEscribir(actor: CurrentUser): boolean {
-    return TerritorioService.esNacional(actor);
+    registrarDenegacion({
+      actor,
+      operacion,
+      motivo: "sólo un rol nacional administra el territorio",
+    });
+    throw new NoAutorizadoError(NO_AUTORIZADO_TERRITORIO);
   }
 
   /**
    * The Provincia a selection list is narrowed to, or null for a country-wide
-   * Actor.
-   *
-   * A Responsable Diocesano and a Referente Local are bounded by their own
-   * Diócesis/Localidad, but a picker containing exactly one entry is not a
-   * picker. They get their whole Provincia — enough to register a Misionero in
-   * the next town without scrolling the country. Issue #2 decides whether
-   * authorization tightens this to the Diócesis itself.
+   * Actor. See the divergence note on the class.
    */
   private static async provinciaDelActor(
     actor: CurrentUser
   ): Promise<string | null> {
-    if (TerritorioService.esNacional(actor)) return null;
+    if (esNacional(actor.role)) return null;
     if (!actor.diocesisLocalidadId) return null;
 
     const propia = await TerritorioRepository.findDiocesisLocalidadById(
@@ -123,7 +124,7 @@ export class TerritorioService {
 
   /**
    * The selection list a Usuario picks a territory from. Excludes anything
-   * given de baja, and never reaches outside the Actor's own territory.
+   * given de baja, and never reaches outside the Actor's own Provincia.
    */
   static async listarDiocesisLocalidades(
     actor: CurrentUser,
@@ -141,23 +142,31 @@ export class TerritorioService {
       provinciaId: propia ?? filtros.provinciaId,
     });
 
-    return rows.map(TerritorioService.toDiocesisDTO);
+    return rows.map(mapearDiocesisLocalidad);
   }
 
   /**
    * Resolves one Diócesis/Localidad to its Provincia and Región.
    *
-   * Not narrowed to the Actor's territory: a record they can already see has
-   * to render its territory, and today reads on Peregrina and Misionero are
-   * open to any authenticated Usuario. Issue #2 closes those reads, and this
-   * follows them when it does.
+   * Narrowed to what the Actor may see, which it was not in issue #1: back then
+   * Peregrina and Misionero reads were open, so a record's territory had to
+   * resolve for anybody. Those reads are closed now, and a record an Actor can
+   * see arrives with its territory already joined in — so nothing legitimate
+   * needs this method to reach outside the Actor's Provincia, and it no longer
+   * does. Returns null for a Diócesis outside it, exactly as for one that does
+   * not exist.
    */
   static async obtenerDiocesisLocalidad(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     id: string
   ): Promise<DiocesisLocalidadDTO | null> {
     const row = await TerritorioRepository.findDiocesisLocalidadById(id);
-    return row ? TerritorioService.toDiocesisDTO(row) : null;
+    if (!row) return null;
+
+    const propia = await TerritorioService.provinciaDelActor(actor);
+    if (propia && row.provincia.id !== propia) return null;
+
+    return mapearDiocesisLocalidad(row);
   }
 
   /**
@@ -169,27 +178,26 @@ export class TerritorioService {
    * never quietly created.
    */
   static async buscarPorNombre(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     input: BuscarPorNombreInput
-  ): Promise<ActionResult<DiocesisLocalidadDTO>> {
+  ): Promise<DiocesisLocalidadDTO> {
     const provinciaBuscada = normalizarNombre(input.provincia);
     const diocesisBuscada = normalizarNombre(input.diocesisLocalidad);
 
     if (!provinciaBuscada) {
-      return { ok: false, error: "La provincia es obligatoria." };
+      throw new ValidacionError("La provincia es obligatoria.");
     }
     if (!diocesisBuscada) {
-      return { ok: false, error: "La diócesis/localidad es obligatoria." };
+      throw new ValidacionError("La diócesis/localidad es obligatoria.");
     }
 
     const provincia = await TerritorioRepository.findProvinciaByNombre(
       provinciaBuscada
     );
     if (!provincia) {
-      return {
-        ok: false,
-        error: `No existe la Provincia «${input.provincia.trim()}».`,
-      };
+      throw new NoEncontradoError(
+        `No existe la Provincia «${input.provincia.trim()}».`
+      );
     }
 
     const encontrada = await TerritorioRepository.findDiocesisLocalidadByNombre(
@@ -197,27 +205,49 @@ export class TerritorioService {
       diocesisBuscada
     );
     if (!encontrada) {
-      return {
-        ok: false,
-        error: `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`,
-      };
+      throw new NoEncontradoError(
+        `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`
+      );
     }
 
-    return { ok: true, data: TerritorioService.toDiocesisDTO(encontrada) };
+    // Same narrowing as obtenerDiocesisLocalidad: a name is a lookup key, and a
+    // lookup that reaches outside the Actor's Provincia is still a read.
+    const propia = await TerritorioService.provinciaDelActor(actor);
+    if (propia && encontrada.provincia.id !== propia) {
+      registrarDenegacion({
+        actor,
+        operacion: "TerritorioService.buscarPorNombre",
+        territorioSolicitado: encontrada.diocesis.id,
+        motivo: "búsqueda por nombre fuera de la Provincia del Actor",
+      });
+      throw new NoEncontradoError(
+        `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`
+      );
+    }
+
+    return mapearDiocesisLocalidad(encontrada);
   }
 
-  /** How many live records point at a territory — user story 10. */
+  /**
+   * How many live records point at a territory — user story 10 of issue #1.
+   *
+   * Nacional only. It is the count behind an "are you sure" on the territory
+   * admin screens, which nobody else reaches, and a count of records is still
+   * information about records.
+   */
   static async usoDeDiocesisLocalidad(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     id: string
   ): Promise<UsoTerritorio> {
+    TerritorioService.exigirNacional(actor, "TerritorioService.usoDeDiocesisLocalidad");
     return TerritorioRepository.countUsoDiocesisLocalidad(id);
   }
 
   static async usoDeProvincia(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     id: string
   ): Promise<UsoTerritorio> {
+    TerritorioService.exigirNacional(actor, "TerritorioService.usoDeProvincia");
     return TerritorioRepository.countUsoProvincia(id);
   }
 
@@ -226,16 +256,14 @@ export class TerritorioService {
   static async crearProvincia(
     actor: CurrentUser,
     input: CrearProvinciaInput
-  ): Promise<ActionResult<ProvinciaDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<ProvinciaDTO> {
+    TerritorioService.exigirNacional(actor, "TerritorioService.crearProvincia");
 
     const yaExiste = await TerritorioRepository.findProvinciaByNombre(
       normalizarNombre(input.nombre)
     );
     if (yaExiste) {
-      return { ok: false, error: `Ya existe la Provincia «${yaExiste.nombre}».` };
+      throw new ConflictoError(`Ya existe la Provincia «${yaExiste.nombre}».`);
     }
 
     const row = await TerritorioRepository.createProvincia({
@@ -244,7 +272,7 @@ export class TerritorioService {
       region: input.region,
     });
 
-    return { ok: true, data: TerritorioService.toProvinciaDTO(row) };
+    return TerritorioService.toProvinciaDTO(row);
   }
 
   /**
@@ -258,45 +286,41 @@ export class TerritorioService {
   static async renombrarProvincia(
     actor: CurrentUser,
     input: RenombrarProvinciaInput
-  ): Promise<ActionResult<ProvinciaDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<ProvinciaDTO> {
+    TerritorioService.exigirNacional(actor, "TerritorioService.renombrarProvincia");
 
     const colision = await TerritorioRepository.findProvinciaByNombre(
       normalizarNombre(input.nombre)
     );
     if (colision && colision.id !== input.id) {
-      return { ok: false, error: `Ya existe la Provincia «${colision.nombre}».` };
+      throw new ConflictoError(`Ya existe la Provincia «${colision.nombre}».`);
     }
 
     const row = await TerritorioRepository.updateProvincia(input.id, {
       nombre: input.nombre,
     });
-    if (!row) return { ok: false, error: "No existe esa Provincia." };
+    if (!row) throw new NoEncontradoError("No existe esa Provincia.");
 
-    return { ok: true, data: TerritorioService.toProvinciaDTO(row) };
+    return TerritorioService.toProvinciaDTO(row);
   }
 
   static async darDeBajaProvincia(
     actor: CurrentUser,
     id: string
-  ): Promise<ActionResult<ProvinciaDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<ProvinciaDTO> {
+    TerritorioService.exigirNacional(actor, "TerritorioService.darDeBajaProvincia");
 
     const uso = await TerritorioRepository.countUsoProvincia(id);
     if (uso.peregrinas > 0 || uso.misioneros > 0) {
-      return { ok: false, error: enUso("la Provincia", uso) };
+      throw new ConflictoError(enUso("la Provincia", uso));
     }
 
     const row = await TerritorioRepository.updateProvincia(id, {
       bajaAt: new Date(),
     });
-    if (!row) return { ok: false, error: "No existe esa Provincia." };
+    if (!row) throw new NoEncontradoError("No existe esa Provincia.");
 
-    return { ok: true, data: TerritorioService.toProvinciaDTO(row) };
+    return TerritorioService.toProvinciaDTO(row);
   }
 
   // ── Writes: Diócesis/Localidad ──────────────────────────────────────────────
@@ -304,20 +328,20 @@ export class TerritorioService {
   static async crearDiocesisLocalidad(
     actor: CurrentUser,
     input: CrearDiocesisLocalidadInput
-  ): Promise<ActionResult<DiocesisLocalidadDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<DiocesisLocalidadDTO> {
+    TerritorioService.exigirNacional(
+      actor,
+      "TerritorioService.crearDiocesisLocalidad"
+    );
 
     const provincia = await TerritorioRepository.findProvinciaById(
       input.provinciaId
     );
-    if (!provincia) return { ok: false, error: "No existe esa Provincia." };
+    if (!provincia) throw new NoEncontradoError("No existe esa Provincia.");
     if (provincia.bajaAt !== null) {
-      return {
-        ok: false,
-        error: `La Provincia «${provincia.nombre}» está dada de baja.`,
-      };
+      throw new ValidacionError(
+        `La Provincia «${provincia.nombre}» está dada de baja.`
+      );
     }
 
     const yaExiste = await TerritorioRepository.findDiocesisLocalidadByNombre(
@@ -325,10 +349,9 @@ export class TerritorioService {
       normalizarNombre(input.nombre)
     );
     if (yaExiste) {
-      return {
-        ok: false,
-        error: `Ya existe «${yaExiste.diocesis.nombre}» en ${provincia.nombre}.`,
-      };
+      throw new ConflictoError(
+        `Ya existe «${yaExiste.diocesis.nombre}» en ${provincia.nombre}.`
+      );
     }
 
     const row = await TerritorioRepository.createDiocesisLocalidad({
@@ -336,46 +359,40 @@ export class TerritorioService {
       provinciaId: provincia.id,
     });
 
-    return {
-      ok: true,
-      data: TerritorioService.toDiocesisDTO({ diocesis: row, provincia }),
-    };
+    return mapearDiocesisLocalidad({ diocesis: row, provincia });
   }
 
   static async renombrarDiocesisLocalidad(
     actor: CurrentUser,
     input: RenombrarDiocesisLocalidadInput
-  ): Promise<ActionResult<DiocesisLocalidadDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<DiocesisLocalidadDTO> {
+    TerritorioService.exigirNacional(
+      actor,
+      "TerritorioService.renombrarDiocesisLocalidad"
+    );
 
     const actual = await TerritorioRepository.findDiocesisLocalidadById(input.id);
-    if (!actual) return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    if (!actual) throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
 
     const colision = await TerritorioRepository.findDiocesisLocalidadByNombre(
       actual.provincia.id,
       normalizarNombre(input.nombre)
     );
     if (colision && colision.diocesis.id !== input.id) {
-      return {
-        ok: false,
-        error: `Ya existe «${colision.diocesis.nombre}» en ${actual.provincia.nombre}.`,
-      };
+      throw new ConflictoError(
+        `Ya existe «${colision.diocesis.nombre}» en ${actual.provincia.nombre}.`
+      );
     }
 
     const row = await TerritorioRepository.updateDiocesisLocalidad(input.id, {
       nombre: input.nombre,
     });
-    if (!row) return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    if (!row) throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
 
-    return {
-      ok: true,
-      data: TerritorioService.toDiocesisDTO({
-        diocesis: row,
-        provincia: actual.provincia,
-      }),
-    };
+    return mapearDiocesisLocalidad({
+      diocesis: row,
+      provincia: actual.provincia,
+    });
   }
 
   /**
@@ -386,35 +403,33 @@ export class TerritorioService {
   static async darDeBajaDiocesisLocalidad(
     actor: CurrentUser,
     id: string
-  ): Promise<ActionResult<DiocesisLocalidadDTO>> {
-    if (!TerritorioService.puedeEscribir(actor)) {
-      return { ok: false, error: NO_AUTORIZADO };
-    }
+  ): Promise<DiocesisLocalidadDTO> {
+    TerritorioService.exigirNacional(
+      actor,
+      "TerritorioService.darDeBajaDiocesisLocalidad"
+    );
 
     const actual = await TerritorioRepository.findDiocesisLocalidadById(id);
-    if (!actual) return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    if (!actual) throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
 
     const uso = await TerritorioRepository.countUsoDiocesisLocalidad(id);
     if (uso.peregrinas > 0 || uso.misioneros > 0) {
-      return { ok: false, error: enUso("la Diócesis/Localidad", uso) };
+      throw new ConflictoError(enUso("la Diócesis/Localidad", uso));
     }
 
     const row = await TerritorioRepository.updateDiocesisLocalidad(id, {
       bajaAt: new Date(),
     });
-    if (!row) return { ok: false, error: "No existe esa Diócesis/Localidad." };
+    if (!row) throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
 
-    return {
-      ok: true,
-      data: TerritorioService.toDiocesisDTO({
-        diocesis: row,
-        provincia: actual.provincia,
-      }),
-    };
+    return mapearDiocesisLocalidad({
+      diocesis: row,
+      provincia: actual.provincia,
+    });
   }
 }
 
-const NO_AUTORIZADO =
+const NO_AUTORIZADO_TERRITORIO =
   "No tenés permisos para modificar el territorio. Pedíselo a un Asesor Nacional.";
 
 function enUso(que: string, uso: UsoTerritorio): string {

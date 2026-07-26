@@ -1,4 +1,9 @@
-import type { Region } from "./territorio.schema";
+import type {
+  DiocesisLocalidadRow,
+  ProvinciaRow,
+  Region,
+} from "./territorio.schema";
+import type { DiocesisLocalidadDTO, ProvinciaDTO } from "./territorio.types";
 
 /**
  * The 24 Argentine provincias, with the abbreviation that goes into a
@@ -72,4 +77,34 @@ export function normalizarNombre(valor: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase();
+}
+
+/**
+ * Maps a Diócesis/Localidad row and its Provincia onto the DTO every module
+ * shows.
+ *
+ * Pure, and here rather than in a service, because three modules now render a
+ * territory — territorio itself, and the invitation and user-management screens
+ * — and three copies of this mapping is three chances for one of them to forget
+ * that Región is derived from the Provincia rather than stored.
+ */
+export function mapearDiocesisLocalidad(row: {
+  diocesis: DiocesisLocalidadRow;
+  provincia: ProvinciaRow;
+}): DiocesisLocalidadDTO {
+  const provincia: ProvinciaDTO = {
+    id: row.provincia.id,
+    nombre: row.provincia.nombre,
+    abreviatura: row.provincia.abreviatura,
+    region: row.provincia.region,
+    deBaja: row.provincia.bajaAt !== null,
+  };
+
+  return {
+    id: row.diocesis.id,
+    nombre: row.diocesis.nombre,
+    deBaja: row.diocesis.bajaAt !== null,
+    provincia,
+    region: provincia.region,
+  };
 }

@@ -55,6 +55,4 @@ export type UpdatePeregrinaInput = z.infer<typeof updatePeregrinaSchema>;
 
 // ── Result pattern ────────────────────────────────────────────────────────────
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
+export type { ActionResult } from "@/lib/action-result";

@@ -16,12 +16,14 @@ import type {
   UsoTerritorio,
 } from "./territorio.types";
 import type { Region } from "./territorio.schema";
+import { aResultado } from "@/lib/errors";
 
 /**
  * TerritorioRouter — Next.js server actions.
  *
  * Resolves the Actor, parses input with Zod so nothing invalid reaches a
- * service, delegates, revalidates. No business logic.
+ * service, delegates, revalidates, and maps thrown domain errors onto a result
+ * in one place. No business logic.
  */
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
@@ -45,14 +47,16 @@ export async function getDiocesisLocalidadesAction(
 
 export async function getUsoDiocesisLocalidadAction(
   id: string
-): Promise<UsoTerritorio> {
+): Promise<ActionResult<UsoTerritorio>> {
   const actor = await getCurrentUser();
-  return TerritorioService.usoDeDiocesisLocalidad(actor, id);
+  return aResultado(() => TerritorioService.usoDeDiocesisLocalidad(actor, id));
 }
 
-export async function getUsoProvinciaAction(id: string): Promise<UsoTerritorio> {
+export async function getUsoProvinciaAction(
+  id: string
+): Promise<ActionResult<UsoTerritorio>> {
   const actor = await getCurrentUser();
-  return TerritorioService.usoDeProvincia(actor, id);
+  return aResultado(() => TerritorioService.usoDeProvincia(actor, id));
 }
 
 // ── Writes ────────────────────────────────────────────────────────────────────
@@ -63,9 +67,11 @@ export async function crearProvinciaAction(
   const actor = await getCurrentUser();
 
   const parsed = crearProvinciaSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await TerritorioService.crearProvincia(actor, parsed.data);
+  const result = await aResultado(() =>
+    TerritorioService.crearProvincia(actor, parsed.data)
+  );
   if (result.ok) revalidatePath("/admin/territorio");
 
   return result;
@@ -77,9 +83,11 @@ export async function renombrarProvinciaAction(
   const actor = await getCurrentUser();
 
   const parsed = renombrarProvinciaSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await TerritorioService.renombrarProvincia(actor, parsed.data);
+  const result = await aResultado(() =>
+    TerritorioService.renombrarProvincia(actor, parsed.data)
+  );
   if (result.ok) revalidatePath("/admin/territorio");
 
   return result;
@@ -90,7 +98,9 @@ export async function darDeBajaProvinciaAction(
 ): Promise<ActionResult<ProvinciaDTO>> {
   const actor = await getCurrentUser();
 
-  const result = await TerritorioService.darDeBajaProvincia(actor, id);
+  const result = await aResultado(() =>
+    TerritorioService.darDeBajaProvincia(actor, id)
+  );
   if (result.ok) revalidatePath("/admin/territorio");
 
   return result;
@@ -102,9 +112,11 @@ export async function crearDiocesisLocalidadAction(
   const actor = await getCurrentUser();
 
   const parsed = crearDiocesisLocalidadSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await TerritorioService.crearDiocesisLocalidad(actor, parsed.data);
+  const result = await aResultado(() =>
+    TerritorioService.crearDiocesisLocalidad(actor, parsed.data)
+  );
   if (result.ok) revalidatePath("/admin/territorio");
 
   return result;
@@ -116,11 +128,10 @@ export async function renombrarDiocesisLocalidadAction(
   const actor = await getCurrentUser();
 
   const parsed = renombrarDiocesisLocalidadSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await TerritorioService.renombrarDiocesisLocalidad(
-    actor,
-    parsed.data
+  const result = await aResultado(() =>
+    TerritorioService.renombrarDiocesisLocalidad(actor, parsed.data)
   );
   if (result.ok) revalidatePath("/admin/territorio");
 
@@ -132,7 +143,9 @@ export async function darDeBajaDiocesisLocalidadAction(
 ): Promise<ActionResult<DiocesisLocalidadDTO>> {
   const actor = await getCurrentUser();
 
-  const result = await TerritorioService.darDeBajaDiocesisLocalidad(actor, id);
+  const result = await aResultado(() =>
+    TerritorioService.darDeBajaDiocesisLocalidad(actor, id)
+  );
   if (result.ok) revalidatePath("/admin/territorio");
 
   return result;
@@ -142,6 +155,14 @@ export async function darDeBajaDiocesisLocalidadAction(
  * Users see one message at a time, and the first failing field is the one
  * their cursor is nearest.
  */
-function primerError(error: { issues: { message: string }[] }): string {
-  return error.issues[0]?.message ?? "Datos inválidos.";
+function invalido(error: { issues: { message: string }[] }): {
+  ok: false;
+  error: string;
+  codigo: "validacion";
+} {
+  return {
+    ok: false,
+    error: error.issues[0]?.message ?? "Datos inválidos.",
+    codigo: "validacion",
+  };
 }

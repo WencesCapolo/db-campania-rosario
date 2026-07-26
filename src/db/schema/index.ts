@@ -10,3 +10,5 @@ export * from "./users";
 // has a single complete schema object.
 export * from "@/modules/peregrina/peregrina.schema";
 export * from "@/modules/misionero/misionero.schema";
+// Invitacion depends on users and territorio, so it comes last.
+export * from "@/modules/invitacion/invitacion.schema";

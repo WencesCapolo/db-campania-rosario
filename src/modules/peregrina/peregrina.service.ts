@@ -6,12 +6,18 @@ import type {
   PeregrinaDTO,
   CreatePeregrinaInput,
   UpdatePeregrinaInput,
-  ActionResult,
 } from "./peregrina.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
+import {
+  derivarAlcance,
+  exigirDentroDelAlcance,
+  type Alcance,
+} from "@/lib/authorization/alcance";
+import { NoEncontradoError, ValidacionError } from "@/lib/errors";
 
 /**
  * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
@@ -34,20 +40,20 @@ function buildCodigo(
  *
  * Responsibility: business logic for peregrina entities.
  *
- * Reads are still open to any authenticated Usuario — that is the defect
- * issue #2 exists to fix, and it is fixed there rather than half-fixed here.
+ * Every method takes the Actor first and derives its own territorial scope from
+ * that Actor's rol — ADR 0001. A Referente Local's list contains their own
+ * Diócesis and nothing else; an Asesor Nacional's contains the country. The same
+ * scope guards the writes, so a record in another territory can be neither read
+ * nor changed nor moved.
  */
 export class PeregrinaService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private static toDTO(row: PeregrinaConTerritorio): PeregrinaDTO {
-    const provincia = {
-      id: row.provincia.id,
-      nombre: row.provincia.nombre,
-      abreviatura: row.provincia.abreviatura,
-      region: row.provincia.region,
-      deBaja: row.provincia.bajaAt !== null,
-    };
+    const diocesisLocalidad = mapearDiocesisLocalidad({
+      diocesis: row.diocesis,
+      provincia: row.provincia,
+    });
 
     return {
       id: row.peregrina.id,
@@ -55,52 +61,102 @@ export class PeregrinaService {
       tipo: row.peregrina.tipo,
       estado: row.peregrina.estado,
       modalidad: row.peregrina.modalidad,
-      diocesisLocalidad: {
-        id: row.diocesis.id,
-        nombre: row.diocesis.nombre,
-        deBaja: row.diocesis.bajaAt !== null,
-        provincia,
-        region: provincia.region,
-      },
-      provincia: provincia.nombre,
-      region: provincia.region,
+      diocesisLocalidad,
+      provincia: diocesisLocalidad.provincia.nombre,
+      region: diocesisLocalidad.region,
       createdById: row.peregrina.createdById,
       createdAt: row.peregrina.createdAt,
       updatedAt: row.peregrina.updatedAt,
     };
   }
 
+  /**
+   * The row this Actor is about to act on, or a refusal.
+   *
+   * The lookup is by primary key and deliberately unscoped, then the territory
+   * is compared: that is what lets "no existe" and "es de otro territorio" be
+   * different answers to an operator reading the log, while the Actor is told
+   * only that it is not theirs.
+   */
+  private static async exigirVisible(
+    actor: CurrentUser,
+    alcance: Alcance,
+    id: string,
+    operacion: string
+  ): Promise<PeregrinaConTerritorio> {
+    const row = await PeregrinaRepository.findByIdSinAlcance(id);
+    if (!row) throw new NoEncontradoError("No existe esa Peregrina.");
+
+    exigirDentroDelAlcance(
+      actor,
+      alcance,
+      row.peregrina.diocesisLocalidadId,
+      operacion
+    );
+
+    return row;
+  }
+
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  static async listAll(): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findAll();
+  static async listAll(actor: CurrentUser): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listAll");
+    const rows = await PeregrinaRepository.findAll(alcance);
     return rows.map(PeregrinaService.toDTO);
   }
 
-  static async getById(id: string): Promise<PeregrinaDTO> {
-    const row = await PeregrinaRepository.getById(id);
+  static async getById(
+    actor: CurrentUser,
+    id: string
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.getById";
+    const alcance = derivarAlcance(actor, operacion);
+    const row = await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
     return PeregrinaService.toDTO(row);
   }
 
-  static async listByEstado(estado: PeregrinaEstado): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByEstado(estado);
+  static async listByEstado(
+    actor: CurrentUser,
+    estado: PeregrinaEstado
+  ): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listByEstado");
+    const rows = await PeregrinaRepository.findByEstado(alcance, estado);
     return rows.map(PeregrinaService.toDTO);
   }
 
-  static async listByRegion(region: Region): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByRegion(region);
+  /**
+   * Every Peregrina in a Región — and, for a scoped Actor, the intersection of
+   * that Región with their own territory rather than the Región itself. Asking
+   * for somebody else's Región returns nothing; the filter narrows, never widens.
+   */
+  static async listByRegion(
+    actor: CurrentUser,
+    region: Region
+  ): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listByRegion");
+    const rows = await PeregrinaRepository.findByRegion(alcance, region);
     return rows.map(PeregrinaService.toDTO);
   }
 
-  static async listByModalidad(modalidad: Modalidad): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByModalidad(modalidad);
+  static async listByModalidad(
+    actor: CurrentUser,
+    modalidad: Modalidad
+  ): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listByModalidad");
+    const rows = await PeregrinaRepository.findByModalidad(alcance, modalidad);
     return rows.map(PeregrinaService.toDTO);
   }
 
-  static async dashboardStats() {
+  /**
+   * The dashboard counts. Scoped like every other read: a Referente Local's
+   * totals are their own Diócesis's totals, which is the only number that means
+   * anything to them anyway.
+   */
+  static async dashboardStats(actor: CurrentUser) {
+    const alcance = derivarAlcance(actor, "PeregrinaService.dashboardStats");
     const [byEstado, byRegion] = await Promise.all([
-      PeregrinaRepository.countByEstado(),
-      PeregrinaRepository.countByRegion(),
+      PeregrinaRepository.countByEstado(alcance),
+      PeregrinaRepository.countByRegion(alcance),
     ]);
     return { byEstado, byRegion };
   }
@@ -110,19 +166,25 @@ export class PeregrinaService {
   static async create(
     actor: CurrentUser,
     input: CreatePeregrinaInput
-  ): Promise<ActionResult<PeregrinaDTO>> {
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.create";
+    const alcance = derivarAlcance(actor, operacion);
+
     const territorio = await TerritorioRepository.findDiocesisLocalidadById(
       input.diocesisLocalidadId
     );
     if (!territorio) {
-      return { ok: false, error: "No existe esa Diócesis/Localidad." };
+      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
     }
     if (territorio.diocesis.bajaAt !== null) {
-      return {
-        ok: false,
-        error: `«${territorio.diocesis.nombre}» está dada de baja.`,
-      };
+      throw new ValidacionError(
+        `«${territorio.diocesis.nombre}» está dada de baja.`
+      );
     }
+
+    // Registering into somebody else's territory is a write that leaves the
+    // Actor's scope, so it is refused for the same reason reading it would be.
+    exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
     const num = await PeregrinaRepository.nextCodigoNum(
       territorio.provincia.id,
@@ -143,21 +205,30 @@ export class PeregrinaService {
       createdById: actor.id,
     });
 
-    return { ok: true, data: PeregrinaService.toDTO(row) };
+    return PeregrinaService.toDTO(row);
   }
 
   static async update(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     id: string,
     input: UpdatePeregrinaInput
-  ): Promise<ActionResult<PeregrinaDTO>> {
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.update";
+    const alcance = derivarAlcance(actor, operacion);
+
+    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
+
     if (input.diocesisLocalidadId !== undefined) {
       const territorio = await TerritorioRepository.findDiocesisLocalidadById(
         input.diocesisLocalidadId
       );
       if (!territorio) {
-        return { ok: false, error: "No existe esa Diócesis/Localidad." };
+        throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
       }
+
+      // Both ends of a move are checked. Otherwise a Referente Local could push
+      // a record into the next Diócesis and lose sight of it in the same motion.
+      exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
     }
 
     // The Código is not recomposed when the territory changes. It is written on
@@ -171,14 +242,14 @@ export class PeregrinaService {
       }),
     });
 
-    return { ok: true, data: PeregrinaService.toDTO(row) };
+    return PeregrinaService.toDTO(row);
   }
 
-  static async delete(
-    _actor: CurrentUser,
-    id: string
-  ): Promise<ActionResult> {
+  static async delete(actor: CurrentUser, id: string): Promise<void> {
+    const operacion = "PeregrinaService.delete";
+    const alcance = derivarAlcance(actor, operacion);
+
+    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
     await PeregrinaRepository.delete(id);
-    return { ok: true, data: undefined };
   }
 }

@@ -35,12 +35,16 @@ Shared enums live in the module that owns the independent entity, re-exported by
 
 ## 5. Access control
 
-The hierarchy has four ranked roles: `admin`, `asesor_nacional`, `responsable_diocesano`, `referente_local`. A Usuario may only create or manage Usuarios of a strictly lower rank.
+The hierarchy has four ranked roles: `admin`, `asesor_nacional`, `responsable_diocesano`, `referente_local`. A Usuario may only create or manage Usuarios of a strictly lower rank — with one exception settled on 2026-07-25: an `admin` is a real person and may invite another admin.
 
-Two rules that are currently violated in the codebase and must hold everywhere (see ADR 0001):
+Two rules hold everywhere, and issue 2 made them true rather than aspirational (see ADR 0001 and ADR 0003):
 
-- **Every service method takes an `Actor` first.** There is no signature that permits an unscoped query. Where a genuinely unscoped operation is needed — seeds, migrations, cron — pass an explicit system actor so the intent is visible.
+- **Every service method takes an `Actor` first**, and every repository read takes the derived `Alcance` first. There is no signature that permits an unscoped query. Where a genuinely unscoped operation is needed — seeds, migrations, cron — pass `ACTOR_DE_SISTEMA` so the intent is visible.
 - **A Usuario with no application-level record is unauthorized.** Never default an unknown authenticated user into a role. Provisioning is invitation-only and hierarchy-respecting; nobody self-registers.
+
+Scope derivation lives in exactly one place, `derivarAlcance` in `src/lib/authorization/alcance.ts`. Both lower rols are bounded by their Diócesis/Localidad. A lower rol with no territory **fails closed** — it is refused, never treated as unscoped.
+
+Territory *selection lists* reach one level wider, to the Actor's Provincia, because a picker with one entry is not a picker. Seeing a Diócesis in a list is not permission to read its records.
 
 Misioneros are data entities. They have no credentials and never sign in.
 
@@ -64,7 +68,7 @@ The primary users are often older adults, entering every record by hand — ther
 - **Soft delete only.** Records are given de baja, never destroyed, because Asignación history must keep resolving to real names.
 - **TypeScript:** strict. No `any`. Do not export Drizzle row types from a module's public surface.
 - **Indexes:** queries backing dashboard filters must be covered. Filtering is by territory, estado, and modalidad.
-- **Errors:** throw typed domain errors; map them to responses in one place. Log every authorization denial.
+- **Errors:** throw typed domain errors from `src/lib/errors.ts`; routers map them with `aResultado`, which is the one translation from error to response. Log every authorization denial with `registrarDenegacion` — and log the *territory*, never a person: Referentes Locales share one login per territory.
 - **Tests:** any change to a service's scope filter requires a test proving out-of-territory data stays invisible. This is the one suite that must never be skipped.
 
 ## 8. Notes for agents

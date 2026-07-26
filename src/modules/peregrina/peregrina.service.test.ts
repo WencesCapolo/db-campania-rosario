@@ -18,16 +18,14 @@ beforeEach(async () => {
 
 describe("generación del Código", () => {
   it("toma la abreviatura de los datos de referencia, no de un mapa en el código", async () => {
-    const result = await PeregrinaService.create(actor, {
+    const creada = await PeregrinaService.create(actor, {
       tipo: "peregrina",
       modalidad: "JOV",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
     // "CBA" lives on the Provincia record for Córdoba.
-    expect(result.data.codigo).toBe("CBA JOV 0001");
+    expect(creada.codigo).toBe("CBA JOV 0001");
   });
 
   it("sigue la secuencia por par Provincia + Modalidad", async () => {
@@ -35,12 +33,12 @@ describe("generación del Código", () => {
 
     for (const diocesis of [territorio.villaMaria, territorio.rioCuarto]) {
       for (let vez = 0; vez < 2; vez += 1) {
-        const result = await PeregrinaService.create(actor, {
+        const creada = await PeregrinaService.create(actor, {
           tipo: "peregrina",
           modalidad: "JOV",
           diocesisLocalidadId: diocesis.id,
         });
-        if (result.ok) codigos.push(result.data.codigo);
+        codigos.push(creada.codigo);
       }
     }
 
@@ -66,8 +64,8 @@ describe("generación del Código", () => {
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    expect(jov.ok && jov.data.codigo).toBe("CBA JOV 0001");
-    expect(fam.ok && fam.data.codigo).toBe("CBA FAM 0001");
+    expect(jov.codigo).toBe("CBA JOV 0001");
+    expect(fam.codigo).toBe("CBA FAM 0001");
   });
 
   it("cuenta por separado cada Provincia", async () => {
@@ -82,8 +80,8 @@ describe("generación del Código", () => {
       diocesisLocalidadId: territorio.zapala.id,
     });
 
-    expect(cba.ok && cba.data.codigo).toBe("CBA JOV 0001");
-    expect(neu.ok && neu.data.codigo).toBe("NEU JOV 0001");
+    expect(cba.codigo).toBe("CBA JOV 0001");
+    expect(neu.codigo).toBe("NEU JOV 0001");
   });
 
   it("no regenera el Código cuando cambia el territorio", async () => {
@@ -92,18 +90,14 @@ describe("generación del Código", () => {
       modalidad: "JOV",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
-    expect(creada.ok).toBe(true);
-    if (!creada.ok) return;
 
-    const movida = await PeregrinaService.update(actor, creada.data.id, {
+    const movida = await PeregrinaService.update(actor, creada.id, {
       diocesisLocalidadId: territorio.zapala.id,
     });
 
-    expect(movida.ok).toBe(true);
-    if (!movida.ok) return;
     // The Código is written on the image. Moving the image does not repaint it.
-    expect(movida.data.codigo).toBe("CBA JOV 0001");
-    expect(movida.data.region).toBe("R. PAT");
+    expect(movida.codigo).toBe("CBA JOV 0001");
+    expect(movida.region).toBe("R. PAT");
   });
 
   it("un renombre de Provincia no toca los Códigos existentes", async () => {
@@ -112,14 +106,13 @@ describe("generación del Código", () => {
       modalidad: "JOV",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
-    if (!creada.ok) return;
 
     await TerritorioService.renombrarProvincia(actor, {
       id: territorio.cordoba.id,
       nombre: "Córdoba Capital",
     });
 
-    const releida = await PeregrinaService.getById(creada.data.id);
+    const releida = await PeregrinaService.getById(actor, creada.id);
 
     expect(releida.codigo).toBe("CBA JOV 0001");
     expect(releida.provincia).toBe("Córdoba Capital");
@@ -128,29 +121,25 @@ describe("generación del Código", () => {
 
 describe("el territorio de una Peregrina", () => {
   it("llega resuelto con nombres completos, no abreviaturas", async () => {
-    const result = await PeregrinaService.create(actor, {
+    const creada = await PeregrinaService.create(actor, {
       tipo: "peregrina",
       modalidad: "INF",
       diocesisLocalidadId: territorio.zapala.id,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.diocesisLocalidad.nombre).toBe("Zapala");
-    expect(result.data.provincia).toBe("Neuquén");
-    expect(result.data.region).toBe("R. PAT");
+    expect(creada.diocesisLocalidad.nombre).toBe("Zapala");
+    expect(creada.provincia).toBe("Neuquén");
+    expect(creada.region).toBe("R. PAT");
   });
 
   it("no se puede crear una Peregrina en una Diócesis/Localidad inexistente", async () => {
-    const result = await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: "no-existe",
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("No existe esa Diócesis/Localidad");
+    await expect(
+      PeregrinaService.create(actor, {
+        tipo: "peregrina",
+        modalidad: "JOV",
+        diocesisLocalidadId: "no-existe",
+      })
+    ).rejects.toThrow(/No existe esa Diócesis\/Localidad/);
   });
 
   it("no se puede crear una Peregrina en una Diócesis/Localidad dada de baja", async () => {
@@ -159,35 +148,29 @@ describe("el territorio de una Peregrina", () => {
       territorio.chosMalal.id
     );
 
-    const result = await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.chosMalal.id,
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("dada de baja");
+    await expect(
+      PeregrinaService.create(actor, {
+        tipo: "peregrina",
+        modalidad: "JOV",
+        diocesisLocalidadId: territorio.chosMalal.id,
+      })
+    ).rejects.toThrow(/dada de baja/);
   });
 
   it("agrupa el tablero por Región recorriendo el territorio", async () => {
-    await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.rioCuarto.id,
-    });
-    await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.zapala.id,
-    });
+    for (const diocesis of [
+      territorio.villaMaria,
+      territorio.rioCuarto,
+      territorio.zapala,
+    ]) {
+      await PeregrinaService.create(actor, {
+        tipo: "peregrina",
+        modalidad: "JOV",
+        diocesisLocalidadId: diocesis.id,
+      });
+    }
 
-    const { byRegion } = await PeregrinaService.dashboardStats();
+    const { byRegion } = await PeregrinaService.dashboardStats(actor);
 
     expect(
       [...byRegion].sort((a, b) => a.region.localeCompare(b.region))

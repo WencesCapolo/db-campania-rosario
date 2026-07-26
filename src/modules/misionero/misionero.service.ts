@@ -7,19 +7,27 @@ import type {
   CreateMisioneroInput,
   UpdateMisioneroInput,
   AddResumenAnualInput,
-  ActionResult,
 } from "./misionero.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
+import {
+  derivarAlcance,
+  exigirDentroDelAlcance,
+  type Alcance,
+} from "@/lib/authorization/alcance";
+import { NoEncontradoError, ValidacionError } from "@/lib/errors";
 
 /**
  * MisioneroService
  *
  * Responsibility: business logic for misionero entities.
  *
- * Reads are still open to any authenticated Usuario — the defect issue #2
- * exists to fix, and it is fixed there rather than half-fixed here.
+ * Every method takes the Actor first and derives its own territorial scope —
+ * ADR 0001. This is the module that made the leak concrete: a Misionero record
+ * carries a name and a telephone number, including for the Campaña's youngest
+ * branches, and until issue #2 any authenticated Usuario could list all of them.
  */
 export class MisioneroService {
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -34,13 +42,10 @@ export class MisioneroService {
       resumenesAnuales = {};
     }
 
-    const provincia = {
-      id: row.provincia.id,
-      nombre: row.provincia.nombre,
-      abreviatura: row.provincia.abreviatura,
-      region: row.provincia.region,
-      deBaja: row.provincia.bajaAt !== null,
-    };
+    const diocesisLocalidad = mapearDiocesisLocalidad({
+      diocesis: row.diocesis,
+      provincia: row.provincia,
+    });
 
     return {
       id: row.misionero.id,
@@ -48,15 +53,9 @@ export class MisioneroService {
       apellido: row.misionero.apellido,
       telefono: row.misionero.telefono ?? null,
       estado: row.misionero.estado,
-      diocesisLocalidad: {
-        id: row.diocesis.id,
-        nombre: row.diocesis.nombre,
-        deBaja: row.diocesis.bajaAt !== null,
-        provincia,
-        region: provincia.region,
-      },
-      provincia: provincia.nombre,
-      region: provincia.region,
+      diocesisLocalidad,
+      provincia: diocesisLocalidad.provincia.nombre,
+      region: diocesisLocalidad.region,
       peregrinaId: row.misionero.peregrinaId ?? null,
       centroTipo: row.misionero.centroTipo ?? null,
       centroNombre: row.misionero.centroNombre ?? null,
@@ -68,31 +67,64 @@ export class MisioneroService {
     };
   }
 
+  /** The row this Actor may act on, or a logged refusal. */
+  private static async exigirVisible(
+    actor: CurrentUser,
+    alcance: Alcance,
+    id: string,
+    operacion: string
+  ): Promise<MisioneroConTerritorio> {
+    const row = await MisioneroRepository.findByIdSinAlcance(id);
+    if (!row) throw new NoEncontradoError("No existe ese Misionero.");
+
+    exigirDentroDelAlcance(
+      actor,
+      alcance,
+      row.misionero.diocesisLocalidadId,
+      operacion
+    );
+
+    return row;
+  }
+
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  static async listAll(): Promise<MisioneroDTO[]> {
-    const rows = await MisioneroRepository.findAll();
+  static async listAll(actor: CurrentUser): Promise<MisioneroDTO[]> {
+    const alcance = derivarAlcance(actor, "MisioneroService.listAll");
+    const rows = await MisioneroRepository.findAll(alcance);
     return rows.map(MisioneroService.toDTO);
   }
 
-  static async getById(id: string): Promise<MisioneroDTO> {
-    const row = await MisioneroRepository.getById(id);
+  static async getById(actor: CurrentUser, id: string): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.getById";
+    const alcance = derivarAlcance(actor, operacion);
+    const row = await MisioneroService.exigirVisible(actor, alcance, id, operacion);
     return MisioneroService.toDTO(row);
   }
 
-  static async search(query: string): Promise<MisioneroDTO[]> {
-    if (!query.trim()) return MisioneroService.listAll();
-    const rows = await MisioneroRepository.search(query.trim());
+  static async search(
+    actor: CurrentUser,
+    query: string
+  ): Promise<MisioneroDTO[]> {
+    if (!query.trim()) return MisioneroService.listAll(actor);
+
+    const alcance = derivarAlcance(actor, "MisioneroService.search");
+    const rows = await MisioneroRepository.search(alcance, query.trim());
     return rows.map(MisioneroService.toDTO);
   }
 
-  static async listByRegion(region: Region): Promise<MisioneroDTO[]> {
-    const rows = await MisioneroRepository.findByRegion(region);
+  static async listByRegion(
+    actor: CurrentUser,
+    region: Region
+  ): Promise<MisioneroDTO[]> {
+    const alcance = derivarAlcance(actor, "MisioneroService.listByRegion");
+    const rows = await MisioneroRepository.findByRegion(alcance, region);
     return rows.map(MisioneroService.toDTO);
   }
 
-  static async dashboardStats() {
-    return MisioneroRepository.countByEstado();
+  static async dashboardStats(actor: CurrentUser) {
+    const alcance = derivarAlcance(actor, "MisioneroService.dashboardStats");
+    return MisioneroRepository.countByEstado(alcance);
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────
@@ -100,19 +132,23 @@ export class MisioneroService {
   static async create(
     actor: CurrentUser,
     input: CreateMisioneroInput
-  ): Promise<ActionResult<MisioneroDTO>> {
+  ): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.create";
+    const alcance = derivarAlcance(actor, operacion);
+
     const territorio = await TerritorioRepository.findDiocesisLocalidadById(
       input.diocesisLocalidadId
     );
     if (!territorio) {
-      return { ok: false, error: "No existe esa Diócesis/Localidad." };
+      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
     }
     if (territorio.diocesis.bajaAt !== null) {
-      return {
-        ok: false,
-        error: `«${territorio.diocesis.nombre}» está dada de baja.`,
-      };
+      throw new ValidacionError(
+        `«${territorio.diocesis.nombre}» está dada de baja.`
+      );
     }
+
+    exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
     const row = await MisioneroRepository.create({
       nombre: input.nombre,
@@ -127,21 +163,28 @@ export class MisioneroService {
       createdById: actor.id,
     });
 
-    return { ok: true, data: MisioneroService.toDTO(row) };
+    return MisioneroService.toDTO(row);
   }
 
   static async update(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     id: string,
     input: UpdateMisioneroInput
-  ): Promise<ActionResult<MisioneroDTO>> {
+  ): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.update";
+    const alcance = derivarAlcance(actor, operacion);
+
+    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
+
     if (input.diocesisLocalidadId !== undefined) {
       const territorio = await TerritorioRepository.findDiocesisLocalidadById(
         input.diocesisLocalidadId
       );
       if (!territorio) {
-        return { ok: false, error: "No existe esa Diócesis/Localidad." };
+        throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
       }
+
+      exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
     }
 
     const row = await MisioneroRepository.update(id, {
@@ -164,15 +207,25 @@ export class MisioneroService {
       }),
     });
 
-    return { ok: true, data: MisioneroService.toDTO(row) };
+    return MisioneroService.toDTO(row);
   }
 
   static async addResumenAnual(
-    _actor: CurrentUser,
+    actor: CurrentUser,
     input: AddResumenAnualInput
-  ): Promise<ActionResult<MisioneroDTO>> {
+  ): Promise<MisioneroDTO> {
+    const operacion = "MisioneroService.addResumenAnual";
+    const alcance = derivarAlcance(actor, operacion);
+
+    await MisioneroService.exigirVisible(
+      actor,
+      alcance,
+      input.misioneroId,
+      operacion
+    );
+
     if (input.year > new Date().getFullYear()) {
-      return { ok: false, error: "Año inválido." };
+      throw new ValidacionError("Año inválido.");
     }
 
     const row = await MisioneroRepository.upsertResumenAnual(
@@ -181,14 +234,14 @@ export class MisioneroService {
       input.resumen
     );
 
-    return { ok: true, data: MisioneroService.toDTO(row) };
+    return MisioneroService.toDTO(row);
   }
 
-  static async delete(
-    _actor: CurrentUser,
-    id: string
-  ): Promise<ActionResult> {
+  static async delete(actor: CurrentUser, id: string): Promise<void> {
+    const operacion = "MisioneroService.delete";
+    const alcance = derivarAlcance(actor, operacion);
+
+    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
     await MisioneroRepository.delete(id);
-    return { ok: true, data: undefined };
   }
 }

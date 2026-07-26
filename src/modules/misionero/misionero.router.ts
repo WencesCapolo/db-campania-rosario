@@ -9,28 +9,28 @@ import {
   updateMisioneroSchema,
 } from "./misionero.types";
 import type { ActionResult, MisioneroDTO } from "./misionero.types";
+import { aResultado } from "@/lib/errors";
 
 /**
  * MisioneroRouter — Next.js server actions
  *
- * Responsibility: authenticate the caller, delegate ALL logic to
- * MisioneroService, revalidate the Next.js cache on mutations.
- * No business logic lives here.
+ * Responsibility: resolve the Actor, parse input with Zod, delegate, revalidate,
+ * and map thrown domain errors onto a result. No business logic lives here.
  */
 
 export async function getMisionerosAction(): Promise<MisioneroDTO[]> {
-  await getCurrentUser();
-  return MisioneroService.listAll();
+  const actor = await getCurrentUser();
+  return MisioneroService.listAll(actor);
 }
 
 export async function getMisioneroByIdAction(id: string): Promise<MisioneroDTO> {
-  await getCurrentUser();
-  return MisioneroService.getById(id);
+  const actor = await getCurrentUser();
+  return MisioneroService.getById(actor, id);
 }
 
 export async function searchMisionerosAction(query: string): Promise<MisioneroDTO[]> {
-  await getCurrentUser();
-  return MisioneroService.search(query);
+  const actor = await getCurrentUser();
+  return MisioneroService.search(actor, query);
 }
 
 export async function createMisioneroAction(
@@ -39,9 +39,11 @@ export async function createMisioneroAction(
   const actor = await getCurrentUser();
 
   const parsed = createMisioneroSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await MisioneroService.create(actor, parsed.data);
+  const result = await aResultado(() =>
+    MisioneroService.create(actor, parsed.data)
+  );
 
   if (result.ok) revalidatePath("/misionero");
 
@@ -55,9 +57,11 @@ export async function updateMisioneroAction(
   const actor = await getCurrentUser();
 
   const parsed = updateMisioneroSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await MisioneroService.update(actor, id, parsed.data);
+  const result = await aResultado(() =>
+    MisioneroService.update(actor, id, parsed.data)
+  );
 
   if (result.ok) {
     revalidatePath("/misionero");
@@ -73,18 +77,22 @@ export async function addResumenAnualAction(
   const actor = await getCurrentUser();
 
   const parsed = addResumenAnualSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: primerError(parsed.error) };
+  if (!parsed.success) return invalido(parsed.error);
 
-  const result = await MisioneroService.addResumenAnual(actor, parsed.data);
+  const result = await aResultado(() =>
+    MisioneroService.addResumenAnual(actor, parsed.data)
+  );
 
   if (result.ok) revalidatePath(`/misionero/${parsed.data.misioneroId}`);
 
   return result;
 }
 
-export async function deleteMisioneroAction(id: string): Promise<ActionResult> {
+export async function deleteMisioneroAction(
+  id: string
+): Promise<ActionResult<void>> {
   const actor = await getCurrentUser();
-  const result = await MisioneroService.delete(actor, id);
+  const result = await aResultado(() => MisioneroService.delete(actor, id));
 
   if (result.ok) revalidatePath("/misionero");
 
@@ -100,7 +108,9 @@ export async function assignPeregrinaAction(
   peregrinaId: string | null
 ): Promise<ActionResult<MisioneroDTO>> {
   const actor = await getCurrentUser();
-  const result = await MisioneroService.update(actor, misioneroId, { peregrinaId });
+  const result = await aResultado(() =>
+    MisioneroService.update(actor, misioneroId, { peregrinaId })
+  );
 
   if (result.ok) {
     revalidatePath("/misionero");
@@ -112,14 +122,22 @@ export async function assignPeregrinaAction(
 }
 
 export async function getMisioneroDashboardStatsAction() {
-  await getCurrentUser();
-  return MisioneroService.dashboardStats();
+  const actor = await getCurrentUser();
+  return MisioneroService.dashboardStats(actor);
 }
 
 /**
  * Users see one message at a time, and the first failing field is the one
  * their cursor is nearest.
  */
-function primerError(error: { issues: { message: string }[] }): string {
-  return error.issues[0]?.message ?? "Datos inválidos.";
+function invalido(error: { issues: { message: string }[] }): {
+  ok: false;
+  error: string;
+  codigo: "validacion";
+} {
+  return {
+    ok: false,
+    error: error.issues[0]?.message ?? "Datos inválidos.",
+    codigo: "validacion",
+  };
 }

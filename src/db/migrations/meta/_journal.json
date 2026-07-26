@@ -15,6 +15,13 @@
       "when": 1785022383541,
       "tag": "0001_territorio_como_datos_de_referencia",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785025843402,
+      "tag": "0002_autorizacion_e_invitaciones",
+      "breakpoints": true
     }
   ]
 }

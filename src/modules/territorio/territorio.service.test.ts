@@ -10,6 +10,7 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import type { CurrentUser } from "@/modules/user/user.types";
+import { NoAutorizadoError } from "@/lib/errors";
 
 let territorio: TerritorioDePrueba;
 let asesor: CurrentUser;
@@ -120,7 +121,7 @@ describe("las listas de selección respetan el territorio del Actor", () => {
       asesor,
       territorio.chosMalal.id
     );
-    expect(baja.ok).toBe(true);
+    expect(baja.deBaja).toBe(true);
 
     const lista = await TerritorioService.listarDiocesisLocalidades(asesor);
 
@@ -159,16 +160,14 @@ describe("una Región no es editable", () => {
   });
 
   it("renombrar una Provincia no cambia su Región ni su abreviatura", async () => {
-    const result = await TerritorioService.renombrarProvincia(asesor, {
+    const provincia = await TerritorioService.renombrarProvincia(asesor, {
       id: territorio.cordoba.id,
       nombre: "Córdoba Capital",
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.nombre).toBe("Córdoba Capital");
-    expect(result.data.region).toBe("CENTRO");
-    expect(result.data.abreviatura).toBe("CBA");
+    expect(provincia.nombre).toBe("Córdoba Capital");
+    expect(provincia.region).toBe("CENTRO");
+    expect(provincia.abreviatura).toBe("CBA");
   });
 });
 
@@ -179,14 +178,9 @@ describe("dar de baja un territorio en uso", () => {
       createdById: asesor.id,
     });
 
-    const result = await TerritorioService.darDeBajaDiocesisLocalidad(
-      asesor,
-      territorio.villaMaria.id
-    );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("1 Peregrina");
+    await expect(
+      TerritorioService.darDeBajaDiocesisLocalidad(asesor, territorio.villaMaria.id)
+    ).rejects.toThrow(/1 Peregrina/);
   });
 
   it("se rechaza mientras un Misionero lo referencia", async () => {
@@ -195,25 +189,18 @@ describe("dar de baja un territorio en uso", () => {
       createdById: asesor.id,
     });
 
-    const result = await TerritorioService.darDeBajaDiocesisLocalidad(
-      asesor,
-      territorio.rioCuarto.id
-    );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("1 Misionero");
+    await expect(
+      TerritorioService.darDeBajaDiocesisLocalidad(asesor, territorio.rioCuarto.id)
+    ).rejects.toThrow(/1 Misionero/);
   });
 
   it("se acepta cuando nada lo referencia", async () => {
-    const result = await TerritorioService.darDeBajaDiocesisLocalidad(
+    const baja = await TerritorioService.darDeBajaDiocesisLocalidad(
       asesor,
       territorio.villaMaria.id
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.deBaja).toBe(true);
+    expect(baja.deBaja).toBe(true);
   });
 
   it("rechaza dar de baja una Provincia cuyas Diócesis están en uso", async () => {
@@ -222,12 +209,9 @@ describe("dar de baja un territorio en uso", () => {
       createdById: asesor.id,
     });
 
-    const result = await TerritorioService.darDeBajaProvincia(
-      asesor,
-      territorio.neuquen.id
-    );
-
-    expect(result.ok).toBe(false);
+    await expect(
+      TerritorioService.darDeBajaProvincia(asesor, territorio.neuquen.id)
+    ).rejects.toThrow(/todavía la usan/);
   });
 
   it("informa el uso antes de cambiar nada — historia de usuario 10", async () => {
@@ -261,20 +245,18 @@ describe("autorización de escritura", () => {
   } as const;
 
   it("un Asesor Nacional puede crear una Provincia", async () => {
-    const result = await TerritorioService.crearProvincia(asesor, entradaProvincia);
+    const creada = await TerritorioService.crearProvincia(asesor, entradaProvincia);
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.nombre).toBe("Santa Fe");
-    expect(result.data.region).toBe("CENTRO");
+    expect(creada.nombre).toBe("Santa Fe");
+    expect(creada.region).toBe("CENTRO");
   });
 
   it("un admin puede crear una Provincia", async () => {
     const admin = await crearActor({ rol: "admin" });
 
-    const result = await TerritorioService.crearProvincia(admin, entradaProvincia);
+    const creada = await TerritorioService.crearProvincia(admin, entradaProvincia);
 
-    expect(result.ok).toBe(true);
+    expect(creada.nombre).toBe("Santa Fe");
   });
 
   it("un Responsable Diocesano NO puede crear una Provincia", async () => {
@@ -283,14 +265,12 @@ describe("autorización de escritura", () => {
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    const result = await TerritorioService.crearProvincia(
-      responsable,
-      entradaProvincia
-    );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("No tenés permisos");
+    await expect(
+      TerritorioService.crearProvincia(responsable, entradaProvincia)
+    ).rejects.toThrow(NoAutorizadoError);
+    await expect(
+      TerritorioService.crearProvincia(responsable, entradaProvincia)
+    ).rejects.toThrow(/No tenés permisos/);
   });
 
   it("un Referente Local NO puede crear una Diócesis/Localidad", async () => {
@@ -299,12 +279,12 @@ describe("autorización de escritura", () => {
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    const result = await TerritorioService.crearDiocesisLocalidad(referente, {
-      nombre: "Alta Gracia",
-      provinciaId: territorio.cordoba.id,
-    });
-
-    expect(result.ok).toBe(false);
+    await expect(
+      TerritorioService.crearDiocesisLocalidad(referente, {
+        nombre: "Alta Gracia",
+        provinciaId: territorio.cordoba.id,
+      })
+    ).rejects.toThrow(NoAutorizadoError);
   });
 
   it("un Responsable Diocesano NO puede renombrar ni dar de baja un territorio", async () => {
@@ -313,17 +293,18 @@ describe("autorización de escritura", () => {
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    const renombrado = await TerritorioService.renombrarDiocesisLocalidad(
-      responsable,
-      { id: territorio.villaMaria.id, nombre: "Villa Maria Nueva" }
-    );
-    const baja = await TerritorioService.darDeBajaDiocesisLocalidad(
-      responsable,
-      territorio.villaMaria.id
-    );
-
-    expect(renombrado.ok).toBe(false);
-    expect(baja.ok).toBe(false);
+    await expect(
+      TerritorioService.renombrarDiocesisLocalidad(responsable, {
+        id: territorio.villaMaria.id,
+        nombre: "Villa Maria Nueva",
+      })
+    ).rejects.toThrow(NoAutorizadoError);
+    await expect(
+      TerritorioService.darDeBajaDiocesisLocalidad(
+        responsable,
+        territorio.villaMaria.id
+      )
+    ).rejects.toThrow(NoAutorizadoError);
 
     // And the list is genuinely untouched, not merely reported as refused.
     const sinCambios = await TerritorioService.obtenerDiocesisLocalidad(
@@ -342,43 +323,39 @@ describe("crear y renombrar territorio", () => {
       provinciaId: territorio.cordoba.id,
     });
 
-    expect(creada.ok).toBe(true);
-    if (!creada.ok) return;
-    expect(creada.data.provincia.nombre).toBe("Córdoba");
-    expect(creada.data.region).toBe("CENTRO");
+    expect(creada.provincia.nombre).toBe("Córdoba");
+    expect(creada.region).toBe("CENTRO");
 
     const lista = await TerritorioService.listarDiocesisLocalidades(asesor);
     expect(lista.map((d) => d.nombre)).toContain("Alta Gracia");
   });
 
   it("rechaza una Diócesis/Localidad duplicada en la misma Provincia, ignorando tildes y mayúsculas", async () => {
-    const result = await TerritorioService.crearDiocesisLocalidad(asesor, {
-      nombre: "  villa maria ",
-      provinciaId: territorio.cordoba.id,
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("Ya existe");
+    await expect(
+      TerritorioService.crearDiocesisLocalidad(asesor, {
+        nombre: "  villa maria ",
+        provinciaId: territorio.cordoba.id,
+      })
+    ).rejects.toThrow(/Ya existe/);
   });
 
   it("acepta el mismo nombre de Diócesis/Localidad en otra Provincia", async () => {
-    const result = await TerritorioService.crearDiocesisLocalidad(asesor, {
+    const creada = await TerritorioService.crearDiocesisLocalidad(asesor, {
       nombre: "Villa María",
       provinciaId: territorio.neuquen.id,
     });
 
-    expect(result.ok).toBe(true);
+    expect(creada.provincia.nombre).toBe("Neuquén");
   });
 
   it("rechaza una Provincia duplicada", async () => {
-    const result = await TerritorioService.crearProvincia(asesor, {
-      nombre: "cordoba",
-      abreviatura: "CDA",
-      region: "CENTRO",
-    });
-
-    expect(result.ok).toBe(false);
+    await expect(
+      TerritorioService.crearProvincia(asesor, {
+        nombre: "cordoba",
+        abreviatura: "CDA",
+        region: "CENTRO",
+      })
+    ).rejects.toThrow(/Ya existe/);
   });
 
   it("el renombre se propaga a donde el nombre se muestre", async () => {
@@ -397,14 +374,12 @@ describe("crear y renombrar territorio", () => {
   it("no permite agregar una Diócesis/Localidad a una Provincia dada de baja", async () => {
     await TerritorioService.darDeBajaProvincia(asesor, territorio.neuquen.id);
 
-    const result = await TerritorioService.crearDiocesisLocalidad(asesor, {
-      nombre: "Junín de los Andes",
-      provinciaId: territorio.neuquen.id,
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("dada de baja");
+    await expect(
+      TerritorioService.crearDiocesisLocalidad(asesor, {
+        nombre: "Junín de los Andes",
+        provinciaId: territorio.neuquen.id,
+      })
+    ).rejects.toThrow(/dada de baja/);
   });
 });
 
@@ -416,48 +391,41 @@ describe("resolver texto libre sobre datos de referencia", () => {
     ["  Cordoba  ", "  Villa Maria  "],
     ["Cordoba", "Villa María"],
   ])("mapea «%s / %s» al registro correcto", async (prov, dioc) => {
-    const result = await TerritorioService.buscarPorNombre(asesor, {
+    const encontrada = await TerritorioService.buscarPorNombre(asesor, {
       provincia: prov,
       diocesisLocalidad: dioc,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.id).toBe(territorio.villaMaria.id);
-    expect(result.data.provincia.nombre).toBe("Córdoba");
-    expect(result.data.region).toBe("CENTRO");
+    expect(encontrada.id).toBe(territorio.villaMaria.id);
+    expect(encontrada.provincia.nombre).toBe("Córdoba");
+    expect(encontrada.region).toBe("CENTRO");
   });
 
   it("informa una Provincia desconocida por su nombre en vez de descartarla", async () => {
-    const result = await TerritorioService.buscarPorNombre(asesor, {
-      provincia: "Provincia Inventada",
-      diocesisLocalidad: "Villa María",
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("Provincia Inventada");
+    await expect(
+      TerritorioService.buscarPorNombre(asesor, {
+        provincia: "Provincia Inventada",
+        diocesisLocalidad: "Villa María",
+      })
+    ).rejects.toThrow(/Provincia Inventada/);
   });
 
   it("informa una Diócesis/Localidad desconocida por su nombre y su Provincia", async () => {
-    const result = await TerritorioService.buscarPorNombre(asesor, {
-      provincia: "Córdoba",
-      diocesisLocalidad: "Pueblo Que No Existe",
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContain("Pueblo Que No Existe");
-    expect(result.error).toContain("Córdoba");
+    await expect(
+      TerritorioService.buscarPorNombre(asesor, {
+        provincia: "Córdoba",
+        diocesisLocalidad: "Pueblo Que No Existe",
+      })
+    ).rejects.toThrow(/Pueblo Que No Existe.*Córdoba/);
   });
 
   it("no cruza Provincias: una Diócesis real bajo la Provincia equivocada no resuelve", async () => {
-    const result = await TerritorioService.buscarPorNombre(asesor, {
-      provincia: "Neuquén",
-      diocesisLocalidad: "Villa María",
-    });
-
-    expect(result.ok).toBe(false);
+    await expect(
+      TerritorioService.buscarPorNombre(asesor, {
+        provincia: "Neuquén",
+        diocesisLocalidad: "Villa María",
+      })
+    ).rejects.toThrow(/No existe la Diócesis\/Localidad/);
   });
 
   it("no inventa registros al no encontrar coincidencia", async () => {
@@ -466,7 +434,7 @@ describe("resolver texto libre sobre datos de referencia", () => {
     await TerritorioService.buscarPorNombre(asesor, {
       provincia: "Córdoba",
       diocesisLocalidad: "Pueblo Que No Existe",
-    });
+    }).catch(() => null);
 
     const despues = await TerritorioService.listarDiocesisLocalidades(asesor);
     expect(despues).toHaveLength(antes.length);

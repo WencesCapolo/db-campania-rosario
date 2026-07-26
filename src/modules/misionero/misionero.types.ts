@@ -91,6 +91,4 @@ export type AddResumenAnualInput = z.infer<typeof addResumenAnualSchema>;
 
 // ── Result pattern ────────────────────────────────────────────────────────────
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
+export type { ActionResult } from "@/lib/action-result";

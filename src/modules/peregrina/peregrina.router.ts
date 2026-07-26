@@ -8,23 +8,28 @@ import {
   updatePeregrinaSchema,
 } from "./peregrina.types";
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
+import { aResultado } from "@/lib/errors";
 
 /**
  * PeregrinaRouter — Next.js server actions
  *
- * Responsibility: authenticate the caller, delegate ALL logic to
- * PeregrinaService, revalidate the Next.js cache on mutations.
- * No business logic lives here.
+ * Responsibility: resolve the Actor, parse input with Zod so nothing invalid
+ * reaches a service, delegate, revalidate the cache, and map thrown domain
+ * errors onto a result. No business logic lives here.
+ *
+ * Reads let the error through to the page's error boundary rather than swallowing
+ * it into an empty list: a silently blank table is a bug, and an authorization
+ * refusal that renders as "no hay Peregrinas" is a lie.
  */
 
 export async function getPeregrinasAction(): Promise<PeregrinaDTO[]> {
-  await getCurrentUser(); // ensures authenticated
-  return PeregrinaService.listAll();
+  const actor = await getCurrentUser();
+  return PeregrinaService.listAll(actor);
 }
 
 export async function getPeregrinaByIdAction(id: string): Promise<PeregrinaDTO> {
-  await getCurrentUser();
-  return PeregrinaService.getById(id);
+  const actor = await getCurrentUser();
+  return PeregrinaService.getById(actor, id);
 }
 
 export async function createPeregrinaAction(
@@ -34,10 +39,16 @@ export async function createPeregrinaAction(
 
   const parsed = createPeregrinaSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+      codigo: "validacion",
+    };
   }
 
-  const result = await PeregrinaService.create(actor, parsed.data);
+  const result = await aResultado(() =>
+    PeregrinaService.create(actor, parsed.data)
+  );
 
   if (result.ok) revalidatePath("/peregrina");
 
@@ -52,10 +63,16 @@ export async function updatePeregrinaAction(
 
   const parsed = updatePeregrinaSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+      codigo: "validacion",
+    };
   }
 
-  const result = await PeregrinaService.update(actor, id, parsed.data);
+  const result = await aResultado(() =>
+    PeregrinaService.update(actor, id, parsed.data)
+  );
 
   if (result.ok) {
     revalidatePath("/peregrina");
@@ -65,10 +82,11 @@ export async function updatePeregrinaAction(
   return result;
 }
 
-
-export async function deletePeregrinaAction(id: string): Promise<ActionResult> {
+export async function deletePeregrinaAction(
+  id: string
+): Promise<ActionResult<void>> {
   const actor = await getCurrentUser();
-  const result = await PeregrinaService.delete(actor, id);
+  const result = await aResultado(() => PeregrinaService.delete(actor, id));
 
   if (result.ok) revalidatePath("/peregrina");
 
@@ -76,6 +94,6 @@ export async function deletePeregrinaAction(id: string): Promise<ActionResult> {
 }
 
 export async function getPeregrinaDashboardStatsAction() {
-  await getCurrentUser();
-  return PeregrinaService.dashboardStats();
+  const actor = await getCurrentUser();
+  return PeregrinaService.dashboardStats(actor);
 }

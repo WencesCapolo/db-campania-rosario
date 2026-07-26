@@ -13,7 +13,13 @@ let actor: CurrentUser;
 
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
-  actor = await crearActor({ rol: "referente_local" });
+  // A Referente Local now has to *have* a territory — a lower rol without one is
+  // refused rather than treated as country-wide. Córdoba, so the Neuquén
+  // fixtures stay out of reach and the scoping suite has something to prove.
+  actor = await crearActor({
+    rol: "referente_local",
+    diocesisLocalidadId: territorio.rioCuarto.id,
+  });
 });
 
 const juan = {
@@ -27,25 +33,23 @@ const juan = {
 
 describe("el territorio de un Misionero", () => {
   it("se elige una vez y la Provincia y la Región se derivan", async () => {
-    const result = await MisioneroService.create(actor, {
+    const creado = await MisioneroService.create(actor, {
       ...juan,
       diocesisLocalidadId: territorio.rioCuarto.id,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.diocesisLocalidad.nombre).toBe("Río Cuarto");
-    expect(result.data.provincia).toBe("Córdoba");
-    expect(result.data.region).toBe("CENTRO");
+    expect(creado.diocesisLocalidad.nombre).toBe("Río Cuarto");
+    expect(creado.provincia).toBe("Córdoba");
+    expect(creado.region).toBe("CENTRO");
   });
 
   it("no se puede registrar un Misionero en una Diócesis/Localidad inexistente", async () => {
-    const result = await MisioneroService.create(actor, {
-      ...juan,
-      diocesisLocalidadId: "no-existe",
-    });
-
-    expect(result.ok).toBe(false);
+    await expect(
+      MisioneroService.create(actor, {
+        ...juan,
+        diocesisLocalidadId: "no-existe",
+      })
+    ).rejects.toThrow(/No existe esa Diócesis\/Localidad/);
   });
 
   it("no se puede registrar un Misionero en una Diócesis/Localidad dada de baja", async () => {
@@ -55,39 +59,39 @@ describe("el territorio de un Misionero", () => {
       territorio.chosMalal.id
     );
 
-    const result = await MisioneroService.create(actor, {
-      ...juan,
-      diocesisLocalidadId: territorio.chosMalal.id,
-    });
-
-    expect(result.ok).toBe(false);
+    await expect(
+      MisioneroService.create(asesor, {
+        ...juan,
+        diocesisLocalidadId: territorio.chosMalal.id,
+      })
+    ).rejects.toThrow(/dada de baja/);
   });
 
   it("un renombre de territorio se ve al releer el Misionero", async () => {
     const asesor = await crearActor({ rol: "asesor_nacional" });
-    const creado = await MisioneroService.create(actor, {
+    const creado = await MisioneroService.create(asesor, {
       ...juan,
       diocesisLocalidadId: territorio.zapala.id,
     });
-    if (!creado.ok) return;
 
     await TerritorioService.renombrarDiocesisLocalidad(asesor, {
       id: territorio.zapala.id,
       nombre: "Zapala Centro",
     });
 
-    const releido = await MisioneroService.getById(creado.data.id);
+    const releido = await MisioneroService.getById(asesor, creado.id);
 
     expect(releido.diocesisLocalidad.nombre).toBe("Zapala Centro");
   });
 
   it("busca por Diócesis/Localidad ignorando mayúsculas", async () => {
-    await MisioneroService.create(actor, {
+    const asesor = await crearActor({ rol: "asesor_nacional" });
+    await MisioneroService.create(asesor, {
       ...juan,
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    const encontrados = await MisioneroService.search("villa mar");
+    const encontrados = await MisioneroService.search(asesor, "villa mar");
 
     expect(encontrados).toHaveLength(1);
     expect(encontrados[0]?.apellido).toBe("Gómez");

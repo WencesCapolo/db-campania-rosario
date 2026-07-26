@@ -35,8 +35,8 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 
 The baseline's geography and vocabulary are better researched than `agents.md` was, and were adopted. Four gaps were found that it does not cover:
 
-1. **No territorial scoping.** Reads are open to every authenticated Usuario; a service comment documents this as intentional. Country-wide data is readable by anyone with a session.
-2. **Self-provisioning.** An authenticated identity with no application record is defaulted into `referente_local`. Authentication is therefore sufficient for authorization.
+1. ~~**No territorial scoping.**~~ Closed by issue 2: every service takes the Actor first, every repository read takes the derived `Alcance` first, and both lower rols are bounded by their Diócesis/Localidad.
+2. ~~**Self-provisioning.**~~ Closed by issue 2: an identity with no application record is refused, and Usuarios come into existence only by accepting an invitation — ADR 0003.
 3. **No history.** Charge of a Peregrina is a single overwritten pointer, so a lost image cannot be traced to its last holder.
 4. **Physical deletion**, which would destroy that history once it exists.
 
@@ -49,12 +49,12 @@ Specced as PRDs on the issue tracker, in dependency order:
 | # | Issue | Depends on |
 |---|---|---|
 | 1 | [Territorio como datos de referencia](../../issues/1) | — · **data layer and tests done; admin screens folded into 4** |
-| 2 | [Autorización territorial y aprovisionamiento por invitación](../../issues/2) | 1 |
+| 2 | [Autorización territorial y aprovisionamiento por invitación](../../issues/2) | 1 · **done: scoping, invitations, typed errors; screens plain, restyled by 4** |
 | 3 | [Historial de Asignaciones, baja lógica y estados](../../issues/3) | 2 |
 | 4 | [Sistema de diseño accesible y reconstrucción de pantallas](../../issues/4) | — (do before rebuilding screens) |
 | 5 | [Tablero con agregaciones y filtros](../../issues/5) | 1, 2, partly 3 |
 
-Issue 2 is the priority. Until it ships there is no meaningful access control over Campaña data. Issue 4 is independent and can run in parallel — but must land before the remaining screens are rebuilt, or they get styled twice.
+Issue 3 is next. Issue 4 is independent and can run in parallel — but must land before the remaining screens are rebuilt, or they get styled twice.
 
 ### What issue 1 left for issue 4
 
@@ -84,4 +84,17 @@ Both are plain Tailwind and meant to be **restyled, not rebuilt**. What issue 4 
 ## Open questions
 
 - What is the threshold for a Peregrina having "not changed hands recently"? Only affects one issue 5 card.
-- Does the `admin` rol have a real-world holder distinct from Asesor Nacional, or is it purely technical? Affects issue 2's invitation rules.
+
+### What issue 2 left for issue 4
+
+The invitation and user-management surfaces exist and work, in plain Tailwind, to be **restyled not rebuilt**: `/admin/users` (who has access, who was invited and has not arrived, identities with no Usuario), `/admin/users/new` (the invitation form), and `/sin-autorizacion` (the refusal, outside the dashboard group because a page about not having an Actor cannot require one).
+
+Still owed by a screen rather than by logic: changing a Usuario's rol or territory, and giving one de baja or reactivating them. `UserService.actualizar`, `darDeBaja` and `reactivar` are implemented, tested and exposed as server actions — user stories 15 and 16 need a control, not a rule.
+
+There is a plain `(dashboard)/error.tsx` boundary, because reads now *throw* an authorization refusal instead of returning an empty list — a blank table where a refusal belongs is a lie. Its copy is generic on purpose: Next replaces a server error's message with a digest in production, so a boundary cannot honestly restate the specific refusal. Issue 4 restyles it; making it say more than it knows would be a regression, not an improvement.
+
+## Questions answered — 2026-07-25 (continued)
+
+| Question | Answer | Consequence |
+|---|---|---|
+| Is the `admin` rol a real person distinct from Asesor Nacional, or purely technical? | A real person, **and** an admin may invite another admin | The one exception to strictly-lower rank. `admin` appears in the invitation rol list for an admin. Recorded in ADR 0003 |

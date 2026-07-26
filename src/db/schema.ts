@@ -5,3 +5,4 @@ export * from "../modules/territorio/territorio.schema";
 export * from "./schema/users";
 export * from "../modules/peregrina/peregrina.schema";
 export * from "../modules/misionero/misionero.schema";
+export * from "../modules/invitacion/invitacion.schema";
