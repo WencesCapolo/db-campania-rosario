@@ -36,10 +36,9 @@ export default async function DashboardLayout({
 }) {
   const user = await getCurrentUser();
 
-  const puedeAdministrar =
-    user.role === "admin" ||
-    user.role === "asesor_nacional" ||
-    user.role === "responsable_diocesano";
+  const esNacional = user.role === "admin" || user.role === "asesor_nacional";
+
+  const puedeAdministrar = esNacional || user.role === "responsable_diocesano";
 
   return (
     <div className="min-h-screen bg-neutral-100 text-[18px] text-neutral-900">
@@ -60,6 +59,18 @@ export default async function DashboardLayout({
                 className={`inline-flex min-h-12 items-center rounded-lg px-3 text-lg font-semibold underline ${ANILLO}`}
               >
                 Usuarios
+              </Link>
+            )}
+
+            {/* Territorio is national work — TerritorioService refuses it below
+                asesor_nacional — so the link is not offered to a Responsable
+                Diocesano who could only be refused by it. */}
+            {esNacional && (
+              <Link
+                href="/admin/territorio"
+                className={`inline-flex min-h-12 items-center rounded-lg px-3 text-lg font-semibold underline ${ANILLO}`}
+              >
+                Territorio
               </Link>
             )}
 

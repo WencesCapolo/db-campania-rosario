@@ -8,6 +8,7 @@ import {
   updatePeregrinaSchema,
 } from "./peregrina.types";
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
+import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
 import { aResultado } from "@/lib/errors";
 
 /**
@@ -30,6 +31,33 @@ export async function getPeregrinasAction(): Promise<PeregrinaDTO[]> {
 export async function getPeregrinaByIdAction(id: string): Promise<PeregrinaDTO> {
   const actor = await getCurrentUser();
   return PeregrinaService.getById(actor, id);
+}
+
+/**
+ * The two filtered reads the listado uses.
+ *
+ * `listByEstado` and `listByModalidad` have existed and been tested since issue
+ * #1; they simply had no action in front of them, because there was no screen.
+ * Both are indexed reads, which is why the list asks for them rather than
+ * fetching everything and narrowing in the browser.
+ *
+ * `inactiva` is reachable here on purpose. It is excluded from *entry* and from
+ * the filter control — see `ESTADOS_SELECCIONABLES` — but a record already
+ * carrying it must stay readable, and a read that refused the value would make
+ * those records unreachable rather than merely unwritable.
+ */
+export async function getPeregrinasPorEstadoAction(
+  estado: PeregrinaEstado
+): Promise<PeregrinaDTO[]> {
+  const actor = await getCurrentUser();
+  return PeregrinaService.listByEstado(actor, estado);
+}
+
+export async function getPeregrinasPorModalidadAction(
+  modalidad: Modalidad
+): Promise<PeregrinaDTO[]> {
+  const actor = await getCurrentUser();
+  return PeregrinaService.listByModalidad(actor, modalidad);
 }
 
 export async function createPeregrinaAction(

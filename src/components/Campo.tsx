@@ -22,7 +22,7 @@ import { useId } from "react";
 interface Props
   extends Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
-    "className" | "id" | "aria-invalid" | "aria-describedby"
+    "className" | "aria-invalid" | "aria-describedby"
   > {
   etiqueta: string;
   /** Shown under the label, before anything is typed. */
@@ -30,8 +30,18 @@ interface Props
   error?: string | null;
 }
 
-export default function Campo({ etiqueta, ayuda, error, ...resto }: Props) {
-  const id = useId();
+export default function Campo({
+  etiqueta,
+  ayuda,
+  error,
+  id: idDado,
+  ...resto
+}: Props) {
+  // A caller may name the field when it needs to move focus to it — "Guardar y
+  // agregar otra" does. Everything derived from the id follows whichever it is,
+  // so supplying one cannot half-wire the label or the error.
+  const idGenerado = useId();
+  const id = idDado ?? idGenerado;
   const idAyuda = `${id}-ayuda`;
   const idError = `${id}-error`;
 
