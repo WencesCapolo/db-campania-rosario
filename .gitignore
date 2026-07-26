@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vitest browser mode — failure screenshots and attachments, written on every
+# failing run in the navegador project. Artefacts of a run, never of the repo.
+**/__screenshots__/
+.vitest-attachments/

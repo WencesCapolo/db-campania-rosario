@@ -13,6 +13,8 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local --tsconfig tsconfig.seed.json src/db/seeds/territorio.ts",
     "test": "vitest run",
+    "test:node": "vitest run --project node",
+    "test:navegador": "vitest run --project navegador",
     "test:watch": "vitest",
     "test:db:up": "podman run -d --rm --name campania-test-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=campania_test -p 55432:5432 docker.io/library/postgres:17-alpine",
     "test:db:down": "podman rm -f campania-test-db"
@@ -33,7 +35,10 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitest/browser": "^4.1.10",
+    "@vitest/browser-playwright": "^4.1.10",
     "@vitest/coverage-v8": "^4.1.10",
+    "axe-core": "^4.12.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "dotenv": "^16.0.0",
     "drizzle-kit": "^0.30.0",
@@ -41,10 +46,12 @@
     "eslint-config-next": "^16.2.12",
     "eslint-plugin-react-hooks": "^7.1.1",
     "pg": "^8.22.0",
+    "playwright": "^1.62.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.23.1",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vitest-browser-react": "^2.2.0"
   }
 }

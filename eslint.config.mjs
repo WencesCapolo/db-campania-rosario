@@ -39,8 +39,14 @@ const unSoloSistemaDeEstilos = {
           "Sin CSS modules: Tailwind es el único sistema de estilos. El último que hubo era un archivo de cero bytes cuyas once clases resolvían a undefined, y nadie lo notó durante tres issues.",
       },
       {
+        // Any path ending in `globals.css`, not the literal `./globals.css`. The
+        // root layout imports it as `./globals.css` and the browser test project's
+        // setup imports it as `@/app/globals.css` — the same file, and importing
+        // the real stylesheet is the entire reason those tests can assert a
+        // computed contrast rather than a class name. The rule is "one
+        // stylesheet", never "one importer".
         selector:
-          "ImportDeclaration[source.value=/\\.css$/][source.value!='./globals.css']",
+          "ImportDeclaration[source.value=/\\.css$/][source.value!=/globals\\.css$/]",
         message:
           "Sin hojas de estilo propias: los tokens se declaran una sola vez, en globals.css. Una segunda hoja los redefine en un lugar donde nadie los busca.",
       },
