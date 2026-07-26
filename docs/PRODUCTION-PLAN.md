@@ -48,7 +48,7 @@ Specced as PRDs on the issue tracker, in dependency order:
 
 | # | Issue | Depends on |
 |---|---|---|
-| 1 | [Territorio como datos de referencia](../../issues/1) | — |
+| 1 | [Territorio como datos de referencia](../../issues/1) | — · **data layer and tests done; admin screens folded into 4** |
 | 2 | [Autorización territorial y aprovisionamiento por invitación](../../issues/2) | 1 |
 | 3 | [Historial de Asignaciones, baja lógica y estados](../../issues/3) | 2 |
 | 4 | [Sistema de diseño accesible y reconstrucción de pantallas](../../issues/4) | — (do before rebuilding screens) |
@@ -56,9 +56,20 @@ Specced as PRDs on the issue tracker, in dependency order:
 
 Issue 2 is the priority. Until it ships there is no meaningful access control over Campaña data. Issue 4 is independent and can run in parallel — but must land before the remaining screens are rebuilt, or they get styled twice.
 
+### What issue 1 left for issue 4
+
+The baseline's screens turned out to be stubs — `export default function Page() { return null }` — and the one real screen is styled by an empty CSS module. There was no existing form to convert, so issue 1 shipped its data layer, service, migration and tests, plus the two surfaces without which none of it is reachable:
+
+- `SelectorDeTerritorio` — the picker. One choice, with Provincia and Región shown derived and read-only. Native `<select>`, loading/error-with-retry/empty states, 48px targets.
+- `/peregrina/new` — a working create form, including "Guardar y agregar otra".
+
+Both are plain Tailwind and meant to be **restyled, not rebuilt**. What issue 4 still owns from issue 1's PRD is the **admin territory management screens** — user stories 5 through 12: add, rename and give de baja a Provincia or Diócesis/Localidad, and show the reference count before a change. Every one of those is already implemented and tested in `TerritorioService`, with server actions in `territorio.router.ts`. They need a screen, not logic.
+
 ## Not yet specced
 
 - **Production readiness proper:** environment variables per environment, migrations applied in the build rather than pushed, error tracking, structured logging of authorization denials, and confirmation that Neon's point-in-time recovery window matches what losing this data would cost.
+
+  One piece of this is already blocking locally: `.env` holds only `DATABASE_URL`, so `pnpm build` fails while collecting page data for `/api/auth/[...path]` — Neon Auth needs `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET`. The build is otherwise clean. See `.env.example`.
 - **A real accessibility pass** with one actual Referente completing a real task unaided on their own phone. No automated check substitutes for it.
 
 ## Questions answered — 2026-07-25
