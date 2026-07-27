@@ -85,6 +85,13 @@ export const misionero = pgTable(
     index("misionero_estado_idx").on(t.estado),
     // Active lists filter out bajas, which is now every list by default.
     index("misionero_baja_idx").on(t.bajaAt),
+    // Issue #5 added a partial composite here, on (territory, apellido, nombre)
+    // where baja_at is null, for the tablero's count and the alphabetical list.
+    // It was removed in the same commit: with four thousand Misioneros the
+    // planner prefers the plain territory index above and a sort, so the extra
+    // index was cost on every write and chosen on no read. See
+    // `tablero.planes.test.ts` — the point of measuring is to believe the result.
+
   ]
 );
 

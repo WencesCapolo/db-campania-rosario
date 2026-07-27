@@ -6,7 +6,7 @@ import {
   integer,
   index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { users } from "@/db/schema/users";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 import { misionero } from "@/modules/misionero/misionero.schema";
@@ -158,6 +158,37 @@ export const peregrina = pgTable(
     index("peregrina_baja_idx").on(t.bajaAt),
     // "Who has this one" on a list screen reads straight off this column.
     index("peregrina_misionero_actual_idx").on(t.misioneroActualId),
+
+    /*
+     * The tablero's own index — issue #5.
+     *
+     * Every aggregate a scoped Actor loads is the same shape: narrow to one
+     * Diócesis, exclude the bajas, group by one of Estado, Modalidad or Tipo.
+     * The three single-column indexes above cannot serve that, because the
+     * selective predicate is the territory and Postgres would have to visit the
+     * heap for every row of it to read the column it is grouping by.
+     *
+     * Composite and **partial**: `where baja_at is null` is in every list and
+     * every figure by default, so keeping the retired rows out of the index makes
+     * it both smaller and applicable without a recheck — and it lets these counts
+     * be answered index-only, which is what keeps a dashboard load off the heap
+     * as the Campaña grows.
+     *
+     * Column order is the selective one first. Estado before Modalidad because a
+     * filter on Estado narrows more in practice: most images are `activa`, and
+     * the interesting questions are about the handful that are not.
+     *
+     * Measured rather than assumed — `tablero.planes.test.ts` explains the real
+     * queries against twelve thousand images and asserts this index by name. Two
+     * other candidates were dropped in the same measurement: a partial index on
+     * the images nobody has, and one on the Misioneros of a territory in surname
+     * order. The planner picked the plain territory indexes and a sort over both,
+     * so they were write cost and disk for nothing.
+     */
+    index("peregrina_activas_por_territorio_idx")
+      .on(t.diocesisLocalidadId, t.estado, t.modalidad, t.tipo)
+      .where(sql`${t.bajaAt} is null`),
+
   ]
 );
 

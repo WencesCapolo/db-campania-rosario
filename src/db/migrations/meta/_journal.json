@@ -43,6 +43,13 @@
       "when": 1785038709138,
       "tag": "0005_region_por_diocesis_y_modalidades",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785162770597,
+      "tag": "0006_indices_del_tablero",
+      "breakpoints": true
     }
   ]
 }

@@ -112,6 +112,25 @@ export const asignacion = pgTable(
     // "Every Peregrina this Misionero has ever had" — user story 7 — and the
     // guard that refuses to give a Misionero de baja while one is open.
     index("asignacion_misionero_idx").on(t.misioneroId),
+
+    /*
+     * "Which images have not changed hands in six months" — issue #5's stalled
+     * card, which is a range scan over the opening dates of the *open* periods.
+     *
+     * Partial for the reason the unique index above is: this table grows without
+     * a ceiling — one row per pair of hands an image has passed through — while
+     * the open rows are a minority of it, and the question is only ever about
+     * those. Measured in `tablero.planes.test.ts`, which asserts this index by
+     * name against thirty thousand Asignaciones.
+     *
+     * A matching one on `misionero_id` was written and then removed: the
+     * anti-join behind "who has their hands free" is served by
+     * `asignacion_peregrina_abierta_key`, which is already partial on open rows,
+     * and the planner chose it over the new index every time.
+     */
+    index("asignacion_abiertas_por_fecha_idx")
+      .on(t.abiertaAt)
+      .where(sql`${t.cerradaAt} is null`),
   ]
 );
 
