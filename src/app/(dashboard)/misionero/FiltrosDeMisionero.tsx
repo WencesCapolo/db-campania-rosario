@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
+import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
 
 /**
  * Buscar una persona, y ver quién tiene las manos libres.
@@ -39,6 +40,9 @@ export default function FiltrosDeMisionero({
       if (valor) params.set(clave, valor);
       else params.delete(clave);
     }
+    // Back to the first page: a narrower search has fewer pages, and page four of
+    // two comes back empty and reads as "nobody matches".
+    params.delete(CLAVE_DE_PAGINA);
     const query = params.toString();
     empezar(() => router.push(query ? `/misionero?${query}` : "/misionero"));
   }

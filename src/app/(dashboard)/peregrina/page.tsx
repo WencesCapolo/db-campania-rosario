@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPeregrinasFiltradasAction } from "@/modules/peregrina/peregrina.router";
+import { getPeregrinasPaginadasAction } from "@/modules/peregrina/peregrina.router";
 import { getDiocesisLocalidadesAction } from "@/modules/territorio/territorio.router";
 import { getCurrentUser } from "@/lib/get-current-user";
 import { esNacional } from "@/lib/authorization/alcance";
@@ -7,9 +7,12 @@ import {
   ESTADO_LABELS,
   MODALIDAD_LABELS,
   TIPO_LABELS,
+  comoQueryString,
   filtrosDesdeParams,
   hayFiltros,
 } from "@/modules/peregrina/peregrina.types";
+import { CLAVE_DE_PAGINA, paginaDesdeParams } from "@/lib/paginacion";
+import Paginador from "@/components/Paginador";
 import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
 import Insignia, { type TonoDeInsignia } from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
@@ -55,7 +58,9 @@ export default async function PeregrinaListaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const filtros = filtrosDesdeParams(await searchParams);
+  const params = await searchParams;
+  const filtros = filtrosDesdeParams(params);
+  const paginaPedida = paginaDesdeParams(params);
 
   // The territory picker is for the two nacional rols only. A Referente Local's
   // records are one Diócesis already, and offering them their Provincia's other
@@ -68,8 +73,18 @@ export default async function PeregrinaListaPage({
       }))
     : null;
 
-  const peregrinas = await getPeregrinasFiltradasAction(filtros);
+  const pagina = await getPeregrinasPaginadasAction(filtros, paginaPedida);
+  const peregrinas = pagina.filas;
   const filtrado = hayFiltros(filtros);
+
+  // The filters are already a query string, so a page link is that string plus
+  // one key. Built here rather than in the paginador, which would then have to
+  // know every filter key — there is one list of those, and it is in the module.
+  const hrefDePagina = (n: number) => {
+    const query = new URLSearchParams(comoQueryString(filtros));
+    query.set(CLAVE_DE_PAGINA, String(n));
+    return `/peregrina?${query.toString()}`;
+  };
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 px-5 py-6">
@@ -77,9 +92,10 @@ export default async function PeregrinaListaPage({
         <div>
           <h1 className="text-3xl font-bold text-tinta">Peregrinas</h1>
           <p className="mt-1 text-base text-tinta-suave" aria-live="polite">
-            {peregrinas.length === 1
-              ? "1 imagen"
-              : `${peregrinas.length} imágenes`}
+            {/* The whole matching set, from the aggregate — not this page's rows.
+                "20 imágenes" on page one of nine would be a count of the page
+                size, which is the figure this project spent issue 5 removing. */}
+            {pagina.total === 1 ? "1 imagen" : `${pagina.total} imágenes`}
             {filtrado ? " con esos filtros" : " en tu territorio"}
           </p>
         </div>
@@ -150,6 +166,15 @@ export default async function PeregrinaListaPage({
           ))}
         </ul>
       )}
+
+      <Paginador
+        pagina={pagina.pagina}
+        paginas={pagina.paginas}
+        total={pagina.total}
+        porPagina={pagina.porPagina}
+        unidad="imágenes"
+        href={hrefDePagina}
+      />
     </main>
   );
 }

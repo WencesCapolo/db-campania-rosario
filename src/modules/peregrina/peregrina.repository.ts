@@ -517,14 +517,25 @@ export class PeregrinaRepository {
    * memory. That worked while there were two filters and a Diócesis's worth of
    * rows, and it is exactly the pattern that makes a screen slower as the
    * Campaña grows — which the tablero is not allowed to be.
+   *
+   * `paginacion` cuts the rows in the database rather than in the page. Absent
+   * means every matching row, which is what a picker and the tests want; the
+   * screen always passes one. The order is the Código, which is unique, so a row
+   * cannot sit on two pages or fall between them — an `order by` that ties is how
+   * an offset silently skips records.
    */
   static async findFiltradas(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
+    paginacion?: { limit: number; offset: number }
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
+    const consulta = conTerritorio()
       .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
       .orderBy(asc(peregrina.codigo));
+
+    return paginacion
+      ? consulta.limit(paginacion.limit).offset(paginacion.offset)
+      : consulta;
   }
 }

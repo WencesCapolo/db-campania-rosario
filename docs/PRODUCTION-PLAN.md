@@ -56,7 +56,7 @@ Specced as PRDs on the issue tracker, in dependency order:
 | 1 | [Territorio como datos de referencia](../../issues/1) | — · **data layer and tests done; admin screens folded into 4** |
 | 2 | [Autorización territorial y aprovisionamiento por invitación](../../issues/2) | 1 · **done: scoping, invitations, typed errors; screens plain, restyled by 4** |
 | 3 | [Historial de Asignaciones, baja lógica y estados](../../issues/3) | 2 · **done: Asignación module, soft delete, estados, backfill; two screens plain, restyled by 4** |
-| 4 | [Sistema de diseño accesible y reconstrucción de pantallas](../../issues/4) | — · **done, except the one thing no automated check can do — see below** |
+| 4 | [Sistema de diseño accesible y reconstrucción de pantallas](../../issues/4) | — · **done, including pagination and blur-time validation (ADR 0008); except the one thing no automated check can do — see below** |
 | 5 | [Tablero con agregaciones y filtros](../../issues/5) | 1, 2, partly 3 · **done — ADR 0007** |
 
 All five PRDs are implemented. What is left is production readiness proper, and the
@@ -134,6 +134,8 @@ The visual language is settled, so issue 5 styles nothing new: tokens in `global
 ~~**Indexes are covered but unmeasured.**~~ Closed by issue 5, and the answer was not the expected one: `tablero.planes.test.ts` seeds twelve thousand images and thirty thousand Asignaciones and explains the real queries, and **three of the five indexes written for the tablero were deleted** because the planner chose the existing single-column indexes and a sort over each of them. Two survive — a partial composite on `(diócesis, estado, modalidad, tipo)` and a partial one on the open Asignaciones by date, which turned out to serve both cross-entity cards. The measurement is a test rather than a note, so a regression that turns a dashboard load into a full scan fails the suite.
 
 This is still volume the suite invented. Nobody has looked at a plan against the Campaña's own data, because there is none — the project holds zero Peregrinas and zero Misioneros.
+
+**Two stories closed after issue 5, in the same shape as the rest.** Story 23 — long lists in manageable pages — is `?pagina=` in the address beside the filters, `listPagina` on both services, and the `Paginador` primitive; the total is an aggregate over the same predicate the rows come from, so a paginated header cannot become a count of the page size. Story 15 — being told about a problem on leaving a field — is `useValidacionAlSalir`, which validates one field on blur against the Zod schema the router already parses, and is wired into the four forms somebody types text into. Both are recorded in ADR 0008. It also fixed a message about the wrong field: an empty Apellido was refused with "El nombre es obligatorio.", because both halves of a name shared one schema.
 
 **Two things issue 4 deliberately did not do.** Dark mode is out of scope: it doubles the contrast verification, and the block that used to sit in `globals.css` flipped the body to near-black while every colour on every screen was hardcoded light — so a phone set to dark rendered white text on white, and no 4.5:1 claim was honest while it was live. And there is still no CI; the style guard is an ESLint rule for that reason, and the accessibility suite needs a cached Chromium the day CI arrives.
 

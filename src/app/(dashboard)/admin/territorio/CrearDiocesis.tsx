@@ -6,7 +6,11 @@ import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
 import { crearDiocesisLocalidadAction } from "@/modules/territorio/territorio.router";
-import type { ProvinciaDTO } from "@/modules/territorio/territorio.types";
+import {
+  crearDiocesisLocalidadSchema,
+  type ProvinciaDTO,
+} from "@/modules/territorio/territorio.types";
+import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 import { REGIONES } from "@/modules/territorio/territorio.schema";
 
 /**
@@ -45,6 +49,10 @@ export default function CrearDiocesis({
   const [error, setError] = useState<string | null>(null);
   const [ultima, setUltima] = useState<string | null>(null);
 
+  // Story 15, on the field that carries this form: told as it is left rather than
+  // after the save, from the schema the router parses.
+  const validacion = useValidacionAlSalir(crearDiocesisLocalidadSchema);
+
   function guardar(seguirCargando: boolean) {
     setError(null);
     setUltima(null);
@@ -65,6 +73,7 @@ export default function CrearDiocesis({
         `${resultado.data.nombre} (${resultado.data.provincia.nombre})`
       );
       setNombre("");
+      validacion.limpiar();
       router.refresh();
 
       if (seguirCargando) {
@@ -104,8 +113,15 @@ export default function CrearDiocesis({
         etiqueta="Nombre de la Diócesis o Localidad"
         ayuda="Como se la nombra en la Campaña, por ejemplo «Villa María»."
         value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-        error={error}
+        // The field's own rule as the person leaves it, then whatever the service
+        // said — a name already taken in that Provincia is not knowable here.
+        error={validacion.error("nombre") ?? error}
+        onChange={(e) => {
+          setNombre(e.target.value);
+          validacion.alEscribir("nombre");
+          setError(null);
+        }}
+        onBlur={(e) => validacion.alSalir("nombre", e.target.value)}
         required
       />
 

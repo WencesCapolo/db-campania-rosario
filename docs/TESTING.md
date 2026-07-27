@@ -121,6 +121,14 @@ scoped through its Peregrina's (ADR 0004), so the filter lands on a joined row a
 a Peregrina that moves Diócesis takes its history with it — asserted there as
 behaviour, not left as a surprise.
 
+`peregrina.paginacion.test.ts` and `misionero.paginacion.test.ts` extend that matrix to
+the two parameters pagination adds. Both run after the `Alcance`, so both are asserted
+as negatives: a Referente Local paging through their Diócesis reaches no row from the
+next one, in any page and not in the total either. The other three assertions are about
+the ways a paginated list lies — a row on two pages or on none (the pages are compared
+against the unpaginated read), a total that is really the page size, and a page past the
+end answered with an empty list instead of the last one.
+
 ## The invariant
 
 `asignacion.service.test.ts` is where "a Peregrina has at most one open Asignación"
@@ -185,8 +193,9 @@ backfill needs, since it reads the column that is about to go.
 
 ## The accessibility suite
 
-`src/test/setup-navegador.ts`, `src/test/accesibilidad.ts`, and four test files:
-`Dialogo`, `ConfirmarAccion`, the primitives together, and `FlujoDeAsignacion`. Named
+`src/test/setup-navegador.ts`, `src/test/accesibilidad.ts`, and seven test files:
+`Dialogo`, `ConfirmarAccion`, the primitives together, `Barras`, `Paginador`,
+`validacion-al-salir` and `FlujoDeAsignacion`. Named
 `*.test.tsx` — the `node` project takes `*.test.ts` only, so a component test cannot
 be collected there and fail for want of a DOM.
 
@@ -210,6 +219,13 @@ on; `incomplete` means "axe cannot tell", and treating that as a failure would m
 the suite noisy in exactly the cases a person has to look at anyway. axe is the floor.
 It cannot tell whether a confirmation names what it is about to change, or whether
 Escape means cancel, so the interesting tests are hand-written.
+
+`validacion-al-salir.test.tsx` is here for the same reason: "nothing is announced until
+the field is left" is a fact about timing in a browser, and it is asserted per field
+through `aria-invalid` rather than through `role="alert"` — both halves of a name refuse
+in the same shape, so a global query cannot tell one field's message going from
+another's arriving. It mounts a stand-in form on the real `createMisioneroSchema`,
+because the form itself calls a server action.
 
 **What only this suite can catch.** Escape must not confirm: the platform fires one
 `close` event for the Escape key and for `close()`, so a component treating every

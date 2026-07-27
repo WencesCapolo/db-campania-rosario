@@ -82,6 +82,33 @@ function condicionDeFiltros(
   ];
 }
 
+/**
+ * The listado's whole predicate: Alcance, territory, and the name search.
+ *
+ * One function because the rows and their count have to be the same question. A
+ * paginador whose total came from a wider predicate offers pages that come back
+ * empty, and the person reading it concludes the records disappeared.
+ */
+function condicionDeListado(
+  alcance: Alcance,
+  filtros: FiltrosTerritoriales & { q?: string },
+  opts: OpcionesDeLectura
+) {
+  const termino = filtros.q?.trim();
+  return conAlcance(
+    alcance,
+    opts,
+    ...condicionDeFiltros(filtros),
+    termino
+      ? or(
+          ilike(misionero.nombre, `%${termino}%`),
+          ilike(misionero.apellido, `%${termino}%`),
+          ilike(diocesisLocalidad.nombre, `%${termino}%`)
+        )
+      : undefined
+  );
+}
+
 /** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
 const TOTAL = sql<number>`cast(count(*) as int)`;
 
@@ -336,28 +363,46 @@ export class MisioneroRepository {
       .groupBy(diocesisLocalidad.region);
   }
 
-  /** The filtered listado: territory, plus the name search story 6 asks for. */
+  /**
+   * The filtered listado: territory, plus the name search story 6 asks for.
+   *
+   * `paginacion` cuts the rows in the database. The order is apellido then
+   * nombre, neither of which is unique, so `id` is appended as the tiebreaker:
+   * two Pérez in the same Diócesis would otherwise be ordered by whatever the
+   * planner returned, and an offset over an unstable order shows one of them
+   * twice and the other never.
+   */
   static async findFiltrados(
     alcance: Alcance,
     filtros: FiltrosTerritoriales & { q?: string },
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
+    paginacion?: { limit: number; offset: number }
   ): Promise<MisioneroConTerritorio[]> {
-    const termino = filtros.q?.trim();
-    return conTerritorio()
-      .where(
-        conAlcance(
-          alcance,
-          opts,
-          ...condicionDeFiltros(filtros),
-          termino
-            ? or(
-                ilike(misionero.nombre, `%${termino}%`),
-                ilike(misionero.apellido, `%${termino}%`),
-                ilike(diocesisLocalidad.nombre, `%${termino}%`)
-              )
-            : undefined
-        )
-      )
-      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
+    const consulta = conTerritorio()
+      .where(condicionDeListado(alcance, filtros, opts))
+      .orderBy(asc(misionero.apellido), asc(misionero.nombre), asc(misionero.id));
+
+    return paginacion
+      ? consulta.limit(paginacion.limit).offset(paginacion.offset)
+      : consulta;
+  }
+
+  /**
+   * How many the listado has, for the paginador — the same predicate as
+   * `findFiltrados`, which is why both build it from `condicionDeListado`.
+   *
+   * `contarTotal` above cannot answer this: it takes the territorial filters
+   * only, so with a name search on it would count everybody and the control would
+   * offer pages that do not exist.
+   */
+  static async contarFiltrados(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales & { q?: string },
+    opts: OpcionesDeLectura = {}
+  ): Promise<number> {
+    const [row] = await agregando({}).where(
+      condicionDeListado(alcance, filtros, opts)
+    );
+    return row?.total ?? 0;
   }
 }

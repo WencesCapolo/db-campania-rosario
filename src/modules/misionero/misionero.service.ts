@@ -21,6 +21,13 @@ import {
 } from "@/lib/authorization/alcance";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
+  armarPagina,
+  cantidadDePaginas,
+  paginaExistente,
+  rango,
+  type Pagina,
+} from "@/lib/paginacion";
+import {
   ConflictoError,
   NoEncontradoError,
   ValidacionError,
@@ -152,6 +159,38 @@ export class MisioneroService {
 
     const rows = await MisioneroRepository.findFiltrados(alcance, filtros);
     return rows.map(MisioneroService.toDTO);
+  }
+
+  /**
+   * The listado, filtered and cut into pages — story 23 of the interface issue.
+   *
+   * Counted by an aggregate over the same predicate the rows come from, never by
+   * fetching them and taking the length. The page is clamped against that total
+   * here, because this is the only layer that knows how many pages there are.
+   *
+   * `listFiltrados` above stays: it answers "every Misionero matching", which is
+   * what the assignment flow's picker needs.
+   */
+  static async listPagina(
+    actor: CurrentUser,
+    filtros: FiltrosTerritoriales & { q?: string },
+    pagina = 1
+  ): Promise<Pagina<MisioneroDTO>> {
+    const operacion = "MisioneroService.listPagina";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+
+    const total = await MisioneroRepository.contarFiltrados(alcance, filtros);
+    const actual = paginaExistente(pagina, cantidadDePaginas(total));
+
+    const rows = await MisioneroRepository.findFiltrados(
+      alcance,
+      filtros,
+      {},
+      rango(actual)
+    );
+
+    return armarPagina(rows.map(MisioneroService.toDTO), total, actual);
   }
 
   // `dashboardStats` is gone: the counts are `TableroService.resumen` now, so

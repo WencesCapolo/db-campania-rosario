@@ -11,6 +11,7 @@ import {
 import { filtrosDeMisioneroSchema } from "./misionero.types";
 import type { ActionResult, MisioneroDTO } from "./misionero.types";
 import { aResultado } from "@/lib/errors";
+import { paginaSchema, type Pagina } from "@/lib/paginacion";
 
 /**
  * MisioneroRouter — Next.js server actions
@@ -140,6 +141,17 @@ export async function getMisionerosFiltradosAction(
   const actor = await getCurrentUser();
   const parsed = filtrosDeMisioneroSchema.parse(filtros ?? {});
   return MisioneroService.listFiltrados(actor, parsed);
+}
+
+/** The same read, one page at a time — story 23 of the interface issue. */
+export async function getMisionerosPaginadosAction(
+  filtros: unknown,
+  pagina: unknown
+): Promise<Pagina<MisioneroDTO>> {
+  const actor = await getCurrentUser();
+  const parsedFiltros = filtrosDeMisioneroSchema.parse(filtros ?? {});
+  const parsedPagina = paginaSchema.parse(pagina ?? 1);
+  return MisioneroService.listPagina(actor, parsedFiltros, parsedPagina);
 }
 
 /**

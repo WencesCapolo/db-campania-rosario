@@ -6,6 +6,8 @@ import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Dialogo from "@/components/Dialogo";
 import { crearProvinciaAction } from "@/modules/territorio/territorio.router";
+import { crearProvinciaSchema } from "@/modules/territorio/territorio.types";
+import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 
 /**
  * Agregar una Provincia.
@@ -33,6 +35,11 @@ export default function CrearProvincia() {
   const [abreviatura, setAbreviatura] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // The abbreviation has three rules — two to four characters, letters only, and
+  // uniqueness — and only the third needs the server. The first two are told at
+  // the moment the field is left, from the same schema the router parses.
+  const validacion = useValidacionAlSalir(crearProvinciaSchema);
+
   return (
     <Dialogo
       titulo="Agregar una Provincia"
@@ -56,6 +63,7 @@ export default function CrearProvincia() {
               }
               setNombre("");
               setAbreviatura("");
+              validacion.limpiar();
               control.cerrar();
               router.refresh();
             });
@@ -64,7 +72,12 @@ export default function CrearProvincia() {
           <Campo
             etiqueta="Nombre"
             value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
+            error={validacion.error("nombre")}
+            onChange={(e) => {
+              setNombre(e.target.value);
+              validacion.alEscribir("nombre");
+            }}
+            onBlur={(e) => validacion.alSalir("nombre", e.target.value)}
             required
           />
 
@@ -72,9 +85,17 @@ export default function CrearProvincia() {
             etiqueta="Abreviatura"
             ayuda="Dos a cuatro letras. Va en cada Código de esta Provincia — «CBA» en «CBA JOV 0001» — y no se puede repetir."
             value={abreviatura}
-            onChange={(e) => setAbreviatura(e.target.value.toUpperCase())}
             maxLength={4}
-            error={error}
+            // The field's own rules first, then the refusal from the service —
+            // which is the one rule about this abbreviation that no client can
+            // know, because it is about the other Provincias.
+            error={validacion.error("abreviatura") ?? error}
+            onChange={(e) => {
+              setAbreviatura(e.target.value.toUpperCase());
+              validacion.alEscribir("abreviatura");
+              setError(null);
+            }}
+            onBlur={(e) => validacion.alSalir("abreviatura", e.target.value)}
             required
           />
 

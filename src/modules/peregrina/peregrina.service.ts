@@ -24,6 +24,13 @@ import {
   NoEncontradoError,
   ValidacionError,
 } from "@/lib/errors";
+import {
+  armarPagina,
+  cantidadDePaginas,
+  paginaExistente,
+  rango,
+  type Pagina,
+} from "@/lib/paginacion";
 import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
 // ↑ The one import that runs against the module direction, and it is deliberate:
 //   the guard below has to know whether an Asignación is open before it lets a
@@ -164,6 +171,45 @@ export class PeregrinaService {
 
     const rows = await PeregrinaRepository.findFiltradas(alcance, filtros);
     return rows.map(PeregrinaService.toDTO);
+  }
+
+  /**
+   * The listado, filtered and cut into pages — story 23 of the interface issue.
+   *
+   * The total comes from the aggregate and not from `filas.length`: a count of the
+   * rows that happened to be fetched is a count of the page size, which is the
+   * mistake the previous dashboard was built on. Same `Alcance`, same filters,
+   * two queries — so the total and the rows can never describe different sets.
+   *
+   * The page is clamped against the total rather than trusted, and clamped here
+   * because this is the only layer that knows how many pages exist. Asking for
+   * page nine of three returns page three; returning nothing would read as an
+   * empty Diócesis to whoever followed the stale link.
+   *
+   * `listFiltradas` above stays and is not a duplicate of this: it is the read for
+   * a caller that wants every matching row — a picker, a test — and a screen that
+   * asked it for a page would be paginating in memory.
+   */
+  static async listPagina(
+    actor: CurrentUser,
+    filtros: FiltrosDeInventario,
+    pagina = 1
+  ): Promise<Pagina<PeregrinaDTO>> {
+    const operacion = "PeregrinaService.listPagina";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+
+    const total = await PeregrinaRepository.contarTotal(alcance, filtros);
+    const actual = paginaExistente(pagina, cantidadDePaginas(total));
+
+    const rows = await PeregrinaRepository.findFiltradas(
+      alcance,
+      filtros,
+      {},
+      rango(actual)
+    );
+
+    return armarPagina(rows.map(PeregrinaService.toDTO), total, actual);
   }
 
   /**

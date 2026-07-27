@@ -12,7 +12,9 @@ import type { CentroTipo } from "@/modules/misionero/misionero.schema";
 import {
   CENTRO_LABELS,
   CENTRO_TIPOS,
+  createMisioneroSchema,
 } from "@/modules/misionero/misionero.types";
+import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 
 /**
  * Cargar un Misionero.
@@ -50,6 +52,16 @@ const CENTROS = CENTRO_TIPOS.map((t) => ({
 /** Named so "Guardar y agregar otro" can put the caret back in it. */
 const ID_NOMBRE = "misionero-nombre";
 
+/**
+ * The year's *shape*, which is a fact about the text box rather than about the
+ * Campaña. One copy, read by the blur check and by the submit guard, because two
+ * would eventually word it differently.
+ */
+const ANIO_DE_CUATRO_CIFRAS =
+  "El año de consagración tiene que ser un año de cuatro cifras.";
+
+const esAnioEscrito = (texto: string) => /^\d{4}$/.test(texto);
+
 export default function CrearMisioneroForm() {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
@@ -68,6 +80,11 @@ export default function CrearMisioneroForm() {
   const [guardado, setGuardado] = useState<string | null>(null);
   const formulario = useRef<HTMLFormElement>(null);
 
+  // Story 15: each field is checked as it is left, against the same schema the
+  // router parses — so the message somebody sees while their eyes are still on the
+  // field is the message the server would have given them after eight of them.
+  const validacion = useValidacionAlSalir(createMisioneroSchema);
+
   function guardar(seguirCargando: boolean) {
     setError(null);
     setGuardado(null);
@@ -81,8 +98,8 @@ export default function CrearMisioneroForm() {
     // field is "not recorded" and must reach the service as null, not as NaN —
     // `Number("")` is 0, which would claim a consagración in the year zero.
     const anio = anioConsagracion.trim();
-    if (anio && !/^\d{4}$/.test(anio)) {
-      setError("El año de consagración tiene que ser un año de cuatro cifras.");
+    if (anio && !esAnioEscrito(anio)) {
+      validacion.marcar("anioConsagracion", ANIO_DE_CUATRO_CIFRAS);
       return;
     }
 
@@ -111,6 +128,8 @@ export default function CrearMisioneroForm() {
       // Diócesis — and clear everything that belongs to this one. The centro
       // stays too: a batch is usually one parish.
       setGuardado(`${resultado.data.nombre} ${resultado.data.apellido}`);
+      // The messages belonged to the person just saved; the next one starts clean.
+      validacion.limpiar();
       setNombre("");
       setApellido("");
       setTelefono("");
@@ -151,7 +170,12 @@ export default function CrearMisioneroForm() {
         required
         autoComplete="given-name"
         value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
+        error={validacion.error("nombre")}
+        onChange={(e) => {
+          setNombre(e.target.value);
+          validacion.alEscribir("nombre");
+        }}
+        onBlur={(e) => validacion.alSalir("nombre", e.target.value)}
       />
 
       <Campo
@@ -159,7 +183,12 @@ export default function CrearMisioneroForm() {
         required
         autoComplete="family-name"
         value={apellido}
-        onChange={(e) => setApellido(e.target.value)}
+        error={validacion.error("apellido")}
+        onChange={(e) => {
+          setApellido(e.target.value);
+          validacion.alEscribir("apellido");
+        }}
+        onBlur={(e) => validacion.alSalir("apellido", e.target.value)}
       />
 
       <Campo
@@ -169,7 +198,12 @@ export default function CrearMisioneroForm() {
         inputMode="tel"
         autoComplete="tel"
         value={telefono}
-        onChange={(e) => setTelefono(e.target.value)}
+        error={validacion.error("telefono")}
+        onChange={(e) => {
+          setTelefono(e.target.value);
+          validacion.alEscribir("telefono");
+        }}
+        onBlur={(e) => validacion.alSalir("telefono", e.target.value)}
       />
 
       <SelectorDeTerritorio
@@ -197,7 +231,12 @@ export default function CrearMisioneroForm() {
         <Campo
           etiqueta="Nombre del centro"
           value={centroNombre}
-          onChange={(e) => setCentroNombre(e.target.value)}
+          error={validacion.error("centroNombre")}
+          onChange={(e) => {
+            setCentroNombre(e.target.value);
+            validacion.alEscribir("centroNombre");
+          }}
+          onBlur={(e) => validacion.alSalir("centroNombre", e.target.value)}
         />
 
         <Campo
@@ -207,7 +246,23 @@ export default function CrearMisioneroForm() {
           inputMode="numeric"
           maxLength={4}
           value={anioConsagracion}
-          onChange={(e) => setAnioConsagracion(e.target.value)}
+          error={validacion.error("anioConsagracion")}
+          onChange={(e) => {
+            setAnioConsagracion(e.target.value);
+            validacion.alEscribir("anioConsagracion");
+          }}
+          onBlur={(e) => {
+            // Empty is "not recorded" and is fine. Anything else has to be four
+            // digits before the schema's own rules — 1900, not the future — can
+            // say anything meaningful about it.
+            const texto = e.target.value.trim();
+            if (!texto) return;
+            if (!esAnioEscrito(texto)) {
+              validacion.marcar("anioConsagracion", ANIO_DE_CUATRO_CIFRAS);
+              return;
+            }
+            validacion.alSalir("anioConsagracion", Number(texto));
+          }}
         />
       </fieldset>
 

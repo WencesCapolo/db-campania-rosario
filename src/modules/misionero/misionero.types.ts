@@ -61,11 +61,21 @@ export interface MisioneroDTO {
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
 
-const nombrePersona = z
-  .string()
-  .trim()
-  .min(1, "El nombre es obligatorio.")
-  .max(120, "El nombre no puede superar los 120 caracteres.");
+/**
+ * The two halves of a person's name, each complaining about itself.
+ *
+ * A factory rather than one schema reused twice, because the message is shown
+ * *under the field* — story 14 — and "El nombre es obligatorio." beneath the
+ * Apellido box is a message about the wrong box. `.describe("apellido")` looks
+ * like it fixes that and does not: it annotates the schema without touching what
+ * Zod says when it refuses.
+ */
+const nombrePersona = (campo: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `El ${campo} es obligatorio.`)
+    .max(120, `El ${campo} no puede superar los 120 caracteres.`);
 
 const telefono = z
   .string()
@@ -86,8 +96,8 @@ const anioConsagracion = z
   .nullish();
 
 export const createMisioneroSchema = z.object({
-  nombre: nombrePersona,
-  apellido: nombrePersona.describe("apellido"),
+  nombre: nombrePersona("nombre"),
+  apellido: nombrePersona("apellido"),
   telefono,
   diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),
@@ -96,8 +106,8 @@ export const createMisioneroSchema = z.object({
 });
 
 export const updateMisioneroSchema = z.object({
-  nombre: nombrePersona.optional(),
-  apellido: nombrePersona.optional(),
+  nombre: nombrePersona("nombre").optional(),
+  apellido: nombrePersona("apellido").optional(),
   telefono,
   estado: z.enum(misioneroEstadoEnum.enumValues).optional(),
   diocesisLocalidadId: z.string().min(1).optional(),

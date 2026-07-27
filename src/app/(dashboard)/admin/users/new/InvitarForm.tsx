@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { invitarAction } from "@/modules/invitacion/invitacion.router";
+import { invitarSchema } from "@/modules/invitacion/invitacion.types";
+import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
@@ -51,6 +53,11 @@ export default function InvitarForm({
   const [error, setError] = useState<string | null>(null);
   const [invitado, setInvitado] = useState<string | null>(null);
 
+  // An email typed wrong is the failure this form is most likely to produce, and
+  // "Escribí un email válido" after pressing Invitar is a round trip for a missing
+  // dot. Checked as the field is left, against the schema the router parses.
+  const validacion = useValidacionAlSalir(invitarSchema);
+
   const necesitaTerritorio = llevaTerritorio(rol);
 
   function enviar(evento: React.FormEvent) {
@@ -71,6 +78,7 @@ export default function InvitarForm({
       }
 
       setInvitado(resultado.data.email);
+      validacion.limpiar();
       setEmail("");
       router.refresh();
     });
@@ -100,7 +108,12 @@ export default function InvitarForm({
         autoComplete="email"
         required
         value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        error={validacion.error("email")}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          validacion.alEscribir("email");
+        }}
+        onBlur={(e) => validacion.alSalir("email", e.target.value)}
       />
 
       <Eleccion

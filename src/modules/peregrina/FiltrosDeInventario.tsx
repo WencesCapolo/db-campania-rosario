@@ -19,6 +19,7 @@ import {
   type FiltrosDeInventario,
 } from "./peregrina.types";
 import { peregrinaTipoEnum } from "./peregrina.schema";
+import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
 
 /**
  * The filter controls — one component, every screen that filters.
@@ -92,6 +93,10 @@ export default function FiltrosDeInventario({
       if (valor) params.set(clave, valor);
       else params.delete(clave);
     }
+    // Back to the first page. Changing a filter changes how many pages there
+    // are, and staying on page four of a set that now has two is a screen that
+    // says nothing matched when something does.
+    params.delete(CLAVE_DE_PAGINA);
     const query = params.toString();
     empezar(() => router.push(query ? `${destino}?${query}` : destino));
   }
@@ -103,6 +108,7 @@ export default function FiltrosDeInventario({
     // `q` belongs to the Misionero list and is not one of the inventory filters,
     // but "Limpiar" means all of them to the person pressing it.
     params.delete("q");
+    params.delete(CLAVE_DE_PAGINA);
     const query = params.toString();
     empezar(() => router.push(query ? `${destino}?${query}` : destino));
   }

@@ -11,6 +11,7 @@ import {
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
 import type { PeregrinaEstado } from "./peregrina.schema";
 import { aResultado } from "@/lib/errors";
+import { paginaSchema, type Pagina } from "@/lib/paginacion";
 
 /**
  * PeregrinaRouter — Next.js server actions
@@ -53,6 +54,25 @@ export async function getPeregrinasFiltradasAction(
   const actor = await getCurrentUser();
   const parsed = filtrosDeInventarioSchema.parse(filtros ?? {});
   return PeregrinaService.listFiltradas(actor, parsed);
+}
+
+/**
+ * The listado's read, one page at a time — story 23.
+ *
+ * The page is parsed here like everything else that arrives from outside: the
+ * lenient reading of `?pagina=` happens in `paginaDesdeParams`, so what gets to
+ * this boundary is either a positive integer or absent. A page past the end is
+ * not a validation failure — the service clamps it, because only it knows how
+ * many pages the filters leave.
+ */
+export async function getPeregrinasPaginadasAction(
+  filtros: unknown,
+  pagina: unknown
+): Promise<Pagina<PeregrinaDTO>> {
+  const actor = await getCurrentUser();
+  const parsedFiltros = filtrosDeInventarioSchema.parse(filtros ?? {});
+  const parsedPagina = paginaSchema.parse(pagina ?? 1);
+  return PeregrinaService.listPagina(actor, parsedFiltros, parsedPagina);
 }
 
 export async function getPeregrinasPorEstadoAction(
