@@ -6,9 +6,10 @@ import { revalidatePath } from "next/cache";
 import {
   createPeregrinaSchema,
   updatePeregrinaSchema,
+  filtrosDeInventarioSchema,
 } from "./peregrina.types";
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
-import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
+import type { PeregrinaEstado } from "./peregrina.schema";
 import { aResultado } from "@/lib/errors";
 
 /**
@@ -34,30 +35,31 @@ export async function getPeregrinaByIdAction(id: string): Promise<PeregrinaDTO> 
 }
 
 /**
- * The two filtered reads the listado uses.
+ * The listado's one read — every filter, in the database.
  *
- * `listByEstado` and `listByModalidad` have existed and been tested since issue
- * #1; they simply had no action in front of them, because there was no screen.
- * Both are indexed reads, which is why the list asks for them rather than
- * fetching everything and narrowing in the browser.
+ * The filters are parsed here, at the boundary, and an invalid shape is a
+ * refusal rather than a silently ignored value: the lenient reading of a query
+ * string happens in `filtrosDesdeParams` before this is called, and by the time
+ * a filter reaches a service it is either valid or absent.
  *
- * `inactiva` is reachable here on purpose. It is excluded from *entry* and from
- * the filter control — see `ESTADOS_SELECCIONABLES` — but a record already
- * carrying it must stay readable, and a read that refused the value would make
- * those records unreachable rather than merely unwritable.
+ * `inactiva` is reachable on purpose. It is excluded from *entry* and from the
+ * filter control — see `ESTADOS_SELECCIONABLES` — but a record already carrying
+ * it must stay readable, and a read that refused the value would make those
+ * records unreachable rather than merely unwritable.
  */
+export async function getPeregrinasFiltradasAction(
+  filtros: unknown
+): Promise<PeregrinaDTO[]> {
+  const actor = await getCurrentUser();
+  const parsed = filtrosDeInventarioSchema.parse(filtros ?? {});
+  return PeregrinaService.listFiltradas(actor, parsed);
+}
+
 export async function getPeregrinasPorEstadoAction(
   estado: PeregrinaEstado
 ): Promise<PeregrinaDTO[]> {
   const actor = await getCurrentUser();
   return PeregrinaService.listByEstado(actor, estado);
-}
-
-export async function getPeregrinasPorModalidadAction(
-  modalidad: Modalidad
-): Promise<PeregrinaDTO[]> {
-  const actor = await getCurrentUser();
-  return PeregrinaService.listByModalidad(actor, modalidad);
 }
 
 export async function createPeregrinaAction(
@@ -142,9 +144,4 @@ export async function reactivarPeregrinaAction(
   }
 
   return result;
-}
-
-export async function getPeregrinaDashboardStatsAction() {
-  const actor = await getCurrentUser();
-  return PeregrinaService.dashboardStats(actor);
 }

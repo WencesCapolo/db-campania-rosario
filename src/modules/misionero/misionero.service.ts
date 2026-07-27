@@ -16,8 +16,10 @@ import {
   dentroDelAlcance,
   derivarAlcance,
   exigirDentroDelAlcance,
+  exigirTerritorioDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
+import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   ConflictoError,
   NoEncontradoError,
@@ -132,10 +134,28 @@ export class MisioneroService {
     return rows.map(MisioneroService.toDTO);
   }
 
-  static async dashboardStats(actor: CurrentUser) {
-    const alcance = derivarAlcance(actor, "MisioneroService.dashboardStats");
-    return MisioneroRepository.countByEstado(alcance);
+  /**
+   * The listado, filtered — territory plus a name search (stories 5 and 6 of the
+   * tablero, and the search issue #4 left owed).
+   *
+   * `search` above stays: it is the picker's read, takes a bare string, and is
+   * called from the assignment flow. This one takes the shared filters, so the
+   * Misionero list and the tablero ask the same question.
+   */
+  static async listFiltrados(
+    actor: CurrentUser,
+    filtros: FiltrosTerritoriales & { q?: string }
+  ): Promise<MisioneroDTO[]> {
+    const operacion = "MisioneroService.listFiltrados";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+
+    const rows = await MisioneroRepository.findFiltrados(alcance, filtros);
+    return rows.map(MisioneroService.toDTO);
   }
+
+  // `dashboardStats` is gone: the counts are `TableroService.resumen` now, so
+  // there is one aggregation path and one set of filters behind every figure.
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 

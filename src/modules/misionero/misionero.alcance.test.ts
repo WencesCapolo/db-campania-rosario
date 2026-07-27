@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { MisioneroService } from "./misionero.service";
 import {
   crearActor,
@@ -130,9 +131,9 @@ describe.each([
   });
 
   it("el tablero cuenta sólo su territorio", async () => {
-    const porEstado = await MisioneroService.dashboardStats(obtenerActor());
+    const tablero = await TableroService.resumen(obtenerActor());
 
-    expect(porEstado).toEqual([{ estado: "activo", count: 1 }]);
+    expect(tablero.totalMisioneros).toBe(1);
   });
 });
 

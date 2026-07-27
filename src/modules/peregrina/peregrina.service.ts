@@ -6,6 +6,7 @@ import type {
   PeregrinaDTO,
   CreatePeregrinaInput,
   UpdatePeregrinaInput,
+  FiltrosDeInventario,
 } from "./peregrina.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
@@ -15,6 +16,7 @@ import type { Region } from "@/modules/territorio/territorio.schema";
 import {
   derivarAlcance,
   exigirDentroDelAlcance,
+  exigirTerritorioDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
 import {
@@ -143,6 +145,28 @@ export class PeregrinaService {
   }
 
   /**
+   * The listado, filtered — the read behind every list screen and behind every
+   * figure the tablero links to.
+   *
+   * The filters are applied in the database rather than narrowed in memory
+   * afterwards, so the rows behind a count are found by the same predicate that
+   * produced the count. That is what makes a figure and the list it leads to
+   * agree, and the previous arrangement — ask for the narrowest indexed
+   * question, filter the rest in the page — could not promise it.
+   */
+  static async listFiltradas(
+    actor: CurrentUser,
+    filtros: FiltrosDeInventario
+  ): Promise<PeregrinaDTO[]> {
+    const operacion = "PeregrinaService.listFiltradas";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+
+    const rows = await PeregrinaRepository.findFiltradas(alcance, filtros);
+    return rows.map(PeregrinaService.toDTO);
+  }
+
+  /**
    * Every Peregrina in a Región — and, for a scoped Actor, the intersection of
    * that Región with their own territory rather than the Región itself. Asking
    * for somebody else's Región returns nothing; the filter narrows, never widens.
@@ -177,19 +201,9 @@ export class PeregrinaService {
     return rows.map(PeregrinaService.toDTO);
   }
 
-  /**
-   * The dashboard counts. Scoped like every other read: a Referente Local's
-   * totals are their own Diócesis's totals, which is the only number that means
-   * anything to them anyway.
-   */
-  static async dashboardStats(actor: CurrentUser) {
-    const alcance = derivarAlcance(actor, "PeregrinaService.dashboardStats");
-    const [byEstado, byRegion] = await Promise.all([
-      PeregrinaRepository.countByEstado(alcance),
-      PeregrinaRepository.countByRegion(alcance),
-    ]);
-    return { byEstado, byRegion };
-  }
+  // The dashboard counts used to live here, derived from two ad-hoc aggregates
+  // with no filters. They are `TableroService.resumen` now — one seam, one set of
+  // filters, and figures that agree with the lists they link to.
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 

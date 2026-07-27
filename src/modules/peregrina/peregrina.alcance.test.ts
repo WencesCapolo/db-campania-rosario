@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { PeregrinaService } from "./peregrina.service";
 import {
   crearActor,
@@ -89,17 +90,17 @@ describe("lecturas de los roles nacionales", () => {
   });
 
   it("un Asesor Nacional cuenta el país entero en el tablero", async () => {
-    const { byRegion } = await PeregrinaService.dashboardStats(asesor);
+    const { porRegion } = await TableroService.resumen(asesor);
 
     expect(
-      [...byRegion].sort((a, b) => a.region.localeCompare(b.region))
+      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region))
     ).toEqual([
       // Three Regiones from two Provincias: Villa María is CENTRO and Río
       // Cuarto is CUYO, though both are in Córdoba. Grouping through the
       // Provincia would collapse these two into one row of 2.
-      { region: "CENTRO", count: 1 },
-      { region: "CUYO", count: 1 },
-      { region: "R. PAT", count: 1 },
+      { region: "CENTRO", total: 1 },
+      { region: "CUYO", total: 1 },
+      { region: "R. PAT", total: 1 },
     ]);
   });
 });
@@ -160,12 +161,13 @@ describe.each([
   });
 
   it("el tablero cuenta sólo su territorio", async () => {
-    const { byEstado, byRegion } = await PeregrinaService.dashboardStats(
-      obtenerActor()
-    );
+    const tablero = await TableroService.resumen(obtenerActor());
 
-    expect(byEstado).toEqual([{ estado: "activa", count: 1 }]);
-    expect(byRegion).toEqual([{ region: "CENTRO", count: 1 }]);
+    expect(tablero.totalPeregrinas).toBe(1);
+    expect(tablero.porEstado).toEqual([{ estado: "activa", total: 1 }]);
+    // Un rol territorial no recibe el desglose por Región: sería una sola fila
+    // con su propio nombre, que no es un desglose.
+    expect(tablero.porRegion).toBeNull();
   });
 });
 

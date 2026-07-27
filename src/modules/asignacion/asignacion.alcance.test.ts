@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { AsignacionService } from "./asignacion.service";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import {
@@ -124,8 +125,9 @@ describe("lecturas de los roles nacionales", () => {
   });
 
   it("el tablero de un Asesor Nacional cuenta el país entero", async () => {
-    const { abiertas } = await AsignacionService.dashboardStats(asesor);
-    expect(abiertas).toBe(3);
+    const tablero = await TableroService.resumen(asesor);
+    // Tres imágenes en manos de alguien: total menos las que no tiene nadie.
+    expect(tablero.totalPeregrinas - tablero.sinTenencia).toBe(3);
   });
 });
 
@@ -178,8 +180,8 @@ describe.each([
   });
 
   it("el tablero cuenta sólo su territorio", async () => {
-    const { abiertas } = await AsignacionService.dashboardStats(obtenerActor());
-    expect(abiertas).toBe(1);
+    const tablero = await TableroService.resumen(obtenerActor());
+    expect(tablero.totalPeregrinas - tablero.sinTenencia).toBe(1);
   });
 
   it("las Peregrinas nunca asignadas son sólo las suyas", async () => {

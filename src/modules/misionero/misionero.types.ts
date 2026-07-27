@@ -6,7 +6,10 @@ import {
   type CentroTipo,
 } from "./misionero.schema";
 import type { Region } from "@/modules/territorio/territorio.schema";
-import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
+import {
+  filtrosTerritorialesSchema,
+  type DiocesisLocalidadDTO,
+} from "@/modules/territorio/territorio.types";
 
 // ── Labels ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +116,23 @@ export const addResumenAnualSchema = z.object({
   year: z.number().int().min(2000, "Año inválido."),
   resumen: z.string().trim().min(1, "El resumen no puede estar vacío."),
 });
+
+// ── Filtros ───────────────────────────────────────────────────────────────────
+
+/**
+ * What can be asked of a list of people: where they are, and their name.
+ *
+ * The territorial half is the shared schema, so `?diocesisLocalidadId=` means the
+ * same thing here, on the Peregrina list and on the tablero. Estado, Modalidad
+ * and Tipo are deliberately absent — they are properties of an image, and a
+ * "Misioneros de Modalidad Jóvenes" filter would be inventing a relationship the
+ * Campaña does not record.
+ */
+export const filtrosDeMisioneroSchema = filtrosTerritorialesSchema.extend({
+  q: z.string().trim().min(1).max(80).optional(),
+});
+
+export type FiltrosDeMisionero = z.infer<typeof filtrosDeMisioneroSchema>;
 
 export type CreateMisioneroInput = z.infer<typeof createMisioneroSchema>;
 export type UpdateMisioneroInput = z.infer<typeof updateMisioneroSchema>;

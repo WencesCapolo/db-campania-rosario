@@ -1,5 +1,14 @@
 import { db } from "@/db";
-import { and, asc, desc, eq, isNull, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  isNull,
+  isNotNull,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { asignacion } from "./asignacion.schema";
@@ -9,6 +18,7 @@ import { misionero } from "@/modules/misionero/misionero.schema";
 import { users } from "@/db/schema/users";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 import type { Alcance } from "@/lib/authorization/alcance";
+import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 
 /**
  * An Asignación is never useful on its own: a row of three foreign keys answers
@@ -270,6 +280,118 @@ export class AsignacionRepository {
       .orderBy(asc(peregrina.codigo));
   }
 
+  /**
+   * Misioneros with no image in their charge — story 5, the other half of
+   * matching idle capacity to people.
+   *
+   * Scoped by the **Misionero's** territory and not by the image's, which is the
+   * one read in this file where `conAlcance` is the wrong filter: the question is
+   * "who in my Diócesis has their hands free", and a person's Diócesis is on
+   * their own row. The `not exists` deliberately ignores the image's territory,
+   * so somebody holding a Peregrina that has since been moved elsewhere is *not*
+   * offered as free — the same reason
+   * `findAbiertasDeMisioneroSinAlcance` is unscoped.
+   */
+  static async findMisionerosSinPeregrina(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales = {}
+  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
+    const abiertaDeEste = db
+      .select({ uno: sql`1` })
+      .from(asignacion)
+      .where(and(eq(asignacion.misioneroId, misionero.id), abierta));
+
+    const territorial = [
+      alcance.tipo === "nacional"
+        ? undefined
+        : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
+      filtros.diocesisLocalidadId
+        ? eq(misionero.diocesisLocalidadId, filtros.diocesisLocalidadId)
+        : undefined,
+      filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
+      // Somebody who has left the Campaña is not free capacity.
+      isNull(misionero.bajaAt),
+      notExists(abiertaDeEste),
+    ].filter((f) => f !== undefined);
+
+    return db
+      .select({
+        id: misionero.id,
+        nombre: misionero.nombre,
+        apellido: misionero.apellido,
+      })
+      .from(misionero)
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, misionero.diocesisLocalidadId)
+      )
+      .where(and(...territorial))
+      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
+  }
+
+  /**
+   * Images that have been in the same hands for longer than the Campaña wants —
+   * story 8.
+   *
+   * "Has not changed hands" is read as "the open period started more than N days
+   * ago", which is the only reading the data supports without guessing: an image
+   * nobody has ever taken out is a different card (never asignada, story 19), and
+   * one that came back and is sitting on a shelf is idle rather than stalled.
+   *
+   * The threshold is a parameter and not a constant here, because what counts as
+   * stalled is a judgement the Campaña has not made yet — see the open question
+   * in the production plan. The default lives in `tablero.types`, where a person
+   * can find and change it.
+   */
+  static async findPeregrinasEstancadas(
+    alcance: Alcance,
+    dias: number,
+    filtros: FiltrosTerritoriales = {}
+  ): Promise<
+    {
+      peregrinaId: string;
+      codigo: string;
+      misioneroNombre: string;
+      misioneroApellido: string;
+      abiertaAt: Date;
+      dias: number;
+    }[]
+  > {
+    const antiguedad = sql<number>`cast(floor(extract(epoch from (now() - ${asignacion.abiertaAt})) / 86400) as int)`;
+
+    return db
+      .select({
+        peregrinaId: peregrina.id,
+        codigo: peregrina.codigo,
+        misioneroNombre: misionero.nombre,
+        misioneroApellido: misionero.apellido,
+        abiertaAt: asignacion.abiertaAt,
+        dias: antiguedad,
+      })
+      .from(asignacion)
+      .innerJoin(peregrina, eq(peregrina.id, asignacion.peregrinaId))
+      .innerJoin(misionero, eq(misionero.id, asignacion.misioneroId))
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+      )
+      .where(
+        conAlcance(
+          alcance,
+          abierta,
+          isNull(peregrina.bajaAt),
+          filtros.diocesisLocalidadId
+            ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
+            : undefined,
+          filtros.region
+            ? eq(diocesisLocalidad.region, filtros.region)
+            : undefined,
+          sql`${asignacion.abiertaAt} <= now() - make_interval(days => ${dias})`
+        )
+      )
+      .orderBy(asc(asignacion.abiertaAt));
+  }
+
   // ── Writes ─────────────────────────────────────────────────────────────────
   //
   // The three write paths each hold the Asignación table and the denormalised
@@ -417,11 +539,20 @@ export class AsignacionRepository {
     return row;
   }
 
-  // ── Stats helpers ──────────────────────────────────────────────────────────
+  // ── Agregaciones ───────────────────────────────────────────────────────────
 
-  /** Open, closed and never-assigned counts for the dashboard, scoped. */
+  /**
+   * How many periods are open and how many have closed — scoped, and filtered
+   * through the image's territory like every other read here.
+   *
+   * The open count is *not* how the tablero answers "how many images are out":
+   * that is `misionero_actual_id is not null` on the Peregrina, one table and no
+   * join, and it is the same predicate the listado's `tenencia` filter uses. This
+   * pair answers a different question — how much movement the history holds.
+   */
   static async contarPorTenencia(
-    alcance: Alcance
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales = {}
   ): Promise<{ abiertas: number; cerradas: number }> {
     const [row] = await db
       .select({
@@ -432,7 +563,21 @@ export class AsignacionRepository {
       })
       .from(asignacion)
       .innerJoin(peregrina, eq(peregrina.id, asignacion.peregrinaId))
-      .where(conAlcance(alcance));
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+      )
+      .where(
+        conAlcance(
+          alcance,
+          filtros.diocesisLocalidadId
+            ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
+            : undefined,
+          filtros.region
+            ? eq(diocesisLocalidad.region, filtros.region)
+            : undefined
+        )
+      );
 
     return { abiertas: row?.abiertas ?? 0, cerradas: row?.cerradas ?? 0 };
   }

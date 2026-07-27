@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { PeregrinaService } from "./peregrina.service";
 import { TerritorioService } from "@/modules/territorio/territorio.service";
 import {
@@ -170,17 +171,17 @@ describe("el territorio de una Peregrina", () => {
       });
     }
 
-    const { byRegion } = await PeregrinaService.dashboardStats(actor);
+    const { porRegion } = await TableroService.resumen(actor);
 
     expect(
-      [...byRegion].sort((a, b) => a.region.localeCompare(b.region))
+      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region))
     ).toEqual([
       // Three Regiones from two Provincias: Villa María is CENTRO and Río
       // Cuarto is CUYO, though both are in Córdoba. Grouping through the
       // Provincia would collapse these two into one row of 2.
-      { region: "CENTRO", count: 1 },
-      { region: "CUYO", count: 1 },
-      { region: "R. PAT", count: 1 },
+      { region: "CENTRO", total: 1 },
+      { region: "CUYO", total: 1 },
+      { region: "R. PAT", total: 1 },
     ]);
   });
 });

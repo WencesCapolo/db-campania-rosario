@@ -8,6 +8,7 @@ import {
   createMisioneroSchema,
   updateMisioneroSchema,
 } from "./misionero.types";
+import { filtrosDeMisioneroSchema } from "./misionero.types";
 import type { ActionResult, MisioneroDTO } from "./misionero.types";
 import { aResultado } from "@/lib/errors";
 
@@ -125,9 +126,20 @@ export async function reactivarMisioneroAction(
   return result;
 }
 
-export async function getMisioneroDashboardStatsAction() {
+/**
+ * The listado's one read — territory filters plus the name search.
+ *
+ * Parsed here, at the boundary, so nothing invalid reaches the service. The
+ * territorial half is the shared schema: the same `?diocesisLocalidadId=` that
+ * filters the tablero filters this list, and an id outside the Actor's scope is
+ * refused by the service rather than intersected away.
+ */
+export async function getMisionerosFiltradosAction(
+  filtros: unknown
+): Promise<MisioneroDTO[]> {
   const actor = await getCurrentUser();
-  return MisioneroService.dashboardStats(actor);
+  const parsed = filtrosDeMisioneroSchema.parse(filtros ?? {});
+  return MisioneroService.listFiltrados(actor, parsed);
 }
 
 /**

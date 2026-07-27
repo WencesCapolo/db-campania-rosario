@@ -19,8 +19,10 @@ import type { MisioneroConTerritorio } from "@/modules/misionero/misionero.repos
 import {
   derivarAlcance,
   exigirDentroDelAlcance,
+  exigirTerritorioDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
+import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   ConflictoError,
   NoEncontradoError,
@@ -274,10 +276,45 @@ export class AsignacionService {
     return AsignacionRepository.findPeregrinasNuncaAsignadas(alcance);
   }
 
-  static async dashboardStats(actor: CurrentUser) {
-    const alcance = derivarAlcance(actor, "AsignacionService.dashboardStats");
-    return AsignacionRepository.contarPorTenencia(alcance);
+  /**
+   * Misioneros with their hands free — user story 5 of the tablero.
+   *
+   * Scoped by the *person's* territory rather than by an image's, which is what
+   * the question means: "who here could take one". The repository ignores the
+   * image's territory when deciding whether somebody is free, so a Misionero
+   * holding a Peregrina that has since moved Diócesis is not offered.
+   */
+  static async listarMisionerosSinPeregrina(
+    actor: CurrentUser,
+    filtros: FiltrosTerritoriales = {}
+  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
+    const operacion = "AsignacionService.listarMisionerosSinPeregrina";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+    return AsignacionRepository.findMisionerosSinPeregrina(alcance, filtros);
   }
+
+  /**
+   * Images that have not changed hands in `dias` days — user story 8.
+   *
+   * The threshold is the caller's, because nobody in the Campaña has drawn the
+   * line yet: `diasEnCargo` has always returned the interval and left the verdict
+   * to the screen. The tablero's default lives in `tablero.types`.
+   */
+  static async listarEstancadas(
+    actor: CurrentUser,
+    dias: number,
+    filtros: FiltrosTerritoriales = {}
+  ) {
+    const operacion = "AsignacionService.listarEstancadas";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+    return AsignacionRepository.findPeregrinasEstancadas(alcance, dias, filtros);
+  }
+
+  // `dashboardStats` is gone. Tenencia is counted off the Peregrina's own
+  // denormalised pointer in `TableroService`, which is one query instead of two
+  // and the same number the listado's `tenencia` filter returns.
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 

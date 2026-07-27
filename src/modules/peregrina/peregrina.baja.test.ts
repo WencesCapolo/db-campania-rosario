@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { PeregrinaService } from "./peregrina.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
 import { MisioneroService } from "@/modules/misionero/misionero.service";
@@ -102,10 +103,17 @@ describe("una Peregrina dada de baja", () => {
     expect(await PeregrinaService.listByEstado(referente, "activa")).toEqual([]);
     expect(await PeregrinaService.listByModalidad(referente, "JOV")).toEqual([]);
     expect(await PeregrinaService.listDisponibles(referente)).toEqual([]);
-    expect(await PeregrinaService.dashboardStats(referente)).toEqual({
-      byEstado: [],
-      byRegion: [],
-    });
+    expect(
+      await PeregrinaService.listFiltradas(referente, { modalidad: "JOV" })
+    ).toEqual([]);
+
+    // Y desaparece de las cifras, no sólo de las listas: un tablero que cuenta
+    // bajas es un inventario que dice tener imágenes que ya no tiene.
+    const tablero = await TableroService.resumen(referente);
+    expect(tablero.totalPeregrinas).toBe(0);
+    expect(tablero.porEstado).toEqual([]);
+    expect(tablero.sinTenencia).toBe(0);
+    expect(tablero.nuncaAsignadas?.total).toBe(0);
   });
 
   it("sigue leyéndose por id, y su historial entero con ella", async () => {

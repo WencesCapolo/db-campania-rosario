@@ -6,6 +6,7 @@ import {
 import { registrarDenegacion } from "./registro";
 import type { Role } from "@/modules/user/user.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
+import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 
 /**
  * The one place a rol becomes a territorial filter — issue #2's decision table:
@@ -101,4 +102,34 @@ export function exigirDentroDelAlcance(
     motivo: "registro fuera del territorio del Actor",
   });
   throw new NoAutorizadoError(FUERA_DE_TERRITORIO);
+}
+
+/**
+ * A territorial *filter* checked against the Actor's scope — the guard between
+ * the address bar and the figures.
+ *
+ * Filters arrive from a query string, which anybody can edit, so a crafted
+ * `?diocesisLocalidadId=…` is the one way a read could be asked to widen rather
+ * than narrow. It is refused here rather than intersected away, and the
+ * difference matters: intersecting silently would fall back to the Actor's own
+ * territory and label their own figures with somebody else's Diócesis, which is a
+ * wrong answer where a refusal is a correct one.
+ *
+ * A Región is deliberately not treated the same way. It is not a unit of scope —
+ * a Diócesis belongs to exactly one Región — so a scoped Actor asking for another
+ * one gets an honest zero out of the intersection, not a disclosure.
+ */
+export function exigirTerritorioDentroDelAlcance(
+  actor: CurrentUser,
+  alcance: Alcance,
+  filtros: FiltrosTerritoriales,
+  operacion: string
+): void {
+  if (!filtros.diocesisLocalidadId) return;
+  exigirDentroDelAlcance(
+    actor,
+    alcance,
+    filtros.diocesisLocalidadId,
+    operacion
+  );
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { TableroService } from "@/modules/tablero/tablero.service";
 import { MisioneroService } from "./misionero.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
@@ -173,7 +174,12 @@ describe("un Misionero dado de baja", () => {
     expect(await MisioneroService.listAll(referente)).toEqual([]);
     expect(await MisioneroService.search(referente, "Álvarez")).toEqual([]);
     expect(await MisioneroService.listByRegion(referente, "CENTRO")).toEqual([]);
-    expect(await MisioneroService.dashboardStats(referente)).toEqual([]);
+    expect(await MisioneroService.listFiltrados(referente, {})).toEqual([]);
+
+    // Y sale de las cifras: alguien que dejó la Campaña no es capacidad ociosa.
+    const tablero = await TableroService.resumen(referente);
+    expect(tablero.totalMisioneros).toBe(0);
+    expect(tablero.misionerosSinPeregrina.total).toBe(0);
   });
 
   it("sigue resolviendo por nombre dentro del historial — historia 15", async () => {

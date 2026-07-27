@@ -1,13 +1,26 @@
 import { db } from "@/db";
 import { peregrina } from "./peregrina.schema";
-import { eq, desc, and, max, sql, asc, isNull } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  and,
+  max,
+  sql,
+  asc,
+  isNull,
+  isNotNull,
+  ilike,
+} from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import type {
   PeregrinaRow,
   NewPeregrinaRow,
   PeregrinaEstado,
+  PeregrinaTipo,
   Modalidad,
 } from "./peregrina.schema";
+import type { FiltrosDeInventario } from "./peregrina.types";
 import {
   diocesisLocalidad,
   provincia,
@@ -89,6 +102,71 @@ function conAlcance(
     ...extras,
   ].filter((f) => f !== undefined);
   return filtros.length ? and(...filtros) : undefined;
+}
+
+/**
+ * The shared filters, as SQL — the other half of `FiltrosDeInventario`.
+ *
+ * One translation, used by the filtered list and by every aggregate, which is
+ * what stops the tablero's figures and the listado's rows disagreeing about what
+ * "Modalidad Jóvenes, en reparación" means.
+ *
+ * Territory arrives as an id and is applied on top of the Actor's `Alcance`, so
+ * the two compose as an intersection: a filter can only ever narrow. The service
+ * has already refused an id outside the scope by the time this runs — the
+ * narrowing here is not the guard, it is the query.
+ */
+function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
+  return [
+    filtros.estado ? eq(peregrina.estado, filtros.estado) : undefined,
+    filtros.modalidad ? eq(peregrina.modalidad, filtros.modalidad) : undefined,
+    filtros.tipo ? eq(peregrina.tipo, filtros.tipo) : undefined,
+    filtros.diocesisLocalidadId
+      ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
+      : undefined,
+    filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
+    // ilike, not like: somebody typing "cba jov" means "CBA JOV".
+    filtros.codigo
+      ? ilike(peregrina.codigo, `%${filtros.codigo.replace(/\s+/g, " ")}%`)
+      : undefined,
+    filtros.tenencia === "libre"
+      ? isNull(peregrina.misioneroActualId)
+      : filtros.tenencia === "asignada"
+        ? isNotNull(peregrina.misioneroActualId)
+        : undefined,
+  ];
+}
+
+/** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
+const TOTAL = sql<number>`cast(count(*) as int)`;
+
+/** What an aggregate may group by: a column, or an expression over one. */
+type CamposAgregados = Record<string, PgColumn | SQL<string> | SQL<number>>;
+
+/**
+ * The aggregate `from`, with the territory joined in.
+ *
+ * The join is unconditional even when no Región filter is set, because Región is
+ * one of the breakdowns and the alternative is two query builders that have to
+ * agree with each other. It is a foreign key with an index on both ends.
+ */
+function agregando<T extends CamposAgregados>(campos: T) {
+  return db
+    .select({ ...campos, total: TOTAL })
+    .from(peregrina)
+    .innerJoin(
+      diocesisLocalidad,
+      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+    );
+}
+
+/** Alcance and filters together — the `where` every aggregate shares. */
+function condiciones(
+  alcance: Alcance,
+  filtros: FiltrosDeInventario,
+  opts: OpcionesDeLectura = {}
+) {
+  return conAlcance(alcance, opts, ...condicionDeFiltros(filtros));
 }
 
 /**
@@ -317,38 +395,136 @@ export class PeregrinaRepository {
     return row;
   }
 
-  // ── Stats helpers ──────────────────────────────────────────────────────────
+  // ── Agregaciones ───────────────────────────────────────────────────────────
+  //
+  // Counted in the database, never by fetching rows and counting them. That is
+  // what the previous dashboard did, and it is why its figures were neither
+  // authoritative nor able to survive the Campaña growing: a count of what
+  // happened to be fetched is a count of the page size.
+  //
+  // Every one of these takes the Alcance first and the shared filters second, so
+  // there is no aggregate that can be asked a wider question than the list on
+  // the same screen.
 
-  static async countByEstado(
+  /** One number: how many images match, at all. */
+  static async contarTotal(
     alcance: Alcance,
+    filtros: FiltrosDeInventario,
     opts: OpcionesDeLectura = {}
-  ): Promise<{ estado: string; count: number }[]> {
-    return db
-      .select({
-        estado: peregrina.estado,
-        count: sql<number>`cast(count(*) as int)`,
-      })
-      .from(peregrina)
-      .where(conAlcance(alcance, opts))
+  ): Promise<number> {
+    const [row] = await agregando({}).where(condiciones(alcance, filtros, opts));
+    return row?.total ?? 0;
+  }
+
+  static async contarPorEstado(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ estado: PeregrinaEstado; total: number }[]> {
+    return agregando({ estado: peregrina.estado })
+      .where(condiciones(alcance, filtros, opts))
       .groupBy(peregrina.estado);
   }
 
-  static async countByRegion(
+  static async contarPorModalidad(
     alcance: Alcance,
+    filtros: FiltrosDeInventario,
     opts: OpcionesDeLectura = {}
-  ): Promise<{ region: string; count: number }[]> {
-    return db
-      .select({
-        region: diocesisLocalidad.region,
-        count: sql<number>`cast(count(*) as int)`,
-      })
-      .from(peregrina)
-      .innerJoin(
-        diocesisLocalidad,
-        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
-      )
-      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      .where(conAlcance(alcance, opts))
+  ): Promise<{ modalidad: Modalidad; total: number }[]> {
+    return agregando({ modalidad: peregrina.modalidad })
+      .where(condiciones(alcance, filtros, opts))
+      .groupBy(peregrina.modalidad);
+  }
+
+  static async contarPorTipo(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ tipo: PeregrinaTipo; total: number }[]> {
+    return agregando({ tipo: peregrina.tipo })
+      .where(condiciones(alcance, filtros, opts))
+      .groupBy(peregrina.tipo);
+  }
+
+  /** The national breakdown — story 10, and the comparison story 11 asks for. */
+  static async contarPorRegion(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ region: Region; total: number }[]> {
+    return agregando({ region: diocesisLocalidad.region })
+      .where(condiciones(alcance, filtros, opts))
       .groupBy(diocesisLocalidad.region);
+  }
+
+  /** A Diócesis-level breakdown, for a Región that needs opening up. */
+  static async contarPorDiocesisLocalidad(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ diocesisLocalidadId: string; nombre: string; total: number }[]> {
+    return agregando({
+      diocesisLocalidadId: diocesisLocalidad.id,
+      nombre: diocesisLocalidad.nombre,
+    })
+      .where(condiciones(alcance, filtros, opts))
+      .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre)
+      .orderBy(desc(TOTAL));
+  }
+
+  /**
+   * How many images nobody has right now — story 4, as a number.
+   *
+   * `misioneroActualId is null`, which is "not out at the moment" and not "never
+   * has been": the second question is an anti-join against Asignación and lives
+   * in `AsignacionRepository`. Conflating them would count an image handed out
+   * and returned as idle capacity that has never been used.
+   */
+  static async contarSinTenencia(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario
+  ): Promise<number> {
+    return PeregrinaRepository.contarTotal(alcance, {
+      ...filtros,
+      tenencia: "libre",
+    });
+  }
+
+  /**
+   * Registrations per month, oldest first — story 12.
+   *
+   * From `created_at`, not from stored periodic totals: a snapshot table would
+   * have to be written by something, and there is nothing to write it. The cost
+   * is that growth is growth *of the current inventory* — an image given de baja
+   * leaves the series it was in, which is the honest reading of "how many
+   * Peregrinas do we have" and worth saying out loud on the screen.
+   */
+  static async contarPorMes(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario
+  ): Promise<{ mes: string; total: number }[]> {
+    const mes = sql<string>`to_char(date_trunc('month', ${peregrina.createdAt}), 'YYYY-MM')`;
+    return agregando({ mes })
+      .where(condiciones(alcance, filtros))
+      .groupBy(mes)
+      .orderBy(asc(mes));
+  }
+
+  /**
+   * The filtered listado — one query, all six dimensions, indexed.
+   *
+   * Replaces asking for the narrowest indexed question and narrowing the rest in
+   * memory. That worked while there were two filters and a Diócesis's worth of
+   * rows, and it is exactly the pattern that makes a screen slower as the
+   * Campaña grows — which the tablero is not allowed to be.
+   */
+  static async findFiltradas(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+    opts: OpcionesDeLectura = {}
+  ): Promise<PeregrinaConTerritorio[]> {
+    return conTerritorio()
+      .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
+      .orderBy(asc(peregrina.codigo));
   }
 }

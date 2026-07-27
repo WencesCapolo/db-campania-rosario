@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { misionero } from "./misionero.schema";
 import { eq, desc, ilike, or, and, sql, isNull, asc } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import type { MisioneroRow, NewMisioneroRow, MisioneroEstado } from "./misionero.schema";
 import {
   diocesisLocalidad,
@@ -13,6 +14,7 @@ import type {
   Region,
 } from "@/modules/territorio/territorio.schema";
 import type { Alcance } from "@/lib/authorization/alcance";
+import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 
 /**
  * A Misionero always travels with its territory resolved — Provincia and
@@ -66,6 +68,34 @@ function conAlcance(
     ...extras,
   ].filter((f) => f !== undefined);
   return filtros.length ? and(...filtros) : undefined;
+}
+
+/** The territorial filters, as SQL. Composed with the Alcance, never instead. */
+function condicionDeFiltros(
+  filtros: FiltrosTerritoriales
+): (SQL | undefined)[] {
+  return [
+    filtros.diocesisLocalidadId
+      ? eq(misionero.diocesisLocalidadId, filtros.diocesisLocalidadId)
+      : undefined,
+    filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
+  ];
+}
+
+/** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
+const TOTAL = sql<number>`cast(count(*) as int)`;
+
+/** What an aggregate may group by: a column, or an expression over one. */
+type CamposAgregados = Record<string, PgColumn | SQL<string> | SQL<number>>;
+
+function agregando<T extends CamposAgregados>(campos: T) {
+  return db
+    .select({ ...campos, total: TOTAL })
+    .from(misionero)
+    .innerJoin(
+      diocesisLocalidad,
+      eq(diocesisLocalidad.id, misionero.diocesisLocalidadId)
+    );
 }
 
 /**
@@ -268,19 +298,66 @@ export class MisioneroRepository {
     return row;
   }
 
-  // ── Stats helpers ──────────────────────────────────────────────────────────
+  // ── Agregaciones ───────────────────────────────────────────────────────────
+  //
+  // Counted in the database, and filtered by territory only. Estado, Modalidad
+  // and Tipo are properties of an *image*; a Misionero has none of them, and a
+  // "Misioneros de Modalidad Jóvenes" figure would be an invention. The tablero
+  // says so on the card rather than silently ignoring the filter.
 
-  static async countByEstado(
+  static async contarTotal(
     alcance: Alcance,
+    filtros: FiltrosTerritoriales,
     opts: OpcionesDeLectura = {}
-  ): Promise<{ estado: string; count: number }[]> {
-    return db
-      .select({
-        estado: misionero.estado,
-        count: sql<number>`cast(count(*) as int)`,
-      })
-      .from(misionero)
-      .where(conAlcance(alcance, opts))
+  ): Promise<number> {
+    const [row] = await agregando({}).where(
+      conAlcance(alcance, opts, ...condicionDeFiltros(filtros))
+    );
+    return row?.total ?? 0;
+  }
+
+  static async contarPorEstado(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ estado: MisioneroEstado; total: number }[]> {
+    return agregando({ estado: misionero.estado })
+      .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
       .groupBy(misionero.estado);
+  }
+
+  static async contarPorRegion(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales,
+    opts: OpcionesDeLectura = {}
+  ): Promise<{ region: Region; total: number }[]> {
+    return agregando({ region: diocesisLocalidad.region })
+      .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
+      .groupBy(diocesisLocalidad.region);
+  }
+
+  /** The filtered listado: territory, plus the name search story 6 asks for. */
+  static async findFiltrados(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales & { q?: string },
+    opts: OpcionesDeLectura = {}
+  ): Promise<MisioneroConTerritorio[]> {
+    const termino = filtros.q?.trim();
+    return conTerritorio()
+      .where(
+        conAlcance(
+          alcance,
+          opts,
+          ...condicionDeFiltros(filtros),
+          termino
+            ? or(
+                ilike(misionero.nombre, `%${termino}%`),
+                ilike(misionero.apellido, `%${termino}%`),
+                ilike(diocesisLocalidad.nombre, `%${termino}%`)
+              )
+            : undefined
+        )
+      )
+      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
   }
 }

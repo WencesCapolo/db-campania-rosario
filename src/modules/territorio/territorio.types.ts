@@ -50,6 +50,25 @@ export const regionSchema = z.enum(REGIONES as unknown as [Region, ...Region[]],
   message: "Elegí una Región válida.",
 });
 
+/**
+ * The territorial half of the shared filters.
+ *
+ * It lives here rather than beside the rest of them because territory is upstream
+ * of everything: Misionero and Peregrina both filter by it, and the import chain
+ * runs territorio → misionero → peregrina → asignacion. A Peregrina-owned
+ * definition would be unreachable from Misionero, and a second copy there is how
+ * "my Diócesis" would come to mean two things.
+ *
+ * Both fields narrow within the Actor's `Alcance` and neither can widen it. The
+ * refusal for an out-of-scope id belongs to the services, which know who asked.
+ */
+export const filtrosTerritorialesSchema = z.object({
+  diocesisLocalidadId: z.string().min(1).optional(),
+  region: regionSchema.optional(),
+});
+
+export type FiltrosTerritoriales = z.infer<typeof filtrosTerritorialesSchema>;
+
 export const crearProvinciaSchema = z.object({
   nombre: nombreTerritorio,
   abreviatura: z

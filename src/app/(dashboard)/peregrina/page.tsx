@@ -1,25 +1,21 @@
 import Link from "next/link";
-import {
-  getPeregrinasAction,
-  getPeregrinasPorEstadoAction,
-  getPeregrinasPorModalidadAction,
-} from "@/modules/peregrina/peregrina.router";
+import { getPeregrinasFiltradasAction } from "@/modules/peregrina/peregrina.router";
+import { getDiocesisLocalidadesAction } from "@/modules/territorio/territorio.router";
+import { getCurrentUser } from "@/lib/get-current-user";
+import { esNacional } from "@/lib/authorization/alcance";
 import {
   ESTADO_LABELS,
-  MODALIDADES,
   MODALIDAD_LABELS,
   TIPO_LABELS,
+  filtrosDesdeParams,
+  hayFiltros,
 } from "@/modules/peregrina/peregrina.types";
-import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
-import type {
-  Modalidad,
-  PeregrinaEstado,
-} from "@/modules/peregrina/peregrina.schema";
+import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
 import Insignia, { type TonoDeInsignia } from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { nombreCompleto } from "@/lib/formato";
-import FiltrosDePeregrina from "./FiltrosDePeregrina";
+import FiltrosDeInventario from "@/modules/peregrina/FiltrosDeInventario";
 
 /**
  * El listado de Peregrinas.
@@ -37,12 +33,12 @@ import FiltrosDePeregrina from "./FiltrosDePeregrina";
  * returned nothing — "no hay Peregrinas" shown to somebody who was refused would
  * tell them their territory is empty and confirm to a prober that it exists.
  *
- * Filtering: the service is asked the narrowest question it has a method and an
- * index for, and anything left over is narrowed here. Território scoping has
- * already bounded the set to one Diócesis by the time it arrives, so the
- * remainder is tens of rows, not thousands. Code search is in memory for the
- * same reason and because there is no `searchPeregrinas` to call — adding one
- * would be a service change, and this PRD is presentation only.
+ * Filtering is one question to the database now, not a narrow indexed read plus a
+ * pass in memory. That older arrangement was honest about its limits — territorial
+ * scoping had already cut the set down to tens of rows — but it could not answer
+ * the six-dimension question the tablero links here with, and a count on the
+ * tablero has to lead to *exactly* the rows behind it. Same filters, same
+ * predicate, one definition: `filtrosDeInventarioSchema`.
  */
 
 const TONO_POR_ESTADO: Record<PeregrinaEstado, TonoDeInsignia> = {
@@ -57,25 +53,23 @@ export const dynamic = "force-dynamic";
 export default async function PeregrinaListaPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    codigo?: string;
-    estado?: string;
-    modalidad?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const filtros = await searchParams;
+  const filtros = filtrosDesdeParams(await searchParams);
 
-  const codigo = (filtros.codigo ?? "").trim();
-  const estado = esEstado(filtros.estado) ? filtros.estado : "";
-  const modalidad = esModalidad(filtros.modalidad) ? filtros.modalidad : "";
+  // The territory picker is for the two nacional rols only. A Referente Local's
+  // records are one Diócesis already, and offering them their Provincia's other
+  // Diócesis would be offering a control whose every use is refused.
+  const actor = await getCurrentUser();
+  const territorios = esNacional(actor.role)
+    ? (await getDiocesisLocalidadesAction()).map((d) => ({
+        id: d.id,
+        nombre: d.nombre,
+      }))
+    : null;
 
-  const peregrinas = filtrar(await leer(estado, modalidad), {
-    codigo,
-    estado,
-    modalidad,
-  });
-
-  const hayFiltros = Boolean(codigo || estado || modalidad);
+  const peregrinas = await getPeregrinasFiltradasAction(filtros);
+  const filtrado = hayFiltros(filtros);
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 px-5 py-6">
@@ -86,21 +80,21 @@ export default async function PeregrinaListaPage({
             {peregrinas.length === 1
               ? "1 imagen"
               : `${peregrinas.length} imágenes`}
-            {hayFiltros ? " con esos filtros" : " en tu territorio"}
+            {filtrado ? " con esos filtros" : " en tu territorio"}
           </p>
         </div>
 
         <BotonEnlace href="/peregrina/new">Registrar una Peregrina</BotonEnlace>
       </header>
 
-      <FiltrosDePeregrina
-        codigo={codigo}
-        estado={estado}
-        modalidad={modalidad}
+      <FiltrosDeInventario
+        filtros={filtros}
+        destino="/peregrina"
+        territorios={territorios}
       />
 
       {peregrinas.length === 0 ? (
-        hayFiltros ? (
+        filtrado ? (
           <Vacio
             titulo="Ninguna imagen coincide"
             mensaje="Probá con menos filtros, o revisá el Código: se escribe como «CBA JOV 0001»."
@@ -158,47 +152,4 @@ export default async function PeregrinaListaPage({
       )}
     </main>
   );
-}
-
-/**
- * Ask the service the narrowest question it has an index for.
- *
- * With both filters set there is no combined method, so the more selective of
- * the two goes to the database and the other is applied below. Estado is the
- * more selective in practice — most images are `activa`, but the interesting
- * queries are for the handful that are not.
- */
-async function leer(estado: string, modalidad: string): Promise<PeregrinaDTO[]> {
-  if (estado) return getPeregrinasPorEstadoAction(estado as PeregrinaEstado);
-  if (modalidad)
-    return getPeregrinasPorModalidadAction(modalidad as Modalidad);
-  return getPeregrinasAction();
-}
-
-function filtrar(
-  peregrinas: PeregrinaDTO[],
-  { codigo, modalidad }: { codigo: string; estado: string; modalidad: string }
-): PeregrinaDTO[] {
-  const buscado = codigo.toLowerCase().replace(/\s+/g, " ");
-
-  return peregrinas.filter((p) => {
-    if (modalidad && p.modalidad !== modalidad) return false;
-    if (buscado && !p.codigo.toLowerCase().includes(buscado)) return false;
-    return true;
-  });
-}
-
-function esEstado(v: string | undefined): v is PeregrinaEstado {
-  return (
-    v === "activa" ||
-    v === "en_reparacion" ||
-    v === "extraviada" ||
-    v === "inactiva"
-  );
-}
-
-function esModalidad(v: string | undefined): v is Modalidad {
-  // Checked against the enum rather than a hand-written list, so adding a
-  // Modalidad cannot leave a filter silently rejecting it.
-  return MODALIDADES.some((m) => m === v);
 }
