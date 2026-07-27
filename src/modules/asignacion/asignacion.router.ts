@@ -63,6 +63,20 @@ export async function getPeregrinasNuncaAsignadasAction(): Promise<
 }
 
 /**
+ * Los Misioneros con las manos libres — la tarjeta del tablero, y el filtro «sin
+ * imagen» del listado de Misioneros.
+ *
+ * Scoped por el territorio de la *persona* y no por el de una imagen: la pregunta
+ * es quién de acá podría recibir una.
+ */
+export async function getMisionerosSinPeregrinaAction(): Promise<
+  { id: string; nombre: string; apellido: string }[]
+> {
+  const actor = await getCurrentUser();
+  return AsignacionService.listarMisionerosSinPeregrina(actor);
+}
+
+/**
  * The two lists the stepped assignment flow needs, in one round trip.
  *
  * "Paso 1: Elegir Misionero" then "Paso 2: Elegir Imagen" — fetching them

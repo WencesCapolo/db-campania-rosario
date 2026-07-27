@@ -32,7 +32,8 @@ export const dynamic = "force-dynamic";
  *
  * Usuarios is reachable from here rather than from Inicio because Inicio is for
  * the three things a Referente does; administering accounts is not one of them,
- * and only some rols may do it at all.
+ * and only some rols may do it at all. The tablero is here for the same reason and
+ * is offered to everybody: every rol has figures, they are just their own.
  */
 
 const ENLACE =
@@ -62,6 +63,15 @@ export default async function DashboardLayout({
           </Link>
 
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            {/* El tablero se llega desde acá y no desde Inicio: Inicio son las tres
+                cosas que un Referente vino a hacer, y las cifras no son una de
+                ellas — pero son la primera cosa que abre un Responsable
+                Diocesano o un Asesor Nacional, así que tienen que estar a un
+                toque desde cualquier pantalla. */}
+            <Link href="/tablero" className={ENLACE}>
+              Tablero
+            </Link>
+
             {puedeAdministrar && (
               <Link href="/admin/users" className={ENLACE}>
                 Usuarios
