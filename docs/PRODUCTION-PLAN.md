@@ -32,6 +32,8 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 | Validation | Zod as source of truth, parsed at the router boundary |
 | Data entry | Manual only. No importer |
 | Tests | Two Vitest projects. `node`: the services against real Postgres, **one seam**, Actor fabricated per test. `navegador`: accessibility in Chromium via Playwright with axe-core — ADR 0006 |
+| Tablero | Aggregates in Postgres, scoped by Actor. One filter schema, and it lives in the query string — ADR 0007 |
+| Indexes | Added only when a query plan names them. `tablero.planes.test.ts` measures; three of five candidates were deleted — ADR 0007 |
 | Style guard | An ESLint rule, not a CI step: `no-restricted-syntax` fails on `style={{}}`, a `.module.css` import, or any `.css` import that is not `globals.css`. It fires in the editor rather than after a push |
 
 ## What the grilling corrected in the baseline
@@ -55,9 +57,11 @@ Specced as PRDs on the issue tracker, in dependency order:
 | 2 | [Autorización territorial y aprovisionamiento por invitación](../../issues/2) | 1 · **done: scoping, invitations, typed errors; screens plain, restyled by 4** |
 | 3 | [Historial de Asignaciones, baja lógica y estados](../../issues/3) | 2 · **done: Asignación module, soft delete, estados, backfill; two screens plain, restyled by 4** |
 | 4 | [Sistema de diseño accesible y reconstrucción de pantallas](../../issues/4) | — · **done, except the one thing no automated check can do — see below** |
-| 5 | [Tablero con agregaciones y filtros](../../issues/5) | 1, 2, partly 3 |
+| 5 | [Tablero con agregaciones y filtros](../../issues/5) | 1, 2, partly 3 · **done — ADR 0007** |
 
-Issue 5 is next, and it inherits a settled visual language rather than inventing one.
+All five PRDs are implemented. What is left is production readiness proper, and the
+one thing no automated check can do: a real Referente completing a real task on their
+own phone.
 
 ### What issue 1 left for issue 4 — closed
 
@@ -87,7 +91,7 @@ Both are plain Tailwind and meant to be **restyled, not rebuilt**. What issue 4 
 
 ## Open questions
 
-- What is the threshold for a Peregrina having "not changed hands recently"? Only affects one issue 5 card. Issue 3 shipped the data without the threshold: `AsignacionDTO.diasEnCargo` returns the interval and the screen decides where the line is.
+- What is the threshold for a Peregrina having "not changed hands recently"? Still unanswered, and now it has a **default of 180 days** rather than no answer: `umbralDeDiasEstancada()` in `tablero.types`, overridable with `TABLERO_DIAS_ESTANCADA` so the Campaña's answer is an environment variable and not a deployment. The card names the number on screen, so nobody has to guess what "hace mucho" meant.
 - When a Peregrina and the Misionero holding it are in different Diócesis, whose territory should the assignment flow offer? Issue 3 checks both ends and refuses the mismatch for a scoped Actor, which is the safe reading, but nobody has said whether an inter-diocesan hand-off is a real thing the Campaña does.
 
 ### What issue 3 left for issue 4 — closed
@@ -125,11 +129,38 @@ The visual language is settled, so issue 5 styles nothing new: tokens in `global
 
 **Inherited.** Eleven routes plus `/misionero/new`, all on the primitives. `Boton`/`BotonEnlace`, `Campo`, `AreaDeTexto`, `Eleccion`, `Tarjeta`, `Insignia`, `Mensaje`, `Volver`, `Dialogo`, `ConfirmarAccion` and the three `EstadosAsincronicos`. Inicio is three buttons and stays that way — the tablero is a destination, not the home screen. Counts, charts and filtering would push the three things a Referente came for below the fold on a phone.
 
-**Two cards, already implemented and tested, with no UI:** `getPeregrinasNuncaAsignadasAction` (story 19) and `MisioneroService.search`. Both are tablero questions rather than screens, which is why they moved here rather than being forced into issue 4.
+~~**Two cards, already implemented and tested, with no UI:**~~ Closed by issue 5. `getPeregrinasNuncaAsignadasAction` is the "Nunca entregadas" card, and `MisioneroService.search` is the search box on `/misionero`, beside a "sólo los que no tienen ninguna" filter that the tablero's idle-capacity card links into.
 
-**Indexes are covered but unmeasured.** Territory, estado and modalidad each have one, and nobody has run the tablero's aggregate queries against a database with real volume — because there is none yet. The user's project holds zero Peregrinas and zero Misioneros. The first thing issue 5 should do is put real data in and look at the plans.
+~~**Indexes are covered but unmeasured.**~~ Closed by issue 5, and the answer was not the expected one: `tablero.planes.test.ts` seeds twelve thousand images and thirty thousand Asignaciones and explains the real queries, and **three of the five indexes written for the tablero were deleted** because the planner chose the existing single-column indexes and a sort over each of them. Two survive — a partial composite on `(diócesis, estado, modalidad, tipo)` and a partial one on the open Asignaciones by date, which turned out to serve both cross-entity cards. The measurement is a test rather than a note, so a regression that turns a dashboard load into a full scan fails the suite.
+
+This is still volume the suite invented. Nobody has looked at a plan against the Campaña's own data, because there is none — the project holds zero Peregrinas and zero Misioneros.
 
 **Two things issue 4 deliberately did not do.** Dark mode is out of scope: it doubles the contrast verification, and the block that used to sit in `globals.css` flipped the body to near-black while every colour on every screen was hardcoded light — so a phone set to dark rendered white text on white, and no 4.5:1 claim was honest while it was live. And there is still no CI; the style guard is an ESLint rule for that reason, and the accessibility suite needs a cached Chromium the day CI arrives.
+
+### What issue 5 leaves
+
+**Nothing owed by another issue.** The tablero, the shared filters, both listados and
+the two cards issue 4 carried here are all shipped, and ADR 0007 records the decisions.
+
+What it deliberately did not do, and why:
+
+- **No export to spreadsheet or PDF, and no emailed reports.** Out of scope in the PRD.
+  It is the most likely first request from whoever the figures get reported to, and the
+  reason the DTO carries keys rather than labels is that an exporter would need the same
+  numbers with different words around them.
+- **No caching.** Correct indexes are supposed to make these queries fast enough, and
+  the plans in `tablero.planes.test.ts` are the evidence that would have to change
+  before adding a layer to invalidate.
+- **No stored snapshots of the figures.** Growth over time is derived from `created_at`,
+  so it is growth *of the current inventory* — an image given de baja leaves the series
+  it was in. Storing periodic totals would need something to write them, and there is
+  nothing.
+- **`?diocesisLocalidadId=` in a shared link is an id, not a name.** Ugly, and not a
+  leak: it is refused for anybody it does not belong to.
+
+**And the same gap issue 4 had, one layer down:** the plans were measured against volume
+this suite invented. Nobody has looked at a plan, or at the tablero, with the Campaña's
+own records in it.
 
 ### Still owed, and only the Campaña can do it
 

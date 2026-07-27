@@ -134,6 +134,29 @@ The baja suites (`misionero.baja.test.ts`, `peregrina.baja.test.ts`) assert both
 halves of soft delete every time: gone from the active lists **and** still resolving
 by name inside the history. Either one alone is the wrong half.
 
+## La suite de planes
+
+`src/modules/tablero/tablero.planes.test.ts` is the second declared exception to "one
+seam", and for the same kind of reason as the browser project: what is under test is a
+**query plan**, and a service does not have one.
+
+It seeds twelve thousand Peregrinas and thirty thousand Asignaciones, runs `analyze`,
+and explains the SQL the repositories actually emit — captured by wrapping the client,
+never rewritten by hand. An `EXPLAIN` over a query copied into a test file proves that
+the copy uses the index.
+
+Two things it deliberately does:
+
+- **Seeds in `beforeEach`, not `beforeAll`.** `setup.ts` truncates every table between
+  tests, so a fixture built once would give plans over an empty table — where a full
+  scan *is* the right plan and the measurement says nothing. That is also why the tests
+  are grouped: four cases with `expect.soft` rather than a dozen, because each one pays
+  for the seed.
+- **Asserts the honest result.** Three of the five indexes written for issue #5 were
+  deleted because the planner never chose them, and the tests say so where the
+  assertion would otherwise have gone. The national Región breakdown is asserted to be
+  an aggregate over the whole table, because counting a country is exactly that.
+
 ## The migration suite
 
 `src/db/migrations/migracion-territorio.test.ts` and `migracion-asignacion.test.ts`

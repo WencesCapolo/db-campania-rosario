@@ -95,6 +95,14 @@ _Avoid_: Ubicación
 Retired rather than deleted. A Peregrina permanently out of service, a Misionero who has left the Campaña, or a Usuario whose access has ended — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real Código and a real name. Refused while an Asignación is still open: an image physically in somebody's house has not left the inventory.
 _Avoid_: Eliminar, Borrar, Baja (on its own, for a Peregrina that is merely unassigned)
 
+**Tablero**:
+The screen of aggregate figures for the Actor's own territory — counts by Estado, Modalidad, Tipo and territory, plus the four lists that lead to work. Every figure links to the records behind it. It is a destination reached from the header, not the home screen: Inicio is the three things somebody came to do.
+_Avoid_: Dashboard, Panel, Reportes (a report is exported; this is not)
+
+**Estancada**:
+A Peregrina that has been in the same hands longer than the Campaña's threshold — 180 days by default, and the screen always names the number. Distinct from **nunca entregada**, an image that has never been in anybody's charge, and from **libre**, one that is not in anybody's charge right now.
+_Avoid_: Perdida (that is Extraviada), Inactiva
+
 **Año de consagración**:
 The year a Misionero was consecrated.
 

@@ -7,7 +7,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 ## 2. Read these first
 
 - **`CONTEXT.md`** (repo root) — the domain glossary. It is authoritative for vocabulary. Use these exact terms in code, UI copy, and commit messages. Do not invent synonyms.
-- **`docs/adr/`** — six decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, and 0006 before changing how the UI is tested.
+- **`docs/adr/`** — seven decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, and 0007 before touching a filter, a figure or an index.
 - **`docs/PRODUCTION-PLAN.md`** — current state, phases, and open questions.
 
 ## 3. Tech stack
@@ -31,7 +31,9 @@ Router–service–repository, one module per entity under `src/modules/<entity>
 - **`*.schema.ts`** — Drizzle table and enum definitions.
 - **`*.types.ts`** — DTOs and input types. Never leak Drizzle row types past the service.
 
-Shared enums live in the module that owns the independent entity, re-exported by dependents. Imports between modules are one-way, and the chain is `territorio` → `misionero` → `peregrina` → `asignacion`.
+Shared enums live in the module that owns the independent entity, re-exported by dependents. Imports between modules are one-way, and the chain is `territorio` → `misionero` → `peregrina` → `asignacion` → `tablero`.
+
+`tablero` is the one module with no table: no schema, no repository. It composes the other three's repositories into the dashboard's figures, and nothing imports it — see ADR 0007. An aggregate over a table belongs in *that table's* repository, beside the filters its list read uses.
 
 That direction between Misionero and Peregrina **reversed** in issue 3 (ADR 0004). Charge used to be `misionero.peregrina_id`; it is an Asignación now, and the only pointer left is Peregrina's denormalised `misioneroActualId`. One rule is explicit rather than implied: a service may read another module's **repository** for a cross-entity guard, never another module's **service** — that is what would create a cycle.
 
@@ -76,7 +78,9 @@ The primary users are often older adults, entering every record by hand — ther
 - **Charge changes in exactly one place.** `AsignacionService.asignar`, `entregar`, `devolver` and `corregir`. A Peregrina has at most one open Asignación, enforced in the service *and* by a partial unique index on open rows. Never write `peregrina.misioneroActualId` outside `AsignacionRepository`: it is derived from the open Asignación, in the same transaction.
 - **Estado is about the image, not about who has it.** `activa`, `en_reparacion`, `extraviada`, plus the legacy `inactiva`, which is readable and excluded from new entry (`ESTADOS_SELECCIONABLES`). Marking a Peregrina `extraviada` deliberately leaves the open Asignación open — closing it deletes the answer to "who had it".
 - **TypeScript:** strict. No `any`. Do not export Drizzle row types from a module's public surface.
-- **Indexes:** queries backing dashboard filters must be covered. Filtering is by territory, estado, and modalidad.
+- **Indexes:** queries backing dashboard filters must be covered — and covered by *measurement*. `src/modules/tablero/tablero.planes.test.ts` seeds volume and asserts the plan of the SQL the repositories actually emit. Three of the five indexes written for issue 5 were deleted because the planner never chose them; do not add one without a plan that names it (ADR 0007).
+- **Filters are one schema, and it lives in the address.** `filtrosDeInventarioSchema` (Estado, Modalidad, Tipo, tenencia, territorio, Región, Código) is shared by the tablero and every list; its territorial half is in `territorio.types` because the import chain runs one way. A filter naming a territory outside the Actor's scope is **refused**, never intersected away — the intersection would relabel one Diócesis's figures with another's name. An unrecognised enum value is dropped, because that is a typo rather than an escalation.
+- **Counts are aggregate queries.** Never fetch rows to count them, and never derive a figure on the client: that is what the previous dashboard did, and it made every number a count of the page size.
 - **Errors:** throw typed domain errors from `src/lib/errors.ts`; routers map them with `aResultado`, which is the one translation from error to response. Log every authorization denial with `registrarDenegacion` — and log the *territory*, never a person: Referentes Locales share one login per territory.
 - **Tests:** any change to a service's scope filter requires a test proving out-of-territory data stays invisible. This is the one suite that must never be skipped.
 
