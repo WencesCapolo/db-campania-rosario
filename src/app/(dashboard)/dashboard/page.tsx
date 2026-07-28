@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 /**
@@ -20,22 +21,31 @@ import Link from "next/link";
  * Esta pantalla es la primera que lleva el tema de la Campaña, tomado de
  * schoenstatt.org.ar: el azul institucional en los títulos, el lienzo azulado de
  * fondo, el filete dorado que allá parte cada sección, el filete celeste al canto
- * de cada destino y las esquinas de 3 px. Los tokens y las dos adaptaciones que
- * el tema necesitó están en globals.css; los pares, en contraste.test.ts.
+ * y las esquinas de 3 px. Los tokens y las dos adaptaciones que el tema necesitó
+ * están en globals.css; los pares, en contraste.test.ts.
  *
- * Salió de tres variantes en esta misma ruta (`?variant=A|B|C`, borradas): A
- * ponía el azul en toda la pantalla y B lo dejaba en el registro claro del cuerpo
- * del sitio; C metía la acción dentro de una banda azul arriba. Ganó B, ésta: en
- * un teléfono en una oficina con una lámpara, el fondo claro es el que no pelea
- * con el reflejo, y es la única de las tres donde el azul lleno del destino con
- * consecuencias tiene contra qué destacar.
+ * Salió de siete variantes en esta misma ruta, todas borradas. Las tres primeras
+ * discutían el fondo: ganó el claro, porque en un teléfono en una oficina con una
+ * lámpara es el que no pelea con el reflejo. Las tres siguientes discutían el
+ * encabezado: ganó **un solo marco**, con los tres destinos separados por filetes
+ * en lugar de por aire — menos cantos en pantalla, una sola cosa que mirar. Las
+ * últimas tres movían el retrato del Padre Pozzobón, y ganó centrado y chico, como
+ * el sello de una hoja: el encabezado queda simétrico y el retrato está sin pesar.
  *
- * La etiqueta y el título respiran más que el resto de la pantalla a propósito.
- * Son lo único que se lee de una sola vez, antes de decidir, y el aire de arriba
- * es lo que separa "leer" de "elegir".
+ * De esa última ronda quedó una cosa más, que es la razón por la que el encabezado
+ * está *adentro* de la tarjeta y no arriba de ella: así el filete celeste corre por
+ * el borde superior de toda la composición en lugar de partirla en dos objetos. La
+ * pantalla tiene un borde en total.
  */
 
-const ACCESOS = [
+type Acceso = {
+  href: string;
+  titulo: string;
+  descripcion: string;
+  principal: boolean;
+};
+
+const ACCESOS: Acceso[] = [
   {
     href: "/peregrina",
     titulo: "Peregrinas",
@@ -57,74 +67,120 @@ const ACCESOS = [
 ];
 
 /*
- * El filete celeste va *adentro* del borde y no en lugar de él, que es la
- * diferencia entre decoración y estructura.
- *
- * El celeste del sitio da 2.5:1 contra el papel. Como `border-l-8` reemplazaba el
- * canto izquierdo de la tarjeta, ese lado quedaba delimitado por un color que no
- * llega al 3:1 que pide SC 1.4.11 — la tarjeta perdía un borde de los cuatro. Con
- * el filete como una franja interna, los cuatro cantos siguen siendo
- * `borde-suave` y el celeste no delimita nada.
+ * La punta de flecha. Es geometría y no un glifo tipográfico, así que se ve igual
+ * en cualquier fuente instalada, y va `aria-hidden` porque el link ya dice a dónde
+ * lleva: es refuerzo de que esto se toca, no una segunda cosa que leer.
  */
-const DESTINO =
-  "flex min-h-24 items-stretch overflow-hidden rounded-marco border-2 no-underline";
-
-const TONOS = {
-  principal: "border-azul bg-azul hover:bg-azul-noche",
-  secundario: "border-borde-suave bg-papel hover:bg-lienzo",
-};
+function Punta({ className }: { className: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="m9 5 7 7-7 7" />
+    </svg>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
   return (
-    <div className="min-h-screen bg-lienzo">
-      <main className="mx-auto w-full max-w-2xl px-5 pt-14 pb-12">
-        <header className="pb-2">
-          <p className="text-sm font-semibold tracking-[0.18em] text-oro-tinta uppercase">
-            Campaña del Rosario
-          </p>
-          <h1 className="mt-5 font-stretch-condensed text-4xl font-bold text-azul">
-            ¿Qué querés hacer?
-          </h1>
-          {/* El filete dorado del sitio. Es decoración y no lleva nada encima:
-              #ac954f no llega al contraste que pide un texto. */}
-          <hr className="mt-7 border-t-4 border-oro" />
-        </header>
+    /* Centrado óptico y no geométrico: la tarjeta queda arriba del centro exacto,
+       más o menos a la mitad del camino entre pegada a la barra y centrada. El
+       centro real de una pantalla con una sola cosa se lee como caída, porque la
+       barra ya ocupa el borde de arriba y nada ocupa el de abajo.
+       El sesgo son los dos `p*` desparejos: con `items-center`, el aire de más
+       abajo empuja la tarjeta hacia arriba la mitad de la diferencia. Y `pt-6` es
+       el piso: cuando la pantalla es más baja que la tarjeta, el centrado cede y
+       queda el margen, en lugar de recortarla. */
+    <div className="flex flex-1 items-center justify-center bg-lienzo px-5 pt-6 pb-28">
+      <main className="w-full max-w-xl">
+        <div className="overflow-hidden rounded-marco border-2 border-borde-suave bg-papel">
+          <header className="border-b-2 border-borde-suave bg-lienzo px-5 pt-10 pb-7 text-center sm:px-6">
+            {/*
+             * El retrato del Padre Pozzobón con la Peregrina, el mismo del sitio.
+             * Va `alt=""` y `aria-hidden` porque es la identidad de la pantalla y no
+             * un dato: quien lo reconoce no necesita que se lo digan, y a quien
+             * navega con lector de pantalla no le agrega nada antes de las tres
+             * cosas que vino a hacer.
+             *
+             * El PNG ya trae su marco dorado octogonal, así que no lleva borde
+             * nuestro encima — dos marcos sobre la misma foto es exactamente el
+             * gesto que abarata una pantalla.
+             */}
+            <Image
+              src="/pozzobon.png"
+              alt=""
+              width={320}
+              height={320}
+              priority
+              aria-hidden
+              className="mx-auto h-20 w-20"
+            />
 
-        <ul className="mt-9 space-y-4">
-          {ACCESOS.map((acceso) => (
-            <li key={acceso.href}>
-              <Link
-                href={acceso.href}
-                className={`${DESTINO} ${
-                  acceso.principal ? TONOS.principal : TONOS.secundario
-                }`}
+            <p className="mt-5 text-xs font-semibold tracking-[0.22em] text-oro-tinta uppercase sm:text-sm">
+              Campaña del Rosario
+            </p>
+
+            <h1 className="mt-3 font-stretch-condensed text-4xl leading-tight font-bold text-azul sm:text-5xl">
+              ¿Qué querés hacer?
+            </h1>
+
+            {/* El filete dorado del sitio, corto y centrado: acá cierra el
+                encabezado en lugar de separar dos bloques del mismo ancho. Es
+                decoración y no lleva nada encima — #ac954f da 2.9:1, que no
+                alcanza ni para una regla que diga algo. */}
+            <hr className="mx-auto mt-7 w-16 border-t-4 border-oro" />
+          </header>
+
+          <ul>
+            {ACCESOS.map((acceso, i) => (
+              <li
+                key={acceso.href}
+                className={i > 0 ? "border-t-2 border-borde-suave" : undefined}
               >
-                {!acceso.principal && (
-                  <span aria-hidden className="w-2 shrink-0 bg-celeste" />
-                )}
+                <Link
+                  href={acceso.href}
+                  className={`flex min-h-24 items-center gap-5 px-5 py-5 no-underline sm:px-6 ${
+                    acceso.principal
+                      ? "bg-azul hover:bg-azul-noche"
+                      : "hover:bg-lienzo"
+                  }`}
+                >
+                  <span className="flex flex-1 flex-col gap-1">
+                    <span
+                      className={`font-stretch-condensed text-2xl leading-tight font-bold ${
+                        acceso.principal ? "text-white" : "text-azul"
+                      }`}
+                    >
+                      {acceso.titulo}
+                    </span>
+                    <span
+                      className={`text-base leading-snug ${
+                        acceso.principal ? "text-white" : "text-tinta-suave"
+                      }`}
+                    >
+                      {acceso.descripcion}
+                    </span>
+                  </span>
 
-                <span className="flex flex-col justify-center gap-1 px-6 py-5">
-                  <span
-                    className={`font-stretch-condensed text-2xl font-bold ${
+                  <Punta
+                    className={`h-6 w-6 shrink-0 ${
                       acceso.principal ? "text-white" : "text-azul"
                     }`}
-                  >
-                    {acceso.titulo}
-                  </span>
-                  <span
-                    className={`text-base ${
-                      acceso.principal ? "text-white" : "text-tinta-suave"
-                    }`}
-                  >
-                    {acceso.descripcion}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </main>
     </div>
   );

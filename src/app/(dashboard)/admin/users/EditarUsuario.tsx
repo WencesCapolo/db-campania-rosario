@@ -56,7 +56,7 @@ export default function EditarUsuario({
 
   const [rol, setRol] = useState<Role>(rolActual);
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    diocesisLocalidadIdActual
+    diocesisLocalidadIdActual,
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -85,8 +85,9 @@ export default function EditarUsuario({
       {(control) => (
         <>
           <p className="mt-3 text-base leading-relaxed">
-            El acceso de <strong>{email || "este usuario sin identidad"}</strong>.
-            El cambio vale desde su próximo ingreso.
+            El acceso de{" "}
+            <strong>{email || "este usuario sin identidad"}</strong>. El cambio
+            vale desde su próximo ingreso.
           </p>
 
           {error && (
@@ -135,7 +136,7 @@ export default function EditarUsuario({
                     // sentence about scope. Said here it is a sentence about the
                     // field somebody is looking at.
                     setError(
-                      "Este rol necesita una Diócesis/Localidad. Elegí una."
+                      "Este rol necesita una Diócesis/Localidad. Elegí una.",
                     );
                     return;
                   }

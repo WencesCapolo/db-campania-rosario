@@ -70,7 +70,7 @@ export default function CrearDiocesis({
       }
 
       setUltima(
-        `${resultado.data.nombre} (${resultado.data.provincia.nombre})`
+        `${resultado.data.nombre} (${resultado.data.provincia.nombre})`,
       );
       setNombre("");
       validacion.limpiar();

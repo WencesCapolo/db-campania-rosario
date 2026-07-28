@@ -91,7 +91,7 @@ function misionero(id: string, nombre: string, apellido: string): MisioneroDTO {
 function peregrina(
   id: string,
   codigo: string,
-  tenencia: PeregrinaDTO["tenenciaActual"]
+  tenencia: PeregrinaDTO["tenenciaActual"],
 ): PeregrinaDTO {
   return {
     id,
@@ -121,7 +121,10 @@ const YA_ENTREGADA = peregrina("pg-2", "CBA JOV 002", {
   deBaja: false,
 });
 
-const TODOS = { misioneros: [ANA, BEATRIZ], peregrinas: [SIN_ENTREGAR, YA_ENTREGADA] };
+const TODOS = {
+  misioneros: [ANA, BEATRIZ],
+  peregrinas: [SIN_ENTREGAR, YA_ENTREGADA],
+};
 
 describe("FlujoDeAsignacion", () => {
   it("se recorre entero con el teclado, sin tocar la pantalla", async () => {
@@ -142,7 +145,7 @@ describe("FlujoDeAsignacion", () => {
 
     await userEvent.keyboard("{Tab}");
     expect(document.activeElement).toBe(
-      await pantalla.getByRole("button", { name: "Siguiente" }).element()
+      await pantalla.getByRole("button", { name: "Siguiente" }).element(),
     );
     await userEvent.keyboard("{Enter}");
 
@@ -158,7 +161,9 @@ describe("FlujoDeAsignacion", () => {
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
 
     // Paso 3.
-    await pantalla.getByRole("button", { name: "Registrar la entrega" }).click();
+    await pantalla
+      .getByRole("button", { name: "Registrar la entrega" })
+      .click();
 
     expect(asignarAction).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith(`/peregrina/${SIN_ENTREGAR.id}`);
@@ -185,7 +190,9 @@ describe("FlujoDeAsignacion", () => {
     // Losing the choice on the way back turns a three-step flow into a three-step
     // flow you have to complete in one pass, which is worse than one long form.
     await expect
-      .element(pantalla.getByRole("combobox", { name: "¿A quién pasa la imagen?" }))
+      .element(
+        pantalla.getByRole("combobox", { name: "¿A quién pasa la imagen?" }),
+      )
       .toHaveValue(ANA.id);
   });
 
@@ -219,7 +226,9 @@ describe("FlujoDeAsignacion", () => {
       .getByRole("combobox", { name: "¿Qué Peregrina?" })
       .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
-    await pantalla.getByRole("button", { name: "Registrar la entrega" }).click();
+    await pantalla
+      .getByRole("button", { name: "Registrar la entrega" })
+      .click();
 
     // Two service operations, one flow. `asignar` on an image somebody already has
     // is the call that would refuse — the person handing it on does not have to
@@ -247,7 +256,9 @@ describe("FlujoDeAsignacion", () => {
       .getByRole("combobox", { name: "¿Qué Peregrina?" })
       .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
-    await pantalla.getByRole("button", { name: "Registrar la entrega" }).click();
+    await pantalla
+      .getByRole("button", { name: "Registrar la entrega" })
+      .click();
 
     await expect
       .element(pantalla.getByRole("alert"))
@@ -257,7 +268,7 @@ describe("FlujoDeAsignacion", () => {
 
   it("cuando no hay Misioneros ofrece cargar uno", async () => {
     const pantalla = await render(
-      <FlujoDeAsignacion misioneros={[]} peregrinas={[SIN_ENTREGAR]} />
+      <FlujoDeAsignacion misioneros={[]} peregrinas={[SIN_ENTREGAR]} />,
     );
 
     // A picker with nothing in it has to say what to do and give a way to get
@@ -270,7 +281,7 @@ describe("FlujoDeAsignacion", () => {
 
   it("cuando no hay Peregrinas ofrece registrar una", async () => {
     const pantalla = await render(
-      <FlujoDeAsignacion misioneros={[ANA]} peregrinas={[]} />
+      <FlujoDeAsignacion misioneros={[ANA]} peregrinas={[]} />,
     );
 
     await expect

@@ -65,7 +65,9 @@ export default async function UsuariosPage() {
         <div>
           <h1 className="text-3xl font-bold text-tinta">Usuarios</h1>
           <p className="mt-1 text-base text-tinta-suave">
-            {usuarios.length === 1 ? "1 usuario" : `${usuarios.length} usuarios`}{" "}
+            {usuarios.length === 1
+              ? "1 usuario"
+              : `${usuarios.length} usuarios`}{" "}
             en tu territorio
           </p>
         </div>
@@ -195,9 +197,9 @@ export default async function UsuariosPage() {
         <Tarjeta titulo="Identidades sin usuario">
           <div className="space-y-4">
             <p className="text-base leading-relaxed text-tinta-suave">
-              Estas personas pueden iniciar sesión en el proveedor pero no tienen
-              acceso al sistema. Suele ser un aprovisionamiento a medias: o les
-              falta la invitación, o entraron antes de tenerla.
+              Estas personas pueden iniciar sesión en el proveedor pero no
+              tienen acceso al sistema. Suele ser un aprovisionamiento a medias:
+              o les falta la invitación, o entraron antes de tenerla.
             </p>
 
             <ul className="space-y-2">

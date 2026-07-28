@@ -73,7 +73,10 @@ export default async function TerritorioPage() {
           <ul className="space-y-3">
             {[...porProvincia.entries()]
               .sort(([, a], [, b]) =>
-                a[0].provincia.nombre.localeCompare(b[0].provincia.nombre, "es")
+                a[0].provincia.nombre.localeCompare(
+                  b[0].provincia.nombre,
+                  "es",
+                ),
               )
               .map(([provinciaId, lista]) => (
                 <li key={provinciaId}>
@@ -104,11 +107,11 @@ export default async function TerritorioPage() {
                               que="la Diócesis/Localidad"
                               contarUso={getUsoDiocesisLocalidadAction.bind(
                                 null,
-                                d.id
+                                d.id,
                               )}
                               retirar={darDeBajaDiocesisLocalidadAction.bind(
                                 null,
-                                d.id
+                                d.id,
                               )}
                             />
                           )}

@@ -88,7 +88,10 @@ export default async function TableroPage({
         buscarPorCodigo={false}
       />
 
-      <Suspense key={comoQueryString(filtros)} fallback={<Cargando filas={4} />}>
+      <Suspense
+        key={comoQueryString(filtros)}
+        fallback={<Cargando filas={4} />}
+      >
         <Cifras filtros={filtros} />
       </Suspense>
     </main>
@@ -97,8 +100,7 @@ export default async function TableroPage({
 
 async function Cifras({ filtros }: { filtros: Filtros }) {
   const tablero = await getTableroAction(filtros);
-  const enlace = (extra: Partial<Filtros>) =>
-    aListado(filtros, extra);
+  const enlace = (extra: Partial<Filtros>) => aListado(filtros, extra);
 
   return (
     <div className="space-y-5">
@@ -303,8 +305,8 @@ function Estancadas({ tablero }: { tablero: TableroDTO }) {
     <Tarjeta titulo="Sin cambiar de manos">
       {total === 0 ? (
         <p className="text-base text-tinta">
-          Ninguna imagen lleva más de {tablero.umbralDeDiasEstancada} días con la
-          misma persona.
+          Ninguna imagen lleva más de {tablero.umbralDeDiasEstancada} días con
+          la misma persona.
         </p>
       ) : (
         <>
@@ -465,10 +467,7 @@ function Recorte({
  * `undefined` in `extra` deliberately overrides, so a card that fixes a dimension
  * — Estado for the Extraviadas — replaces the filter rather than adding to it.
  */
-function aListado(
-  filtros: Filtros,
-  extra: Partial<Filtros>
-): string {
+function aListado(filtros: Filtros, extra: Partial<Filtros>): string {
   const query = comoQueryString({ ...filtros, ...extra });
   return query ? `/peregrina?${query}` : "/peregrina";
 }

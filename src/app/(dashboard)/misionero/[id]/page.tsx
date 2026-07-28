@@ -46,7 +46,7 @@ export default async function MisioneroPage({
   const cerradas = historial.filter((a) => !a.abierta).reverse();
 
   const resumenes = Object.entries(misionero.resumenesAnuales).sort(
-    ([a], [b]) => Number(b) - Number(a)
+    ([a], [b]) => Number(b) - Number(a),
   );
 
   return (

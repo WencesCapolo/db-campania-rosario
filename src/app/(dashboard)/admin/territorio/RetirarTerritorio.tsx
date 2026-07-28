@@ -84,16 +84,18 @@ export default function RetirarTerritorio({
             <p className="mt-3 text-base leading-relaxed" aria-live="polite">
               {enUso ? (
                 <>
-                  No se puede retirar: hay {cuenta(uso.peregrinas, "imagen", "imágenes")}{" "}
-                  y {cuenta(uso.misioneros, "Misionero", "Misioneros")} en este
-                  territorio. Mové o dá de baja esos registros primero — retirarlo
-                  ahora dejaría historial apuntando a un lugar que no existe.
+                  No se puede retirar: hay{" "}
+                  {cuenta(uso.peregrinas, "imagen", "imágenes")} y{" "}
+                  {cuenta(uso.misioneros, "Misionero", "Misioneros")} en este
+                  territorio. Mové o dá de baja esos registros primero —
+                  retirarlo ahora dejaría historial apuntando a un lugar que no
+                  existe.
                 </>
               ) : (
                 <>
                   No hay imágenes ni Misioneros en este territorio, así que se
-                  puede retirar. Deja de ofrecerse al cargar registros nuevos y no
-                  se borra: el historial que lo menciona sigue resolviendo.
+                  puede retirar. Deja de ofrecerse al cargar registros nuevos y
+                  no se borra: el historial que lo menciona sigue resolviendo.
                 </>
               )}
             </p>

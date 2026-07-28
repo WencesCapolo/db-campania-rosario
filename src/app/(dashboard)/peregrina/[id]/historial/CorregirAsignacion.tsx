@@ -77,7 +77,7 @@ export default function CorregirAsignacion({
 
   function editar<C extends keyof typeof inicial>(
     campo: C,
-    valor: string
+    valor: string,
   ): void {
     setCampos((previos) => ({ ...previos, [campo]: valor }));
   }
@@ -119,9 +119,10 @@ export default function CorregirAsignacion({
       {(control) => (
         <>
           <p className="mt-3 text-base leading-relaxed">
-            El período de <strong>{nombreCompleto(asignacion.misionero)}</strong>.
-            Se corrige, no se borra: la corrección queda anotada en el historial
-            con la fecha de hoy.
+            El período de{" "}
+            <strong>{nombreCompleto(asignacion.misionero)}</strong>. Se corrige,
+            no se borra: la corrección queda anotada en el historial con la
+            fecha de hoy.
           </p>
 
           {error && (

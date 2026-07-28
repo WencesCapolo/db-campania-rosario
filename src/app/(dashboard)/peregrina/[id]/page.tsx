@@ -56,7 +56,8 @@ export default async function PeregrinaPage({
         </div>
 
         <p className="text-base text-tinta-suave">
-          {TIPO_LABELS[peregrina.tipo]} · {MODALIDAD_LABELS[peregrina.modalidad]} ·{" "}
+          {TIPO_LABELS[peregrina.tipo]} ·{" "}
+          {MODALIDAD_LABELS[peregrina.modalidad]} ·{" "}
           {peregrina.diocesisLocalidad.nombre}, {peregrina.provincia}
         </p>
       </header>
@@ -65,8 +66,7 @@ export default async function PeregrinaPage({
         {abierta ? (
           <div className="space-y-4">
             <p className="text-base leading-relaxed">
-              La tiene{" "}
-              <strong>{nombreCompleto(abierta.misionero)}</strong>
+              La tiene <strong>{nombreCompleto(abierta.misionero)}</strong>
               {abierta.misionero.deBaja ? " (dado de baja)" : ""}, desde el{" "}
               {fecha(abierta.abiertaAt)} — {dias(abierta.diasEnCargo)}.
             </p>
@@ -134,8 +134,8 @@ export default async function PeregrinaPage({
                 <li key={a.id} className="text-base leading-relaxed">
                   <strong>{nombreCompleto(a.misionero)}</strong> —{" "}
                   {fecha(a.abiertaAt)} a{" "}
-                  {a.cerradaAt ? fecha(a.cerradaAt) : "hoy"} ({dias(a.diasEnCargo)}
-                  )
+                  {a.cerradaAt ? fecha(a.cerradaAt) : "hoy"} (
+                  {dias(a.diasEnCargo)})
                 </li>
               ))}
             {historial.length > 3 && (

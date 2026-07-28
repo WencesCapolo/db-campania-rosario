@@ -65,8 +65,8 @@ export default function RegistrarDevolucion({
         <>
           <p className="mt-3 text-base leading-relaxed">
             La Peregrina <strong className="font-mono">{codigo}</strong> deja de
-            estar a cargo de <strong>{misionero}</strong>. Su período queda en el
-            historial.
+            estar a cargo de <strong>{misionero}</strong>. Su período queda en
+            el historial.
           </p>
 
           {error && (

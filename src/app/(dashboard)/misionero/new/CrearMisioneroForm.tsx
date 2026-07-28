@@ -70,7 +70,7 @@ export default function CrearMisioneroForm() {
   const [apellido, setApellido] = useState("");
   const [telefono, setTelefono] = useState("");
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    null
+    null,
   );
   const [centroTipo, setCentroTipo] = useState<CentroTipo | "">("");
   const [centroNombre, setCentroNombre] = useState("");

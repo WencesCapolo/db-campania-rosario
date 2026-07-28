@@ -7,7 +7,10 @@ import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import Boton from "@/components/Boton";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
-import type { Modalidad, PeregrinaTipo } from "@/modules/peregrina/peregrina.schema";
+import type {
+  Modalidad,
+  PeregrinaTipo,
+} from "@/modules/peregrina/peregrina.schema";
 import {
   MODALIDADES,
   MODALIDAD_LABELS,
@@ -58,7 +61,7 @@ export default function CreatePeregrinaForm() {
   const [tipo, setTipo] = useState<PeregrinaTipo>("peregrina");
   const [modalidad, setModalidad] = useState<Modalidad>("JOV");
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    null
+    null,
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -108,8 +111,8 @@ export default function CreatePeregrinaForm() {
         <Mensaje tono="exito">
           <p>
             Guardada. Su Código es{" "}
-            <strong className="font-mono">{ultimoCodigo}</strong>. Escribilo en la
-            imagen.
+            <strong className="font-mono">{ultimoCodigo}</strong>. Escribilo en
+            la imagen.
           </p>
         </Mensaje>
       )}

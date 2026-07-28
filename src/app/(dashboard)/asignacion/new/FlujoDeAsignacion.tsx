@@ -131,7 +131,10 @@ export default function FlujoDeAsignacion({
     <div className="max-w-xl space-y-6">
       {/* Announced on change, so somebody who is not looking at the heading still
           learns the screen moved. */}
-      <p className="text-base font-semibold text-tinta-suave" aria-live="polite">
+      <p
+        className="text-base font-semibold text-tinta-suave"
+        aria-live="polite"
+      >
         Paso {paso} de {PASOS}
       </p>
 
@@ -168,7 +171,9 @@ export default function FlujoDeAsignacion({
       {/* ── Paso 2: Elegir Imagen ── */}
       {paso === 2 && misionero && (
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-tinta">Paso 2: Elegir Imagen</h2>
+          <h2 className="text-2xl font-bold text-tinta">
+            Paso 2: Elegir Imagen
+          </h2>
           <p className="text-base text-tinta-suave">
             Para {nombreCompleto(misionero)}.
           </p>

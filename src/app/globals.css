@@ -1,4 +1,30 @@
-@import "tailwindcss";
+/*
+ * Tailwind, importado en tres pedazos y **sin capas**, que es lo contrario de lo
+ * que hace `@import "tailwindcss"` — y es a propósito.
+ *
+ * `@import "tailwindcss"` expande a los mismos tres archivos pero cada uno dentro
+ * de su `@layer` (theme, base, utilities). El problema es lo que hay al lado en el
+ * bundle: @neondatabase/auth trae su propio build de Tailwind, y lo trae **sin
+ * capa**. En la cascada de CSS, una regla sin capa le gana a *cualquier* regla en
+ * una capa, sin importar el orden ni la especificidad. Así que su preflight sin
+ * capa —  `*, ::after, ::before { border: 0 solid }` y `h1 { font-size: inherit }` —
+ * le ganaba a nuestras utilidades adentro de `@layer utilities`, y el resultado se
+ * veía en pantalla: las tarjetas sin borde, las pastillas sin borde, el filete
+ * dorado invisible y un `text-4xl` renderizado a 18 px. `text-2xl` parecía andar
+ * sólo por casualidad, porque su build también define esa clase con el mismo valor.
+ *
+ * Sin capa de los dos lados, la pelea la decide lo de siempre: `.border-2` es una
+ * clase y `*` no, así que gana la clase. Lo que quedó afuera de la discusión son
+ * las pantallas de Neon Auth, que siguen leyendo su propio CSS.
+ *
+ * `@import "tailwindcss"` es lo que dice la documentación, y esto es una desviación
+ * de eso: si algún día ese paquete emite su CSS en una capa, esto vuelve a ser una
+ * línea. La prueba de que sigue haciendo falta es visual y está en el navegador —
+ * un borde de 2 px que mide 0.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/preflight.css";
+@import "tailwindcss/utilities.css";
 
 /*
  * ─── Tokens ──────────────────────────────────────────────────────────────────
@@ -164,6 +190,22 @@ html {
 :root {
   --ancho-foco: 3px;
   --separacion-foco: 3px;
+
+  /*
+   * La app es clara, y esto lo declara en lugar de dejarlo implícito.
+   *
+   * Sin esta línea, el navegador decide: con el sistema en oscuro, el modo oscuro
+   * automático de Chrome —  o una extensión tipo Dark Reader — le pone `dark` y
+   * `color-scheme: dark` al <html>, y a partir de ahí los controles nativos, la
+   * barra de scroll y el `<select>` se pintan oscuros arriba de una paleta que es
+   * clara en todas las pantallas. Es la misma mitad de modo oscuro que el bloque
+   * borrado de `prefers-color-scheme` dejaba: texto claro sobre fondo claro, o al
+   * revés, justo para la gente de la que hablan los requisitos.
+   *
+   * El día que haya modo oscuro de verdad, esto se vuelve `light dark` y la tabla
+   * de contraste necesita su segunda mitad — no una línea menos acá.
+   */
+  color-scheme: light;
 }
 
 body {

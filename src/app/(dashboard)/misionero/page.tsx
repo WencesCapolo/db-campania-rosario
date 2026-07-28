@@ -88,7 +88,7 @@ export default async function MisioneroPage({
     encontrados && libres
       ? enMemoria(
           encontrados.filter((m) => libres.some((l) => l.id === m.id)),
-          paginaPedida
+          paginaPedida,
         )
       : await getMisionerosPaginadosAction(filtros, paginaPedida);
 
@@ -127,15 +127,15 @@ export default async function MisioneroPage({
             mensaje="Probá con parte del apellido, o limpiá los filtros para ver a todos."
           />
         ) : (
-        <Vacio
-          titulo="Todavía no hay Misioneros cargados"
-          mensaje="Cuando cargues la primera persona va a aparecer acá, y vas a poder entregarle una imagen."
-          accion={
-            <BotonEnlace href="/misionero/new">
-              Cargar el primer Misionero
-            </BotonEnlace>
-          }
-        />
+          <Vacio
+            titulo="Todavía no hay Misioneros cargados"
+            mensaje="Cuando cargues la primera persona va a aparecer acá, y vas a poder entregarle una imagen."
+            accion={
+              <BotonEnlace href="/misionero/new">
+                Cargar el primer Misionero
+              </BotonEnlace>
+            }
+          />
         )
       ) : (
         <ul className="space-y-3">
@@ -188,12 +188,9 @@ export default async function MisioneroPage({
  */
 function enMemoria(
   filas: MisioneroDTO[],
-  paginaPedida: number
+  paginaPedida: number,
 ): Pagina<MisioneroDTO> {
-  const actual = paginaExistente(
-    paginaPedida,
-    cantidadDePaginas(filas.length)
-  );
+  const actual = paginaExistente(paginaPedida, cantidadDePaginas(filas.length));
   const { limit, offset } = rango(actual);
   return armarPagina(filas.slice(offset, offset + limit), filas.length, actual);
 }

@@ -45,10 +45,10 @@ export default function InvitarForm({
 
   const [email, setEmail] = useState("");
   const [rol, setRol] = useState<Role>(
-    rolesDisponibles[rolesDisponibles.length - 1] ?? "referente_local"
+    rolesDisponibles[rolesDisponibles.length - 1] ?? "referente_local",
   );
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    null
+    null,
   );
   const [error, setError] = useState<string | null>(null);
   const [invitado, setInvitado] = useState<string | null>(null);
@@ -133,7 +133,9 @@ export default function InvitarForm({
         />
       ) : (
         <Mensaje tono="neutro">
-          <p>Este rol cubre todo el país, así que no lleva Diócesis/Localidad.</p>
+          <p>
+            Este rol cubre todo el país, así que no lleva Diócesis/Localidad.
+          </p>
         </Mensaje>
       )}
 
