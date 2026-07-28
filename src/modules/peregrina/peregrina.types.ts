@@ -121,13 +121,13 @@ export interface PeregrinaDTO {
 // the Diócesis/Localidad, so a contradictory combination is unrepresentable.
 
 export const createPeregrinaSchema = z.object({
-  tipo: z.enum(peregrinaTipoEnum.enumValues, { message: "Elegí un Tipo válido." }),
+  tipo: z.enum(peregrinaTipoEnum.enumValues, {
+    message: "Elegí un Tipo válido.",
+  }),
   modalidad: z.enum(modalidadEnum.enumValues, {
     message: "Elegí una Modalidad válida.",
   }),
-  diocesisLocalidadId: z
-    .string()
-    .min(1, "Elegí una Diócesis/Localidad."),
+  diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
 });
 
 export const updatePeregrinaSchema = z.object({
@@ -185,6 +185,17 @@ export const TENENCIA_LABELS: Record<Tenencia, string> = {
  */
 export const filtrosDeInventarioSchema = filtrosTerritorialesSchema.extend({
   codigo: z.string().trim().min(1).max(40).optional(),
+  /**
+   * El nombre de quien la tiene ahora — no un id.
+   *
+   * Es texto y no un selector de Misionero a propósito: quien pregunta "¿quién
+   * tenía la de Álvarez?" tiene el apellido en la cabeza, no un id, y un selector
+   * de todos los Misioneros de una Diócesis es una lista de cientos. Se resuelve
+   * contra la tenencia *actual* — el puntero denormalizado — así que responde
+   * "quién la tiene", nunca "quién la tuvo alguna vez": eso es historia y vive en
+   * Asignación.
+   */
+  misionero: z.string().trim().min(1).max(80).optional(),
   estado: z.enum(peregrinaEstadoEnum.enumValues).optional(),
   modalidad: z.enum(modalidadEnum.enumValues).optional(),
   tipo: z.enum(peregrinaTipoEnum.enumValues).optional(),
@@ -198,6 +209,7 @@ export const SIN_FILTROS: FiltrosDeInventario = {};
 /** The address's names for the filters — one list, so no screen invents a key. */
 export const CLAVES_DE_FILTRO = [
   "codigo",
+  "misionero",
   "estado",
   "modalidad",
   "tipo",
@@ -221,7 +233,7 @@ export const CLAVES_DE_FILTRO = [
  * substitute for parsing.
  */
 export function filtrosDesdeParams(
-  params: Record<string, string | string[] | undefined>
+  params: Record<string, string | string[] | undefined>,
 ): FiltrosDeInventario {
   const primero = (clave: string): string | undefined => {
     const valor = params[clave];
@@ -245,6 +257,7 @@ export function filtrosDesdeParams(
 
   return limpiar({
     codigo: uno("codigo", filtrosDeInventarioSchema.shape.codigo),
+    misionero: uno("misionero", filtrosDeInventarioSchema.shape.misionero),
     estado: uno("estado", filtrosDeInventarioSchema.shape.estado),
     modalidad: uno("modalidad", filtrosDeInventarioSchema.shape.modalidad),
     tipo: uno("tipo", filtrosDeInventarioSchema.shape.tipo),

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { TableroService } from "@/modules/tablero/tablero.service";
+import { AsignacionService } from "@/modules/asignacion/asignacion.service";
 import { PeregrinaService } from "./peregrina.service";
 import {
   crearActor,
   crearActorDeSistema,
+  crearMisioneroDirecto,
   crearPeregrinaDirecta,
   crearTerritorioDePrueba,
   type TerritorioDePrueba,
@@ -73,7 +75,7 @@ describe("lecturas de los roles nacionales", () => {
     const lista = await PeregrinaService.listAll(asesor);
 
     expect(lista.map((p) => p.id).sort()).toEqual(
-      [propia.id, vecina.id, ajena.id].sort()
+      [propia.id, vecina.id, ajena.id].sort(),
     );
   });
 
@@ -93,7 +95,7 @@ describe("lecturas de los roles nacionales", () => {
     const { porRegion } = await TableroService.resumen(asesor);
 
     expect(
-      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region))
+      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region)),
     ).toEqual([
       // Three Regiones from two Provincias: Villa María is CENTRO and Río
       // Cuarto is CUYO, though both are in Córdoba. Grouping through the
@@ -126,13 +128,13 @@ describe.each([
 
   it("NO puede leer por id la de la Diócesis vecina, aun estando en su Provincia", async () => {
     await expect(
-      PeregrinaService.getById(obtenerActor(), vecina.id)
+      PeregrinaService.getById(obtenerActor(), vecina.id),
     ).rejects.toThrow(NoAutorizadoError);
   });
 
   it("NO puede leer por id la de otra Región", async () => {
     await expect(
-      PeregrinaService.getById(obtenerActor(), ajena.id)
+      PeregrinaService.getById(obtenerActor(), ajena.id),
     ).rejects.toThrow(NoAutorizadoError);
   });
 
@@ -146,6 +148,50 @@ describe.each([
     const lista = await PeregrinaService.listByModalidad(obtenerActor(), "JOV");
 
     expect(lista.map((p) => p.id)).toEqual([propia.id]);
+  });
+
+  it("buscar por quién la tiene no alcanza a la Diócesis vecina", async () => {
+    // El apellido de la vecina es único y el filtro lo nombra exactamente. Lo que
+    // se prueba es que un filtro que *sí* encuentra una fila igual no la muestra
+    // cuando la fila está afuera del territorio: el buscador corre después del
+    // alcance, no en lugar de él. Y la mitad positiva va en el mismo test para que
+    // un filtro que nunca encuentra nada no lo haga pasar por casualidad.
+    const suyo = await crearMisioneroDirecto({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: sistema.id,
+      apellido: "Domínguez",
+    });
+    const ajeno = await crearMisioneroDirecto({
+      diocesisLocalidadId: territorio.rioCuarto.id,
+      createdById: sistema.id,
+      apellido: "Etchevarría",
+    });
+
+    await AsignacionService.asignar(asesor, {
+      peregrinaId: propia.id,
+      misioneroId: suyo.id,
+      nota: null,
+    });
+    await AsignacionService.asignar(asesor, {
+      peregrinaId: vecina.id,
+      misioneroId: ajeno.id,
+      nota: null,
+    });
+
+    const propias = await PeregrinaService.listPagina(obtenerActor(), {
+      misionero: "Domínguez",
+    });
+    const ajenas = await PeregrinaService.listPagina(obtenerActor(), {
+      misionero: "Etchevarría",
+    });
+
+    expect(propias.filas.map((p) => p.id)).toEqual([propia.id]);
+    expect(propias.total).toBe(1);
+
+    expect(ajenas.filas).toEqual([]);
+    // El total sale de un agregado aparte de las filas, así que una filtración
+    // podría aparecer en el número aunque la lista venga vacía.
+    expect(ajenas.total).toBe(0);
   });
 
   it("pedir su propia Región devuelve sólo su Diócesis, no la Región completa", async () => {
@@ -179,7 +225,7 @@ describe.each([
     const modificada = await PeregrinaService.update(
       obtenerActor(),
       propia.id,
-      { estado: "en_reparacion" }
+      { estado: "en_reparacion" },
     );
 
     expect(modificada.estado).toBe("en_reparacion");
@@ -187,7 +233,9 @@ describe.each([
 
   it("NO puede modificar la de la Diócesis vecina, y el registro queda intacto", async () => {
     await expect(
-      PeregrinaService.update(obtenerActor(), vecina.id, { estado: "en_reparacion" })
+      PeregrinaService.update(obtenerActor(), vecina.id, {
+        estado: "en_reparacion",
+      }),
     ).rejects.toThrow(NoAutorizadoError);
 
     const sinCambios = await PeregrinaService.getById(asesor, vecina.id);
@@ -196,13 +244,15 @@ describe.each([
 
   it("NO puede modificar la de otra Región", async () => {
     await expect(
-      PeregrinaService.update(obtenerActor(), ajena.id, { estado: "en_reparacion" })
+      PeregrinaService.update(obtenerActor(), ajena.id, {
+        estado: "en_reparacion",
+      }),
     ).rejects.toThrow(NoAutorizadoError);
   });
 
   it("NO puede dar de baja una ajena, y el registro sigue activo", async () => {
     await expect(
-      PeregrinaService.darDeBaja(obtenerActor(), ajena.id)
+      PeregrinaService.darDeBaja(obtenerActor(), ajena.id),
     ).rejects.toThrow(NoAutorizadoError);
 
     const intacta = await PeregrinaService.getById(asesor, ajena.id);
@@ -225,7 +275,7 @@ describe.each([
         tipo: "peregrina",
         modalidad: "FAM",
         diocesisLocalidadId: territorio.rioCuarto.id,
-      })
+      }),
     ).rejects.toThrow(NoAutorizadoError);
   });
 
@@ -233,7 +283,7 @@ describe.each([
     await expect(
       PeregrinaService.update(obtenerActor(), propia.id, {
         diocesisLocalidadId: territorio.zapala.id,
-      })
+      }),
     ).rejects.toThrow(NoAutorizadoError);
 
     // Ni a medias: sigue donde estaba.
@@ -280,17 +330,17 @@ describe("un rol territorial sin territorio falla cerrado", () => {
     // Lo importante es que no devuelva las tres. Un null que se leyera como
     // "sin restricción" es exactamente la fuga que el issue #2 cierra.
     await expect(PeregrinaService.listAll(sinTerritorio)).rejects.toThrow(
-      NoAutorizadoError
+      NoAutorizadoError,
     );
     await expect(
-      PeregrinaService.getById(sinTerritorio, propia.id)
+      PeregrinaService.getById(sinTerritorio, propia.id),
     ).rejects.toThrow(NoAutorizadoError);
     await expect(
       PeregrinaService.create(sinTerritorio, {
         tipo: "peregrina",
         modalidad: "JOV",
         diocesisLocalidadId: territorio.villaMaria.id,
-      })
+      }),
     ).rejects.toThrow(NoAutorizadoError);
   });
 
@@ -301,7 +351,7 @@ describe("un rol territorial sin territorio falla cerrado", () => {
     });
 
     await expect(PeregrinaService.listAll(sinTerritorio)).rejects.toThrow(
-      /no tiene una Diócesis\/Localidad asignada/
+      /no tiene una Diócesis\/Localidad asignada/,
     );
   });
 });

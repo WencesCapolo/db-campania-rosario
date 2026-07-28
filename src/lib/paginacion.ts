@@ -23,9 +23,11 @@ import { z } from "zod";
 /**
  * Twenty rows.
  *
- * Cards rather than table rows — each is three lines of text — so twenty is
- * already a long scroll on a 390px phone. Fifty would be four screens of
- * flicking to reach the control that gets you off the page.
+ * Twenty is already a long scroll on a 390px phone — a Peregrina's row carries a
+ * Código, an Estado pill, a name and a territory — and fifty would be four
+ * screens of flicking to reach the control that gets you off the page. It is the
+ * same number for every listado on purpose: a page size that differs per screen
+ * is a page size somebody has to guess when they say "página 3" out loud.
  */
 export const FILAS_POR_PAGINA = 20;
 
@@ -60,7 +62,7 @@ export const paginaSchema = z.number().int().min(1);
  * the service knows how many there are.
  */
 export function paginaDesdeParams(
-  params: Record<string, string | string[] | undefined>
+  params: Record<string, string | string[] | undefined>,
 ): number {
   const valor = params[CLAVE_DE_PAGINA];
   const texto = (Array.isArray(valor) ? valor[0] : valor)?.trim();
@@ -73,7 +75,7 @@ export function paginaDesdeParams(
 /** `limit`/`offset` for a page, in the shape a repository takes them. */
 export function rango(
   pagina: number,
-  porPagina: number = FILAS_POR_PAGINA
+  porPagina: number = FILAS_POR_PAGINA,
 ): { limit: number; offset: number } {
   return { limit: porPagina, offset: (pagina - 1) * porPagina };
 }
@@ -86,7 +88,7 @@ export function rango(
  */
 export function cantidadDePaginas(
   total: number,
-  porPagina: number = FILAS_POR_PAGINA
+  porPagina: number = FILAS_POR_PAGINA,
 ): number {
   return Math.max(1, Math.ceil(total / porPagina));
 }
@@ -108,7 +110,7 @@ export function armarPagina<T>(
   filas: T[],
   total: number,
   pagina: number,
-  porPagina: number = FILAS_POR_PAGINA
+  porPagina: number = FILAS_POR_PAGINA,
 ): Pagina<T> {
   return {
     filas,

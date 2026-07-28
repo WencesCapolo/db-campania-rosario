@@ -84,7 +84,7 @@ export default function FiltrosDeInventario({
   filtros,
   destino,
   territorios,
-  buscarPorCodigo = true,
+  conBusqueda = true,
   plegable = false,
 }: {
   filtros: FiltrosDeInventario;
@@ -92,8 +92,11 @@ export default function FiltrosDeInventario({
   destino: string;
   /** The Diócesis on offer, for a nacional rol. Null for everybody else. */
   territorios?: TerritorioParaFiltrar[] | null;
-  /** The tablero has no use for a Código search: a count of one is not a figure. */
-  buscarPorCodigo?: boolean;
+  /**
+   * The two typed searches — Código, and the name of whoever has the image.
+   * Off on the tablero: a count of one is not a figure.
+   */
+  conBusqueda?: boolean;
   /** Puts the six selects behind a button. The Código box stays visible. */
   plegable?: boolean;
 }) {
@@ -101,6 +104,9 @@ export default function FiltrosDeInventario({
   const searchParams = useSearchParams();
   const [pendiente, empezar] = useTransition();
   const [borrador, setBorrador] = useState(filtros.codigo ?? "");
+  const [borradorMisionero, setBorradorMisionero] = useState(
+    filtros.misionero ?? "",
+  );
 
   // Arranca abierto cuando la dirección ya trae filtros: quien llega a una vista
   // filtrada — desde el tablero, o por un link pegado en un mensaje — tiene que ver
@@ -128,6 +134,7 @@ export default function FiltrosDeInventario({
 
   function limpiar() {
     setBorrador("");
+    setBorradorMisionero("");
     const params = new URLSearchParams(searchParams.toString());
     for (const clave of CLAVES_DE_FILTRO) params.delete(clave);
     // `q` belongs to the Misionero list and is not one of the inventory filters,
@@ -145,22 +152,41 @@ export default function FiltrosDeInventario({
       className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        aplicar({ codigo: borrador.trim() });
+        aplicar({
+          codigo: borrador.trim(),
+          misionero: borradorMisionero.trim(),
+        });
       }}
     >
-      {buscarPorCodigo && (
-        <Campo
-          etiqueta="Buscar por Código"
-          type="search"
-          inputMode="search"
-          placeholder="CBA JOV 0001"
-          value={borrador}
-          onChange={(e) => setBorrador(e.target.value)}
-        />
+      {conBusqueda && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Campo
+            etiqueta="Buscar por Código"
+            type="search"
+            inputMode="search"
+            placeholder="CBA JOV 0001"
+            value={borrador}
+            onChange={(e) => setBorrador(e.target.value)}
+          />
+          {/* El nombre de quien la tiene, y no un selector de Misioneros: una
+              Diócesis tiene cientos, y quien pregunta ya tiene el apellido en la
+              cabeza. Las dos cajas se envían con el mismo botón, porque son la
+              misma pregunta hecha por dos datos que suelen venir juntos: alguien
+              trae una imagen y sabe de quién era. */}
+          <Campo
+            etiqueta="Buscar por quién la tiene"
+            ayuda="Nombre o apellido del Misionero."
+            type="search"
+            inputMode="search"
+            placeholder="Álvarez"
+            value={borradorMisionero}
+            onChange={(e) => setBorradorMisionero(e.target.value)}
+          />
+        </div>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        {buscarPorCodigo && (
+        {conBusqueda && (
           <Boton type="submit" disabled={pendiente}>
             {pendiente ? "Buscando…" : "Buscar"}
           </Boton>
@@ -275,6 +301,7 @@ function describir(
   const partes: string[] = [];
 
   if (filtros.codigo) partes.push(`Código «${filtros.codigo}»`);
+  if (filtros.misionero) partes.push(`la tiene «${filtros.misionero}»`);
   if (filtros.estado) partes.push(ESTADO_LABELS[filtros.estado]);
   if (filtros.modalidad) partes.push(MODALIDAD_LABELS[filtros.modalidad]);
   if (filtros.tipo) partes.push(TIPO_LABELS[filtros.tipo]);

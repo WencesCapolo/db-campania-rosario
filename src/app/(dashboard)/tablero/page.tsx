@@ -85,7 +85,7 @@ export default async function TableroPage({
         filtros={filtros}
         destino="/tablero"
         territorios={territorios}
-        buscarPorCodigo={false}
+        conBusqueda={false}
       />
 
       <Suspense

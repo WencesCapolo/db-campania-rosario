@@ -10,6 +10,7 @@ import {
   isNull,
   isNotNull,
   ilike,
+  or,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
@@ -64,18 +65,25 @@ export interface OpcionesDeLectura {
 }
 
 function conTerritorio() {
-  return db
-    .select({ peregrina, diocesis: diocesisLocalidad, provincia, misioneroActual: misionero })
-    .from(peregrina)
-    .innerJoin(
-      diocesisLocalidad,
-      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
-    )
-    .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-    // Left, and not filtered on the Misionero's own baja: if a Misionero given de
-    // baja still shows as holding an image, that is a fact worth seeing, not one
-    // worth hiding. `MisioneroService.darDeBaja` refuses precisely that pairing.
-    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId));
+  return (
+    db
+      .select({
+        peregrina,
+        diocesis: diocesisLocalidad,
+        provincia,
+        misioneroActual: misionero,
+      })
+      .from(peregrina)
+      .innerJoin(
+        diocesisLocalidad,
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
+      )
+      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
+      // Left, and not filtered on the Misionero's own baja: if a Misionero given de
+      // baja still shows as holding an image, that is a fact worth seeing, not one
+      // worth hiding. `MisioneroService.darDeBaja` refuses precisely that pairing.
+      .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId))
+  );
 }
 
 /**
@@ -134,7 +142,35 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
       : filtros.tenencia === "asignada"
         ? isNotNull(peregrina.misioneroActualId)
         : undefined,
+    condicionDeMisionero(filtros.misionero),
   ];
+}
+
+/**
+ * Quién la tiene, por nombre — el filtro que se tipea en lugar de elegirse.
+ *
+ * Se compara contra el nombre y el apellido **concatenados**, y en los dos
+ * órdenes, porque las dos cosas que alguien escribe son "Álvarez" y "María
+ * Álvarez", y a veces "Álvarez María" porque así está en la planilla de la que
+ * viene copiando. Un `or` de dos `ilike` sobre las columnas sueltas no toma
+ * ninguno de los nombres completos, y pedirle a la gente que sepa cuál de los dos
+ * campos está buscando es pedirle que conozca el esquema.
+ *
+ * `ilike` y no `like`: nadie tipea la mayúscula en un buscador. No lleva índice, y
+ * eso es una decisión medida y no un olvido — un `%texto%` no puede usar un índice
+ * B-tree, y los dos índices compuestos que se escribieron para los listados
+ * ordenados ya fueron borrados por la misma razón: el planner no los eligió
+ * (ADR 0007). Esto corre sobre las filas que el territorio ya recortó.
+ */
+function condicionDeMisionero(termino: string | undefined): SQL | undefined {
+  const texto = termino?.trim().replace(/\s+/g, " ");
+  if (!texto) return undefined;
+
+  const patron = `%${texto}%`;
+  return or(
+    sql`(${misionero.nombre} || ' ' || ${misionero.apellido}) ilike ${patron}`,
+    sql`(${misionero.apellido} || ' ' || ${misionero.nombre}) ilike ${patron}`,
+  );
 }
 
 /** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
@@ -144,11 +180,15 @@ const TOTAL = sql<number>`cast(count(*) as int)`;
 type CamposAgregados = Record<string, PgColumn | SQL<string> | SQL<number>>;
 
 /**
- * The aggregate `from`, with the territory joined in.
+ * The aggregate `from`, with the territory and the tenencia actual joined in.
  *
- * The join is unconditional even when no Región filter is set, because Región is
- * one of the breakdowns and the alternative is two query builders that have to
- * agree with each other. It is a foreign key with an index on both ends.
+ * Both joins are unconditional even when nothing filters on them, because Región
+ * is one of the breakdowns and the Misionero's name is one of the filters, and the
+ * alternative is two query builders that have to agree with each other. Each is a
+ * foreign key with an index on both ends, and the Misionero one is `left` on a
+ * unique key, so it neither drops a row nor multiplies one — an aggregate cannot
+ * change its answer by joining it. When no filter mentions the Misionero, Postgres
+ * removes the join outright: nothing selects from it.
  */
 function agregando<T extends CamposAgregados>(campos: T) {
   return db
@@ -156,15 +196,16 @@ function agregando<T extends CamposAgregados>(campos: T) {
     .from(peregrina)
     .innerJoin(
       diocesisLocalidad,
-      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
-    );
+      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
+    )
+    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId));
 }
 
 /** Alcance and filters together — the `where` every aggregate shares. */
 function condiciones(
   alcance: Alcance,
   filtros: FiltrosDeInventario,
-  opts: OpcionesDeLectura = {}
+  opts: OpcionesDeLectura = {},
 ) {
   return conAlcance(alcance, opts, ...condicionDeFiltros(filtros));
 }
@@ -191,7 +232,7 @@ export class PeregrinaRepository {
   static async findById(
     alcance: Alcance,
     id: string,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio | undefined> {
     const [row] = await conTerritorio()
       .where(conAlcance(alcance, opts, eq(peregrina.id, id)))
@@ -211,7 +252,7 @@ export class PeregrinaRepository {
    * and "no existe" would be a lie the operator has to debug.
    */
   static async findByIdSinAlcance(
-    id: string
+    id: string,
   ): Promise<PeregrinaConTerritorio | undefined> {
     const [row] = await conTerritorio().where(eq(peregrina.id, id)).limit(1);
     return row;
@@ -219,7 +260,7 @@ export class PeregrinaRepository {
 
   static async findAll(
     alcance: Alcance,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts))
@@ -229,7 +270,7 @@ export class PeregrinaRepository {
   static async findByEstado(
     alcance: Alcance,
     estado: PeregrinaEstado,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts, eq(peregrina.estado, estado)))
@@ -239,7 +280,7 @@ export class PeregrinaRepository {
   static async findByRegion(
     alcance: Alcance,
     region: Region,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
@@ -249,7 +290,7 @@ export class PeregrinaRepository {
   static async findByModalidad(
     alcance: Alcance,
     modalidad: Modalidad,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts, eq(peregrina.modalidad, modalidad)))
@@ -259,15 +300,15 @@ export class PeregrinaRepository {
   static async findByDiocesisLocalidad(
     alcance: Alcance,
     diocesisLocalidadId: string,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(
         conAlcance(
           alcance,
           opts,
-          eq(peregrina.diocesisLocalidadId, diocesisLocalidadId)
-        )
+          eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
+        ),
       )
       .orderBy(desc(peregrina.createdAt));
   }
@@ -275,7 +316,7 @@ export class PeregrinaRepository {
   static async findByProvincia(
     alcance: Alcance,
     provinciaId: string,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
@@ -285,7 +326,7 @@ export class PeregrinaRepository {
   static async findByCreator(
     alcance: Alcance,
     createdById: string,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, opts, eq(peregrina.createdById, createdById)))
@@ -294,7 +335,7 @@ export class PeregrinaRepository {
 
   /** Images nobody has right now, for the assignment flow's second step. */
   static async findDisponibles(
-    alcance: Alcance
+    alcance: Alcance,
   ): Promise<PeregrinaConTerritorio[]> {
     return conTerritorio()
       .where(conAlcance(alcance, {}, isNull(peregrina.misioneroActualId)))
@@ -315,20 +356,20 @@ export class PeregrinaRepository {
    */
   static async nextCodigoNum(
     provinciaId: string,
-    modalidad: Modalidad
+    modalidad: Modalidad,
   ): Promise<number> {
     const [result] = await db
       .select({ maxNum: max(peregrina.codigoNum) })
       .from(peregrina)
       .innerJoin(
         diocesisLocalidad,
-        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
+        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
       )
       .where(
         and(
           eq(diocesisLocalidad.provinciaId, provinciaId),
-          eq(peregrina.modalidad, modalidad)
-        )
+          eq(peregrina.modalidad, modalidad),
+        ),
       );
     return (result?.maxNum ?? 0) + 1;
   }
@@ -356,7 +397,7 @@ export class PeregrinaRepository {
         | "misioneroActualId"
         | "bajaAt"
       >
-    >
+    >,
   ): Promise<PeregrinaConTerritorio> {
     const [row] = await db
       .update(peregrina)
@@ -410,16 +451,18 @@ export class PeregrinaRepository {
   static async contarTotal(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<number> {
-    const [row] = await agregando({}).where(condiciones(alcance, filtros, opts));
+    const [row] = await agregando({}).where(
+      condiciones(alcance, filtros, opts),
+    );
     return row?.total ?? 0;
   }
 
   static async contarPorEstado(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<{ estado: PeregrinaEstado; total: number }[]> {
     return agregando({ estado: peregrina.estado })
       .where(condiciones(alcance, filtros, opts))
@@ -429,7 +472,7 @@ export class PeregrinaRepository {
   static async contarPorModalidad(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<{ modalidad: Modalidad; total: number }[]> {
     return agregando({ modalidad: peregrina.modalidad })
       .where(condiciones(alcance, filtros, opts))
@@ -439,7 +482,7 @@ export class PeregrinaRepository {
   static async contarPorTipo(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<{ tipo: PeregrinaTipo; total: number }[]> {
     return agregando({ tipo: peregrina.tipo })
       .where(condiciones(alcance, filtros, opts))
@@ -450,7 +493,7 @@ export class PeregrinaRepository {
   static async contarPorRegion(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<{ region: Region; total: number }[]> {
     return agregando({ region: diocesisLocalidad.region })
       .where(condiciones(alcance, filtros, opts))
@@ -461,7 +504,7 @@ export class PeregrinaRepository {
   static async contarPorDiocesisLocalidad(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {}
+    opts: OpcionesDeLectura = {},
   ): Promise<{ diocesisLocalidadId: string; nombre: string; total: number }[]> {
     return agregando({
       diocesisLocalidadId: diocesisLocalidad.id,
@@ -482,7 +525,7 @@ export class PeregrinaRepository {
    */
   static async contarSinTenencia(
     alcance: Alcance,
-    filtros: FiltrosDeInventario
+    filtros: FiltrosDeInventario,
   ): Promise<number> {
     return PeregrinaRepository.contarTotal(alcance, {
       ...filtros,
@@ -501,7 +544,7 @@ export class PeregrinaRepository {
    */
   static async contarPorMes(
     alcance: Alcance,
-    filtros: FiltrosDeInventario
+    filtros: FiltrosDeInventario,
   ): Promise<{ mes: string; total: number }[]> {
     const mes = sql<string>`to_char(date_trunc('month', ${peregrina.createdAt}), 'YYYY-MM')`;
     return agregando({ mes })
@@ -528,7 +571,7 @@ export class PeregrinaRepository {
     alcance: Alcance,
     filtros: FiltrosDeInventario,
     opts: OpcionesDeLectura = {},
-    paginacion?: { limit: number; offset: number }
+    paginacion?: { limit: number; offset: number },
   ): Promise<PeregrinaConTerritorio[]> {
     const consulta = conTerritorio()
       .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))

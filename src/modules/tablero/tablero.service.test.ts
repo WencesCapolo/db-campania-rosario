@@ -309,7 +309,10 @@ describe("las cifras derivadas", () => {
 describe("el umbral de «estancada», en sus bordes", () => {
   it("incluye lo que lo alcanza y excluye lo que no", async () => {
     const dentro = await AsignacionService.listarEstancadas(referente, 400);
-    const justoAfuera = await AsignacionService.listarEstancadas(referente, 401);
+    const justoAfuera = await AsignacionService.listarEstancadas(
+      referente,
+      401,
+    );
 
     expect(dentro.map((f) => f.peregrinaId)).toEqual([
       peregrinas.asignadaVieja,
@@ -375,7 +378,7 @@ describe("los filtros", () => {
   it("filtra por Código, sin distinguir mayúsculas", async () => {
     const dto = await PeregrinaService.getById(
       referente,
-      peregrinas.asignadaVieja
+      peregrinas.asignadaVieja,
     );
     const tablero = await TableroService.resumen(referente, {
       codigo: dto.codigo.toLowerCase(),
@@ -384,11 +387,49 @@ describe("los filtros", () => {
     expect(tablero.totalPeregrinas).toBe(1);
   });
 
+  it("filtra por quién la tiene, por apellido y sin distinguir mayúsculas", async () => {
+    // Álvarez tiene dos: la vieja y la extraviada. Benítez tiene la auxiliar.
+    const alvarez = await TableroService.resumen(referente, {
+      misionero: "álVAREZ",
+    });
+    const benitez = await TableroService.resumen(referente, {
+      misionero: "Benítez",
+    });
+
+    expect(alvarez.totalPeregrinas).toBe(2);
+    expect(benitez.totalPeregrinas).toBe(1);
+  });
+
+  it("toma el nombre completo, en cualquiera de los dos órdenes", async () => {
+    const nombreApellido = await TableroService.resumen(referente, {
+      misionero: "María Álvarez",
+    });
+    const apellidoNombre = await TableroService.resumen(referente, {
+      misionero: "Álvarez María",
+    });
+
+    expect(nombreApellido.totalPeregrinas).toBe(2);
+    expect(apellidoNombre.totalPeregrinas).toBe(2);
+  });
+
+  it("un Misionero sin ninguna imagen da cero, no todas", async () => {
+    // Cabrera existe y no tiene nada. El error que esto vigila es un `or` mal
+    // armado o una condición que se cae del `where`: cualquiera de los dos
+    // devolvería el territorio entero, que se lee como "las tiene todas".
+    const tablero = await TableroService.resumen(referente, {
+      misionero: "Cabrera",
+    });
+
+    expect(tablero.totalPeregrinas).toBe(0);
+  });
+
   it("un Asesor Nacional filtra por Diócesis y por Región", async () => {
     const porDiocesis = await TableroService.resumen(asesor, {
       diocesisLocalidadId: territorio.rioCuarto.id,
     });
-    const porRegion = await TableroService.resumen(asesor, { region: "R. PAT" });
+    const porRegion = await TableroService.resumen(asesor, {
+      region: "R. PAT",
+    });
 
     expect(porDiocesis.totalPeregrinas).toBe(1);
     expect(porRegion.totalPeregrinas).toBe(1);
@@ -423,7 +464,7 @@ describe("los filtros", () => {
 /** Ordena por una clave para que la expectativa no dependa del plan de la query. */
 function ordenar<T extends Record<K, string>, K extends string>(
   filas: T[],
-  clave: K
+  clave: K,
 ): T[] {
   return [...filas].sort((a, b) => a[clave].localeCompare(b[clave]));
 }
