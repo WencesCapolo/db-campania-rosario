@@ -17,7 +17,9 @@
     "test:navegador": "vitest run --project navegador",
     "test:watch": "vitest",
     "test:db:up": "podman run -d --rm --name campania-test-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=campania_test -p 55432:5432 docker.io/library/postgres:17-alpine",
-    "test:db:down": "podman rm -f campania-test-db"
+    "test:db:down": "podman rm -f campania-test-db",
+    "db:seed:prueba": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local --tsconfig tsconfig.seed.json src/db/seeds/prueba.ts",
+    "db:seed:prueba:borrar": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local --tsconfig tsconfig.seed.json src/db/seeds/prueba.ts --borrar"
   },
   "dependencies": {
     "@neondatabase/auth": "^0.2.0-beta.1",
