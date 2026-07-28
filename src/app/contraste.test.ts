@@ -35,7 +35,7 @@ const DECLARACIONES = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
 
 function token(nombre: string): string {
   const m = DECLARACIONES.match(
-    new RegExp(`--color-${nombre}:\\s*(#[0-9a-fA-F]{6})`)
+    new RegExp(`--color-${nombre}:\\s*(#[0-9a-fA-F]{6})`),
   );
   if (!m) throw new Error(`No está el token --color-${nombre} en globals.css`);
   return m[1];
@@ -125,8 +125,15 @@ describe("el tema de la Campaña", () => {
     ["tinta-suave sobre lienzo", () => token("tinta-suave"), () => lienzo],
     ["oro-tinta sobre lienzo", () => token("oro-tinta"), () => lienzo],
     ["oro-tinta sobre papel", () => token("oro-tinta"), () => papel],
+    // `Volver` y los links de la base son `accion`, y desde que hay pantallas con
+    // el cuerpo en lienzo ese par lo dibuja alguien: el listado de Peregrinas.
+    ["accion sobre lienzo", () => token("accion"), () => lienzo],
     // Lo que se apoye sobre el celeste va en tinta noche, nunca en blanco.
-    ["azul noche sobre celeste", () => token("azul-noche"), () => token("celeste")],
+    [
+      "azul noche sobre celeste",
+      () => token("azul-noche"),
+      () => token("celeste"),
+    ],
   ])("texto: %s", (_nombre, frente, atras) => {
     it("llega a 4.5:1", () => {
       expect(contraste(frente(), atras())).toBeGreaterThanOrEqual(4.5);
@@ -134,8 +141,16 @@ describe("el tema de la Campaña", () => {
   });
 
   describe.each([
-    ["el borde de una tarjeta sobre papel", () => token("borde-suave"), () => papel],
-    ["el borde de una tarjeta sobre lienzo", () => token("borde-suave"), () => lienzo],
+    [
+      "el borde de una tarjeta sobre papel",
+      () => token("borde-suave"),
+      () => papel,
+    ],
+    [
+      "el borde de una tarjeta sobre lienzo",
+      () => token("borde-suave"),
+      () => lienzo,
+    ],
     ["el foco sobre lienzo", () => token("foco"), () => lienzo],
     // El celeste no está en esta lista, y esa ausencia es la regla: da 2.5:1
     // contra el papel, así que va *adentro* del borde de una tarjeta y nunca en

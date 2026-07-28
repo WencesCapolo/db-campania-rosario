@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
@@ -33,6 +33,18 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * Changing a select navigates immediately, because a select that needs a separate
  * "Apply" is two actions for one decision. The Código box does not: it is typed,
  * and navigating per keystroke would fight the keyboard.
+ *
+ * `plegable` hides the six selects behind a button and leaves the Código box out
+ * in the open. On the listado that is the honest weighting — somebody arrives
+ * holding an image and types its Código; filtering by Modalidad is the rarer
+ * errand, and six selects above the rows push them off a phone. It defaults to
+ * false because on the tablero the filters *are* the screen.
+ *
+ * Two things deliberately stay outside the fold: the line that says which filters
+ * are on, and "Limpiar filtros". A filtered view that looks unfiltered is exactly
+ * the bug story 18 is about, and the way out of one has to be reachable without
+ * first reopening the thing that caused it. That is also why it opens already
+ * expanded when the address arrives with filters in it.
  *
  * The territory picker appears only for the two nacional rols. A Referente Local's
  * selection list legitimately reaches their whole Provincia — that is what makes a
@@ -73,6 +85,7 @@ export default function FiltrosDeInventario({
   destino,
   territorios,
   buscarPorCodigo = true,
+  plegable = false,
 }: {
   filtros: FiltrosDeInventario;
   /** Where the filters apply — `/peregrina`, `/tablero`. */
@@ -81,11 +94,23 @@ export default function FiltrosDeInventario({
   territorios?: TerritorioParaFiltrar[] | null;
   /** The tablero has no use for a Código search: a count of one is not a figure. */
   buscarPorCodigo?: boolean;
+  /** Puts the six selects behind a button. The Código box stays visible. */
+  plegable?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendiente, empezar] = useTransition();
   const [borrador, setBorrador] = useState(filtros.codigo ?? "");
+
+  // Arranca abierto cuando la dirección ya trae filtros: quien llega a una vista
+  // filtrada — desde el tablero, o por un link pegado en un mensaje — tiene que ver
+  // los controles que la explican, no un botón que los esconde.
+  const [abiertos, setAbiertos] = useState(
+    () => !plegable || hayFiltros(filtros),
+  );
+  // `useId` y no una constante: `aria-controls` tiene que apuntar a un id único, y
+  // dos instancias en una misma pantalla lo dejarían apuntando a la otra.
+  const idDeLosFiltros = useId();
 
   function aplicar(cambios: Partial<Record<string, string>>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -117,7 +142,7 @@ export default function FiltrosDeInventario({
 
   return (
     <form
-      className="space-y-4 rounded-tarjeta border-2 border-borde bg-papel p-4"
+      className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
       onSubmit={(e) => {
         e.preventDefault();
         aplicar({ codigo: borrador.trim() });
@@ -134,7 +159,47 @@ export default function FiltrosDeInventario({
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-3 sm:flex-row">
+        {buscarPorCodigo && (
+          <Boton type="submit" disabled={pendiente}>
+            {pendiente ? "Buscando…" : "Buscar"}
+          </Boton>
+        )}
+
+        {plegable && (
+          <Boton
+            tono="secundario"
+            aria-expanded={abiertos}
+            aria-controls={idDeLosFiltros}
+            onClick={() => setAbiertos((v) => !v)}
+          >
+            {abiertos ? "Ocultar filtros" : "Mostrar filtros"}
+          </Boton>
+        )}
+
+        {hayFiltros(filtros) && (
+          <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
+            Limpiar filtros
+          </Boton>
+        )}
+      </div>
+
+      {/*
+        Se esconde con `display: none` — la utilidad `hidden` — y no con opacidad ni
+        alto cero: eso lo saca del orden de tabulación y del árbol de accesibilidad
+        de una vez, mientras el nodo sigue existiendo, que es lo que `aria-controls`
+        necesita para apuntar a algo. Un `<select>` tapado con `opacity-0` seguiría
+        siendo tabulable, y el teclado caería adentro de seis controles invisibles.
+
+        Es la clase y no el atributo `hidden`, y la razón es la desviación de esta
+        base: acá Tailwind entra sin capas, y el preflight sale *antes* que las
+        utilidades. `[hidden]` y `.grid` tienen la misma especificidad, así que gana
+        la que va después — la utilidad. El atributo no habría escondido nada.
+      */}
+      <div
+        id={idDeLosFiltros}
+        className={abiertos ? "grid gap-4 sm:grid-cols-2" : "hidden"}
+      >
         <Eleccion
           etiqueta="Estado"
           opciones={OPCIONES_DE_ESTADO}
@@ -198,20 +263,6 @@ export default function FiltrosDeInventario({
           {activos.join(" · ")}
         </p>
       )}
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        {buscarPorCodigo && (
-          <Boton type="submit" disabled={pendiente}>
-            {pendiente ? "Buscando…" : "Buscar"}
-          </Boton>
-        )}
-
-        {hayFiltros(filtros) && (
-          <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
-            Limpiar filtros
-          </Boton>
-        )}
-      </div>
     </form>
   );
 }
@@ -219,7 +270,7 @@ export default function FiltrosDeInventario({
 /** The active filters as the Campaña's own words, for the summary line. */
 function describir(
   filtros: FiltrosDeInventario,
-  territorios: TerritorioParaFiltrar[]
+  territorios: TerritorioParaFiltrar[],
 ): string[] {
   const partes: string[] = [];
 
@@ -231,7 +282,7 @@ function describir(
   if (filtros.region) partes.push(`Región ${filtros.region}`);
   if (filtros.diocesisLocalidadId) {
     const territorio = territorios.find(
-      (t) => t.id === filtros.diocesisLocalidadId
+      (t) => t.id === filtros.diocesisLocalidadId,
     );
     partes.push(territorio ? territorio.nombre : "una Diócesis/Localidad");
   }
