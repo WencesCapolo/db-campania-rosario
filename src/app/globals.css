@@ -90,6 +90,72 @@ html {
 }
 
 /*
+ * ─── El tema de la Campaña ───────────────────────────────────────────────────
+ *
+ * La identidad sale de schoenstatt.org.ar, medida sobre el sitio renderizado y no
+ * sacada de una captura: azul institucional en los títulos y los links, celeste
+ * en los iconos, dorado en la regla que parte cada sección, esquinas casi rectas.
+ * Es el sitio que esta gente ya reconoce, así que el sistema no se presenta como
+ * una aplicación aparte.
+ *
+ * Dos valores del sitio no se pudieron copiar tal cual, y las dos razones son la
+ * misma razón por la que el resto de este archivo existe:
+ *
+ *  1. **Su celeste y su dorado no son colores de texto.** Blanco sobre el celeste
+ *     da 2.5:1 y el azul encima 4.0:1; el dorado sobre papel da 2.9:1, que no
+ *     alcanza ni para una regla. Acá el celeste es relleno con tinta oscura
+ *     encima y el dorado tiene una versión más oscura para cuando dice algo.
+ *  2. **Su borde gris (#E5E5E5) da 1.3:1** contra el papel. Un borde que delimita
+ *     un control necesita 3:1, así que los controles llevan el azul y las reglas
+ *     quietas un gris azulado más oscuro.
+ *
+ * Cada par está en contraste.test.ts, igual que los de arriba.
+ */
+@theme {
+  /* ── Azul institucional ──────────────────────────────────────────────────
+     El color del sitio, y el único que sirve en los dos sentidos: 10:1 con
+     blanco encima y 10:1 sobre papel. Hace de tinta, de relleno y de link. */
+  --color-azul: #004478; /* 10.0:1 en ambos sentidos */
+  --color-azul-noche: #002b4a; /* 14.5:1 con blanco — el hover del relleno */
+
+  /* ── Celeste ─────────────────────────────────────────────────────────────
+     El acento de los iconos del sitio. Relleno o filete; nunca texto, y nunca
+     con blanco encima. Lo que se apoye sobre él va en tinta noche. */
+  --color-celeste: #76a9db; /* azul-noche encima 5.9:1 */
+
+  /* ── Dorado ──────────────────────────────────────────────────────────────
+     El filete que allá parte cada sección. --color-oro es decoración pura y no
+     lleva nada encima; --color-oro-tinta es el mismo gesto cuando tiene que ser
+     legible, que es la única razón por la que hay dos. */
+  --color-oro: #ac954f; /* decorativo — 2.9:1, no lleva texto */
+  --color-oro-tinta: #7d6828; /* 5.4:1 sobre papel */
+
+  /* ── Superficies y bordes del tema ───────────────────────────────────────
+     `lienzo` es el fondo del cuerpo del sitio: un gris con sesgo azul, elegido y
+     no heredado. `borde-suave` reemplaza al gris del sitio, que no llega al 3:1
+     que pide delimitar una tarjeta. */
+  --color-lienzo: #f2f6fa; /* azul encima 9.2:1, tinta-suave encima 8.9:1 */
+  --color-borde-suave: #67788c; /* 4.5:1 sobre papel, 4.2:1 sobre lienzo */
+
+  /* ── Radio ───────────────────────────────────────────────────────────────
+     El sitio redondea 3 px y nada más. Es un token y no un `rounded-[3px]` en
+     cada pantalla, para que la esquina sea una decisión y no un número suelto. */
+  --radius-marco: 3px;
+
+  /* ── Tipografía ──────────────────────────────────────────────────────────
+     Open Sans, la del sitio, servida por next/font desde nuestro dominio: sin
+     pedido a fonts.googleapis.com en el navegador de nadie. El sitio usa además
+     Open Sans Condensed para los títulos, que hoy es el eje `wdth` de la misma
+     variable — así que los títulos piden `font-stretch-condensed` en lugar de una
+     segunda descarga.
+
+     El fallback importa: la variable la define el className de next/font en el
+     <html>, y si algún día ese className no está, esto sigue siendo legible. */
+  --font-marca: var(--fuente-open-sans), system-ui, -apple-system, "Segoe UI",
+    Roboto, Arial, sans-serif;
+}
+
+/*
  * The focus ring's geometry lives outside @theme on purpose. Everything inside
  * that block becomes a utility class — `--color-accion` gives `bg-accion`,
  * `text-accion`, `border-accion`, which is exactly what we want — but a
@@ -103,7 +169,7 @@ html {
 body {
   background: var(--color-fondo);
   color: var(--color-tinta);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: var(--font-marca);
   -webkit-font-smoothing: antialiased;
 }
 

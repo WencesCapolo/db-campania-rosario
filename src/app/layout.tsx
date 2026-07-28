@@ -3,6 +3,7 @@ import { NeonAuthUIProvider } from "@neondatabase/auth/react/ui";
 import { authClient } from "@/lib/auth/client";
 import "@neondatabase/auth/ui/css";
 import "./globals.css";
+import { openSans } from "./fuentes";
 
 export const metadata: Metadata = {
   title: "Base de Datos Campaña del Rosario",
@@ -20,7 +21,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    // La variable de la fuente va en el <html> y no en un div: `body` la lee
+    // desde --font-marca, así que toda la app comparte una sola cara, incluidas
+    // las pantallas de Neon Auth que no pasan por nuestro shell.
+    <html lang="es" className={openSans.variable}>
       <body>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <NeonAuthUIProvider authClient={authClient as any} redirectTo="/dashboard">

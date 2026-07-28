@@ -102,6 +102,52 @@ describe("los tokens de color", () => {
   });
 });
 
+/**
+ * El tema tomado de schoenstatt.org.ar, con los mismos dos pisos.
+ *
+ * Va en su propio describe porque la lista de pares dice algo distinto de la de
+ * arriba: dos colores del sitio — el celeste y el dorado — **no llegan** como
+ * texto, y eso no es un descuido que haya que arreglar subiéndolos, es la razón
+ * por la que existen `--color-oro-tinta` y `--color-borde-suave`. Los pares que
+ * faltan acá son los que la interfaz no dibuja: no hay blanco sobre celeste, no
+ * hay dorado sobre papel como texto, y si alguien los agrega, este archivo es
+ * donde se entera de por qué no.
+ */
+describe("el tema de la Campaña", () => {
+  const papel = token("papel");
+  const lienzo = token("lienzo");
+
+  describe.each([
+    ["azul sobre papel", () => token("azul"), () => papel],
+    ["azul sobre lienzo", () => token("azul"), () => lienzo],
+    ["blanco sobre azul", () => BLANCO, () => token("azul")],
+    ["blanco sobre azul noche", () => BLANCO, () => token("azul-noche")],
+    ["tinta-suave sobre lienzo", () => token("tinta-suave"), () => lienzo],
+    ["oro-tinta sobre lienzo", () => token("oro-tinta"), () => lienzo],
+    ["oro-tinta sobre papel", () => token("oro-tinta"), () => papel],
+    // Lo que se apoye sobre el celeste va en tinta noche, nunca en blanco.
+    ["azul noche sobre celeste", () => token("azul-noche"), () => token("celeste")],
+  ])("texto: %s", (_nombre, frente, atras) => {
+    it("llega a 4.5:1", () => {
+      expect(contraste(frente(), atras())).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  describe.each([
+    ["el borde de una tarjeta sobre papel", () => token("borde-suave"), () => papel],
+    ["el borde de una tarjeta sobre lienzo", () => token("borde-suave"), () => lienzo],
+    ["el foco sobre lienzo", () => token("foco"), () => lienzo],
+    // El celeste no está en esta lista, y esa ausencia es la regla: da 2.5:1
+    // contra el papel, así que va *adentro* del borde de una tarjeta y nunca en
+    // lugar de él. Un `border-l-celeste` le saca a la tarjeta uno de sus cuatro
+    // cantos y es exactamente lo que este comentario existe para frenar.
+  ])("interfaz: %s", (_nombre, frente, atras) => {
+    it("llega a 3:1", () => {
+      expect(contraste(frente(), atras())).toBeGreaterThanOrEqual(3);
+    });
+  });
+});
+
 describe("la base tipográfica", () => {
   it("es de 18px, en un solo lugar", () => {
     expect(DECLARACIONES).toMatch(/html\s*\{[^}]*font-size:\s*18px/);
