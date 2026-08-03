@@ -1,6 +1,9 @@
 import { getCurrentUser } from "@/lib/get-current-user";
 import Volver from "@/components/Volver";
-import CrearMisioneroForm from "./CrearMisioneroForm";
+// Un directorio arriba: el mismo formulario vive también arriba de la tabla del
+// listado, con `enListado`, y una copia por pantalla sería dos veces la validación
+// al salir de siete campos.
+import CrearMisioneroForm from "../CrearMisioneroForm";
 
 /**
  * Cargar un Misionero.

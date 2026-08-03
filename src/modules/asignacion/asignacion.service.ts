@@ -10,6 +10,7 @@ import type {
   DevolverInput,
   EntregarInput,
   RegistroDTO,
+  TenenciaDeMisioneroDTO,
 } from "./asignacion.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { PeregrinaRepository } from "@/modules/peregrina/peregrina.repository";
@@ -17,6 +18,7 @@ import type { PeregrinaConTerritorio } from "@/modules/peregrina/peregrina.repos
 import { MisioneroRepository } from "@/modules/misionero/misionero.repository";
 import type { MisioneroConTerritorio } from "@/modules/misionero/misionero.repository";
 import {
+  dentroDelAlcance,
   derivarAlcance,
   exigirDentroDelAlcance,
   exigirTerritorioDentroDelAlcance,
@@ -263,6 +265,57 @@ export class AsignacionService {
     const alcance = derivarAlcance(actor, operacion);
     const row = await AsignacionService.exigirVisible(actor, alcance, id, operacion);
     return AsignacionService.toDTO(row);
+  }
+
+  /**
+   * Qué tiene cada uno de una página de Misioneros — la columna «¿Tiene imagen?»
+   * del listado.
+   *
+   * Una consulta para la página entera y no una por fila: veinte filas serían
+   * veinte viajes, y es la misma pregunta hecha veinte veces.
+   *
+   * El repositorio scopea por el territorio de la persona, así que un id de otra
+   * Diócesis no devuelve nada — pasar ids ajenos no enseña si esa persona tiene
+   * una imagen. Lo que este método decide es lo otro: **nombrar** el Código. Sale
+   * sólo cuando la imagen está dentro del alcance; las demás se cuentan en
+   * `ajenas`, porque una imagen movida a otra Diócesis sigue estando en la casa de
+   * quien la tiene y decir «Ninguna» sería mentir en la dirección cómoda.
+   */
+  static async tenenciasDeMisioneros(
+    actor: CurrentUser,
+    misioneroIds: string[]
+  ): Promise<TenenciaDeMisioneroDTO[]> {
+    const alcance = derivarAlcance(
+      actor,
+      "AsignacionService.tenenciasDeMisioneros"
+    );
+
+    const filas = await AsignacionRepository.findAbiertasDeMisioneros(
+      alcance,
+      misioneroIds
+    );
+
+    const porMisionero = new Map<string, TenenciaDeMisioneroDTO>();
+    for (const id of misioneroIds) {
+      porMisionero.set(id, { misioneroId: id, peregrinas: [], ajenas: 0 });
+    }
+
+    for (const fila of filas) {
+      // Existe siempre: el repositorio sólo devuelve filas de los ids pedidos.
+      const tenencia = porMisionero.get(fila.misioneroId);
+      if (!tenencia) continue;
+
+      if (dentroDelAlcance(alcance, fila.peregrinaDiocesisLocalidadId)) {
+        tenencia.peregrinas.push({
+          id: fila.peregrinaId,
+          codigo: fila.peregrinaCodigo,
+        });
+      } else {
+        tenencia.ajenas += 1;
+      }
+    }
+
+    return [...porMisionero.values()];
   }
 
   /** Peregrinas nobody has ever had charge of — user story 19. */

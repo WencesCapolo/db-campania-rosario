@@ -197,6 +197,87 @@ describe.each([
     const idle = await AsignacionService.listarNuncaAsignadas(obtenerActor());
     expect(idle.map((p) => p.id)).toEqual([nunca.id]);
   });
+
+  it("las tenencias de una página de Misioneros no dicen nada de un Misionero vecino", async () => {
+    // La columna «¿Tiene imagen?» del listado, con un id ajeno mezclado entre los
+    // propios: la fila del vecino vuelve vacía y no con su Peregrina, así que
+    // pasar ids de otra Diócesis no enseña si esa persona tiene una imagen.
+    //
+    // El vecino tiene una de verdad primero, que si no la mitad negativa de esta
+    // prueba pasaría por no haber nada que ver.
+    await AsignacionService.entregar(asesor, {
+      peregrinaId: vecina.id,
+      misioneroId: misioneroVecino.id,
+      notaCierre: null,
+      nota: null,
+    });
+
+    const tenencias = await AsignacionService.tenenciasDeMisioneros(
+      obtenerActor(),
+      [misioneroPropio.id, misioneroVecino.id]
+    );
+
+    const propio = tenencias.find((t) => t.misioneroId === misioneroPropio.id);
+    expect(propio?.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
+
+    const vecino = tenencias.find((t) => t.misioneroId === misioneroVecino.id);
+    expect(vecino).toEqual({
+      misioneroId: misioneroVecino.id,
+      peregrinas: [],
+      ajenas: 0,
+    });
+    expect(JSON.stringify(tenencias)).not.toContain(vecina.codigo);
+  });
+
+  it("una imagen de otro territorio en manos de alguien suyo se cuenta y no se nombra", async () => {
+    // Una Peregrina de Zapala que tiene un Misionero de Villa María: puede pasar
+    // porque la imagen se mueve de Diócesis mientras sigue en la misma casa.
+    // Decir «Ninguna» sería mentir en la dirección cómoda — el Misionero no está
+    // libre — y decir el Código sería confirmar un registro de otro territorio.
+    const deZapala = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.zapala.id,
+      createdById: sistema.id,
+    });
+    await AsignacionService.asignar(asesor, {
+      peregrinaId: deZapala.id,
+      misioneroId: misioneroPropio.id,
+      nota: null,
+    });
+
+    const [tenencia] = await AsignacionService.tenenciasDeMisioneros(
+      obtenerActor(),
+      [misioneroPropio.id]
+    );
+
+    expect(tenencia.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
+    expect(tenencia.ajenas).toBe(1);
+    expect(JSON.stringify(tenencia)).not.toContain(deZapala.codigo);
+  });
+});
+
+describe("las tenencias de una página de Misioneros, para un rol nacional", () => {
+  it("un Asesor Nacional ve el Código de cualquiera de las dos Diócesis", async () => {
+    await AsignacionService.entregar(asesor, {
+      peregrinaId: vecina.id,
+      misioneroId: misioneroVecino.id,
+      notaCierre: null,
+      nota: null,
+    });
+
+    const tenencias = await AsignacionService.tenenciasDeMisioneros(asesor, [
+      misioneroPropio.id,
+      misioneroVecino.id,
+    ]);
+
+    expect(
+      tenencias.map((t) => t.peregrinas.map((p) => p.codigo)).flat()
+    ).toEqual(expect.arrayContaining([propia.codigo, vecina.codigo]));
+    expect(tenencias.every((t) => t.ajenas === 0)).toBe(true);
+  });
+
+  it("sin ids no hay pregunta, y la lista vuelve vacía", async () => {
+    expect(await AsignacionService.tenenciasDeMisioneros(asesor, [])).toEqual([]);
+  });
 });
 
 // ── Escrituras ────────────────────────────────────────────────────────────────

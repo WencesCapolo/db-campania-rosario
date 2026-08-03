@@ -35,6 +35,25 @@ export interface PeregrinaDeAsignacionDTO {
   deBaja: boolean;
 }
 
+/**
+ * Qué imagen tiene un Misionero ahora mismo — la columna «¿Tiene imagen?» del
+ * listado de Misioneros.
+ *
+ * `ajenas` existe porque la pregunta se contesta sin scopear por el territorio de
+ * la imagen: una Peregrina movida a otra Diócesis mientras alguien la tiene en la
+ * casa sigue estando en esa casa. Su Código no se puede nombrar — sería confirmar
+ * un registro que el Actor no puede leer — así que se cuenta y se dice que hay una
+ * imagen de otro territorio. Es la misma distinción que hace la negativa al dar de
+ * baja a un Misionero.
+ */
+export interface TenenciaDeMisioneroDTO {
+  misioneroId: string;
+  /** Las que el Actor podría haber leído igual, ordenadas por Código. */
+  peregrinas: { id: string; codigo: string }[];
+  /** Cuántas tiene abiertas fuera del alcance del Actor. */
+  ajenas: number;
+}
+
 export interface AsignacionDTO {
   id: string;
   peregrina: PeregrinaDeAsignacionDTO;

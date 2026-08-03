@@ -9,8 +9,14 @@ import {
   devolverSchema,
   entregarSchema,
 } from "./asignacion.types";
-import type { ActionResult, AsignacionDTO } from "./asignacion.types";
+import type {
+  ActionResult,
+  AsignacionDTO,
+  TenenciaDeMisioneroDTO,
+} from "./asignacion.types";
 import { aResultado } from "@/lib/errors";
+import { FILAS_POR_PAGINA } from "@/lib/paginacion";
+import { z } from "zod";
 import { MisioneroService } from "@/modules/misionero/misionero.service";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
@@ -75,6 +81,23 @@ export async function getMisionerosSinPeregrinaAction(): Promise<
   const actor = await getCurrentUser();
   return AsignacionService.listarMisionerosSinPeregrina(actor);
 }
+
+/**
+ * Qué imagen tiene cada Misionero de una página — la columna «¿Tiene imagen?».
+ *
+ * La lista de ids se parsea acá como todo lo demás, y viene topeada por el tamaño
+ * de página: esto contesta por las filas que se están mostrando, no por un
+ * territorio entero de una vez.
+ */
+export async function getTenenciasDeMisionerosAction(
+  misioneroIds: unknown
+): Promise<TenenciaDeMisioneroDTO[]> {
+  const actor = await getCurrentUser();
+  const parsed = idsDeMisioneroSchema.parse(misioneroIds ?? []);
+  return AsignacionService.tenenciasDeMisioneros(actor, parsed);
+}
+
+const idsDeMisioneroSchema = z.array(z.string().min(1)).max(FILAS_POR_PAGINA);
 
 /**
  * The two lists the stepped assignment flow needs, in one round trip.

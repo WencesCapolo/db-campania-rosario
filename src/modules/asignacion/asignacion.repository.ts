@@ -4,6 +4,7 @@ import {
   asc,
   desc,
   eq,
+  inArray,
   isNull,
   isNotNull,
   notExists,
@@ -37,6 +38,20 @@ export interface AsignacionCompleta {
   registradaPorDiocesis: string | null;
   cerradaPorDiocesis: string | null;
   corregidaPorDiocesis: string | null;
+}
+
+/**
+ * Una imagen abierta, vista desde el Misionero que la tiene.
+ *
+ * Mucho menos que `AsignacionCompleta` a propósito: es lo que necesita una celda
+ * de una tabla — el Código, a dónde linkea, y el territorio de la imagen para
+ * saber si se puede nombrar.
+ */
+export interface TenenciaDeMisionero {
+  misioneroId: string;
+  peregrinaId: string;
+  peregrinaCodigo: string;
+  peregrinaDiocesisLocalidadId: string;
 }
 
 // Three different logins can touch one Asignación — the one that opened it, the
@@ -252,6 +267,54 @@ export class AsignacionRepository {
       .where(and(eq(asignacion.peregrinaId, peregrinaId), abierta))
       .limit(1);
     return row;
+  }
+
+  /**
+   * Las imágenes abiertas de una página entera de Misioneros, en una consulta —
+   * la columna «¿Tiene imagen?» del listado.
+   *
+   * Está scopeada por el territorio de la **persona**, como
+   * `findMisionerosSinPeregrina` y por la misma razón: la pregunta es sobre la
+   * gente de esta página, así que un id de otra Diócesis no devuelve nada y no
+   * hay nada que aprender pasándolo.
+   *
+   * El territorio de la *imagen* vuelve en cada fila en lugar de filtrar: una
+   * Peregrina movida a otra Diócesis mientras alguien la tiene en la casa sigue
+   * estando en esa casa, así que cuenta como tenida — filtrarla mostraría
+   * «Ninguna» a quien tiene una. Nombrar su Código es otra pregunta, y la
+   * responde el service comparando ese territorio con el alcance, igual que
+   * `mensajeDePendientes`.
+   *
+   * `asignacion_misionero_idx` cubre el `in`, y el `join` con peregrina es por
+   * clave primaria.
+   */
+  static async findAbiertasDeMisioneros(
+    alcance: Alcance,
+    misioneroIds: string[]
+  ): Promise<TenenciaDeMisionero[]> {
+    // Sin ids no hay pregunta, y `inArray` con una lista vacía es SQL inválido.
+    if (misioneroIds.length === 0) return [];
+
+    const filtros = [
+      alcance.tipo === "nacional"
+        ? undefined
+        : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
+      inArray(asignacion.misioneroId, misioneroIds),
+      abierta,
+    ].filter((f) => f !== undefined);
+
+    return db
+      .select({
+        misioneroId: asignacion.misioneroId,
+        peregrinaId: peregrina.id,
+        peregrinaCodigo: peregrina.codigo,
+        peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
+      })
+      .from(asignacion)
+      .innerJoin(peregrina, eq(peregrina.id, asignacion.peregrinaId))
+      .innerJoin(misionero, eq(misionero.id, asignacion.misioneroId))
+      .where(and(...filtros))
+      .orderBy(asc(peregrina.codigo));
   }
 
   /**

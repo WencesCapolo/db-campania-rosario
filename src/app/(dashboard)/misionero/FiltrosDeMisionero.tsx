@@ -18,6 +18,11 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * In the address like every other filter, so the tablero's "Misioneros sin imagen"
  * card can link straight here with the filter already applied, and so coming back
  * from a person's page does not throw the search away.
+ *
+ * Los dos controles quedan a la vista, y ahí se aparta del listado de Peregrinas,
+ * que pliega los suyos. Ahí son seis selects que empujan las filas afuera de un
+ * teléfono; acá es uno, y un botón «Mostrar filtros» que esconde un solo select
+ * agrega un toque para ahorrar un renglón.
  */
 
 const TENENCIA = [{ valor: "1", etiqueta: "Sólo los que no tienen ninguna" }];
@@ -49,7 +54,7 @@ export default function FiltrosDeMisionero({
 
   return (
     <form
-      className="space-y-4 rounded-tarjeta border-2 border-borde bg-papel p-4"
+      className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
       onSubmit={(e) => {
         e.preventDefault();
         aplicar({ q: borrador.trim() });

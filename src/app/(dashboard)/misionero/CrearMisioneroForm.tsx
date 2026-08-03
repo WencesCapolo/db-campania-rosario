@@ -42,6 +42,15 @@ import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
  * these arrive a parish at a time, and moves focus back to Nombre — otherwise
  * the caret is left on a button halfway down a phone screen and the next name
  * gets typed nowhere.
+ *
+ * `enListado` es este mismo formulario arriba de la tabla de `/misionero`, y ahí
+ * hay un botón en lugar de dos: guardar *es* «guardar y agregar otro», más un
+ * `router.refresh()` que vuelve a leer la tabla del servidor, así que la fila
+ * recién cargada aparece abajo sin que nadie la busque. Es la misma decisión que
+ * el alta de Peregrinas, por la misma razón: estos registros se tipean de a lotes
+ * y la confirmación que se quiere es ver aparecer la fila. `/misionero/new` sigue
+ * existiendo porque el flujo de Asignación manda ahí cuando la persona no está
+ * cargada todavía, y ahí sí navegar a la ficha es lo que sigue.
  */
 
 const CENTROS = CENTRO_TIPOS.map((t) => ({
@@ -62,7 +71,12 @@ const ANIO_DE_CUATRO_CIFRAS =
 
 const esAnioEscrito = (texto: string) => /^\d{4}$/.test(texto);
 
-export default function CrearMisioneroForm() {
+export default function CrearMisioneroForm({
+  enListado = false,
+}: {
+  /** Arriba de la tabla de `/misionero`: un botón, y refresca el listado. */
+  enListado?: boolean;
+}) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
 
@@ -137,6 +151,10 @@ export default function CrearMisioneroForm() {
       formulario.current
         ?.querySelector<HTMLInputElement>(`#${ID_NOMBRE}`)
         ?.focus();
+
+      // En el listado la confirmación de verdad es la fila: `refresh()` vuelve a
+      // leer la tabla del servidor y la persona recién cargada aparece abajo.
+      if (enListado) router.refresh();
     });
   }
 
@@ -146,7 +164,7 @@ export default function CrearMisioneroForm() {
       className="max-w-xl space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
-        guardar(false);
+        guardar(enListado);
       }}
     >
       {guardado && (
@@ -268,15 +286,24 @@ export default function CrearMisioneroForm() {
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Boton type="submit" disabled={pendiente}>
-          {pendiente ? "Guardando…" : "Guardar"}
+          {pendiente
+            ? "Guardando…"
+            : enListado
+              ? "Cargar la persona"
+              : "Guardar"}
         </Boton>
-        <Boton
-          tono="secundario"
-          disabled={pendiente}
-          onClick={() => guardar(true)}
-        >
-          Guardar y agregar otro
-        </Boton>
+
+        {/* Un botón y no dos en el listado: guardar ahí ya es «y agregar otro»,
+            porque la fila queda a la vista abajo. */}
+        {!enListado && (
+          <Boton
+            tono="secundario"
+            disabled={pendiente}
+            onClick={() => guardar(true)}
+          >
+            Guardar y agregar otro
+          </Boton>
+        )}
       </div>
     </form>
   );
