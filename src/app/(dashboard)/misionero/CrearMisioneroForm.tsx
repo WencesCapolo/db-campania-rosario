@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { createMisioneroAction } from "@/modules/misionero/misionero.router";
+import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
+import { asignarAction } from "@/modules/asignacion/asignacion.router";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
@@ -14,6 +16,16 @@ import {
   CENTRO_TIPOS,
   createMisioneroSchema,
 } from "@/modules/misionero/misionero.types";
+import type {
+  Modalidad,
+  PeregrinaTipo,
+} from "@/modules/peregrina/peregrina.schema";
+import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
+import {
+  MODALIDADES,
+  MODALIDAD_LABELS,
+  TIPO_LABELS,
+} from "@/modules/peregrina/peregrina.types";
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 
 /**
@@ -43,13 +55,36 @@ import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
  * the caret is left on a button halfway down a phone screen and the next name
  * gets typed nowhere.
  *
+ * **La imagen que ya se llevó.** Casi nadie carga a un Misionero en abstracto: lo
+ * carga porque le entregó una Peregrina, y hasta ahora eso eran dos pantallas —
+ * ésta, y después el flujo de Asignación, donde había que volver a buscar por
+ * apellido a la persona recién tipeada. El último fieldset lo hace acá, con tres
+ * respuestas: ninguna por ahora, una imagen ya registrada, o una nueva. La tercera
+ * es el alta de Peregrinas —Tipo y Modalidad, sin Código, porque el Código se
+ * genera— y usa el mismo territorio que se eligió para la persona, que es el caso
+ * real: la imagen se registra donde vive quien la tiene.
+ *
+ * Las tres operaciones siguen siendo tres llamadas y en ese orden — crear la
+ * persona, crear la imagen si hace falta, `asignar` — porque la carga de una
+ * Peregrina *es* la de una Peregrina y el cambio de tenencia pasa por el único
+ * lugar donde puede pasar, `AsignacionService.asignar`. No hay transacción que las
+ * abarque, así que la falla parcial se dice en voz alta en lugar de deshacerse: si
+ * la persona quedó cargada y la entrega no, el mensaje lo nombra y el formulario
+ * no navega, porque perder de vista que la persona ya existe es cómo alguien la
+ * carga dos veces.
+ *
+ * El picker ofrece sólo las libres. Una imagen que está en otra casa no se entrega
+ * desde acá: eso cierra el período de otra persona, es `entregar`, y el flujo de
+ * Asignación tiene una pantalla que dice quién la tiene antes de pedir que se
+ * confirme.
+ *
  * `enListado` es este mismo formulario arriba de la tabla de `/misionero`, y ahí
  * hay un botón en lugar de dos: guardar *es* «guardar y agregar otro», más un
  * `router.refresh()` que vuelve a leer la tabla del servidor, así que la fila
  * recién cargada aparece abajo sin que nadie la busque. Es la misma decisión que
  * el alta de Peregrinas, por la misma razón: estos registros se tipean de a lotes
  * y la confirmación que se quiere es ver aparecer la fila. `/misionero/new` sigue
- * existiendo porque el flujo de Asignación manda ahí cuando la persona no está
+ * existiendo porque el flujo de Asignación manda ahí cuando la persona no estáf
  * cargada todavía, y ahí sí navegar a la ficha es lo que sigue.
  */
 
@@ -71,11 +106,39 @@ const ANIO_DE_CUATRO_CIFRAS =
 
 const esAnioEscrito = (texto: string) => /^\d{4}$/.test(texto);
 
+/** Qué se hace con la imagen al cargar a la persona. */
+type Entrega = "ninguna" | "existente" | "nueva";
+
+const ENTREGAS: { valor: Entrega; etiqueta: string }[] = [
+  { valor: "ninguna", etiqueta: "Ninguna por ahora" },
+  { valor: "existente", etiqueta: "Una imagen ya registrada" },
+  { valor: "nueva", etiqueta: "Una imagen nueva, que registro ahora" },
+];
+
+// Desde el enum a través de la tabla de etiquetas, nunca a mano: son dieciséis
+// Modalidades, y una segunda copia de la lista es un segundo lugar donde falta una.
+const MODALIDADES_ELEGIBLES = MODALIDADES.map((m) => ({
+  valor: m,
+  etiqueta: `${MODALIDAD_LABELS[m]} (${m})`,
+}));
+
+const TIPOS = (["peregrina", "auxiliar"] as const).map((t) => ({
+  valor: t,
+  etiqueta: TIPO_LABELS[t],
+}));
+
 export default function CrearMisioneroForm({
   enListado = false,
+  disponibles = [],
 }: {
   /** Arriba de la tabla de `/misionero`: un botón, y refresca el listado. */
   enListado?: boolean;
+  /**
+   * Las imágenes que nadie tiene, para el picker del último fieldset. Vienen del
+   * servidor y no de un efecto: la pantalla ya es una lectura, y una lista que
+   * aparece medio segundo tarde es una lista que alguien no ve.
+   */
+  disponibles?: PeregrinaDTO[];
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
@@ -90,8 +153,15 @@ export default function CrearMisioneroForm({
   const [centroNombre, setCentroNombre] = useState("");
   const [anioConsagracion, setAnioConsagracion] = useState("");
 
+  const [entrega, setEntrega] = useState<Entrega>("ninguna");
+  const [peregrinaId, setPeregrinaId] = useState("");
+  const [tipo, setTipo] = useState<PeregrinaTipo>("peregrina");
+  const [modalidad, setModalidad] = useState<Modalidad>("JOV");
+
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState<string | null>(null);
+  /** El Código de la imagen que quedó a su cargo, cuando quedó alguna. */
+  const [codigoEntregado, setCodigoEntregado] = useState<string | null>(null);
   const formulario = useRef<HTMLFormElement>(null);
 
   // Story 15: each field is checked as it is left, against the same schema the
@@ -99,12 +169,55 @@ export default function CrearMisioneroForm({
   // field is the message the server would have given them after eight of them.
   const validacion = useValidacionAlSalir(createMisioneroSchema);
 
+  /**
+   * La imagen, después de que la persona ya existe.
+   *
+   * Devuelve el Código cuando quedó entregada, o el mensaje de la negativa. La
+   * persona ya está cargada cuando esto corre: nada de lo que pase acá la borra,
+   * y por eso el error que devuelve se cuenta como «quedó a medias» y no como
+   * «falló el alta».
+   */
+  async function entregarImagen(
+    misioneroId: string,
+  ): Promise<{ codigo: string } | { error: string }> {
+    let id = peregrinaId;
+    let codigo = disponibles.find((p) => p.id === peregrinaId)?.codigo ?? "";
+
+    if (entrega === "nueva") {
+      // El territorio de la imagen es el de la persona que se la lleva: es donde
+      // vive, y es la única respuesta que este formulario tiene.
+      const creada = await createPeregrinaAction({
+        tipo,
+        modalidad,
+        diocesisLocalidadId,
+      });
+      if (!creada.ok) return { error: creada.error };
+      id = creada.data.id;
+      codigo = creada.data.codigo;
+    }
+
+    const asignada = await asignarAction({
+      peregrinaId: id,
+      misioneroId,
+      nota: null,
+    });
+    if (!asignada.ok) return { error: asignada.error };
+
+    return { codigo };
+  }
+
   function guardar(seguirCargando: boolean) {
     setError(null);
     setGuardado(null);
+    setCodigoEntregado(null);
 
     if (!diocesisLocalidadId) {
       setError("Elegí una Diócesis/Localidad.");
+      return;
+    }
+
+    if (entrega === "existente" && !peregrinaId) {
+      setError("Elegí la imagen peregrina asignada, o poné «Ninguna por ahora».");
       return;
     }
 
@@ -133,6 +246,25 @@ export default function CrearMisioneroForm({
         return;
       }
 
+      const persona = `${resultado.data.nombre} ${resultado.data.apellido}`;
+
+      let entregado: string | null = null;
+      if (entrega !== "ninguna") {
+        const imagen = await entregarImagen(resultado.data.id);
+
+        if ("error" in imagen) {
+          // La persona quedó cargada y la imagen no. Decirlo y quedarse acá: si
+          // esto navegara a la ficha, el siguiente intento sería cargarla de nuevo.
+          setError(
+            `${persona} quedó cargado, pero la imagen no quedó a su cargo: ${imagen.error} Podés entregársela desde «Entregar una imagen».`,
+          );
+          if (enListado) router.refresh();
+          return;
+        }
+
+        entregado = imagen.codigo;
+      }
+
       if (!seguirCargando) {
         router.push(`/misionero/${resultado.data.id}`);
         return;
@@ -141,13 +273,18 @@ export default function CrearMisioneroForm({
       // Keep the territory — the next person is almost always from the same
       // Diócesis — and clear everything that belongs to this one. The centro
       // stays too: a batch is usually one parish.
-      setGuardado(`${resultado.data.nombre} ${resultado.data.apellido}`);
+      setGuardado(persona);
+      setCodigoEntregado(entregado);
       // The messages belonged to the person just saved; the next one starts clean.
       validacion.limpiar();
       setNombre("");
       setApellido("");
       setTelefono("");
       setAnioConsagracion("");
+      // La imagen es de esta persona y no del lote: la siguiente arranca sin
+      // ninguna, para que nadie entregue dos veces la misma por inercia.
+      setEntrega("ninguna");
+      setPeregrinaId("");
       formulario.current
         ?.querySelector<HTMLInputElement>(`#${ID_NOMBRE}`)
         ?.focus();
@@ -170,8 +307,15 @@ export default function CrearMisioneroForm({
       {guardado && (
         <Mensaje tono="exito">
           <p>
-            <strong>{guardado}</strong> quedó cargado. Podés seguir con la
-            siguiente persona.
+            <strong>{guardado}</strong> quedó cargado
+            {codigoEntregado ? (
+              <>
+                , con la imagen{" "}
+                <strong className="font-mono">{codigoEntregado}</strong> a su
+                cargo
+              </>
+            ) : null}
+            . Podés seguir con la siguiente persona.
           </p>
         </Mensaje>
       )}
@@ -231,11 +375,13 @@ export default function CrearMisioneroForm({
 
       <fieldset className="space-y-5 rounded-tarjeta border-2 border-borde p-5">
         <legend className="px-2 text-base font-bold text-tinta">
-          El centro donde se venera la imagen (opcional)
+          Centro y consagración (opcional)
         </legend>
 
         <p className="text-base leading-relaxed text-tinta-suave">
-          Si no lo sabés ahora, dejalo vacío. Se puede completar después.
+          El Santuario, Ermita o Parroquia donde pertenece el misionero, y el año
+          en que se consagró. Si no lo sabés ahora, dejalo vacío: se puede
+          completar después.
         </p>
 
         <Eleccion
@@ -282,6 +428,74 @@ export default function CrearMisioneroForm({
             validacion.alSalir("anioConsagracion", Number(texto));
           }}
         />
+      </fieldset>
+
+      <fieldset className="space-y-5 rounded-tarjeta border-2 border-borde p-5">
+        <legend className="px-2 text-base font-bold text-tinta">
+          Imagen Peregrina asignada (opcional)
+        </legend>
+
+        <p className="text-base leading-relaxed text-tinta-suave">
+          Si ya se llevó una Peregrina, se puede dejar registrado acá mismo. Si
+          no, dejalo en «Ninguna por ahora»: después se entrega desde «Entregar
+          una imagen».
+        </p>
+
+        <Eleccion
+          etiqueta="¿Se lleva alguna imagen?"
+          value={entrega}
+          opciones={ENTREGAS}
+          onChange={(e) => setEntrega(e.target.value as Entrega)}
+        />
+
+        {entrega === "existente" &&
+          (disponibles.length === 0 ? (
+            <Mensaje tono="aviso">
+              <p>
+                No hay imágenes libres en tu territorio. Registrá una nueva acá
+                arriba, o entregale una que esté en otra casa desde «Entregar
+                una imagen», que cierra el período de quien la tiene.
+              </p>
+            </Mensaje>
+          ) : (
+            <Eleccion
+              etiqueta="Cuál"
+              vacia="Elegí la imagen"
+              ayuda="Sólo las que no tiene nadie ahora mismo."
+              value={peregrinaId}
+              opciones={disponibles.map((p) => ({
+                valor: p.id,
+                etiqueta: `${p.codigo} — ${MODALIDAD_LABELS[p.modalidad]}, ${p.diocesisLocalidad.nombre}`,
+              }))}
+              onChange={(e) => setPeregrinaId(e.target.value)}
+            />
+          ))}
+
+        {entrega === "nueva" && (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Eleccion
+                etiqueta="Tipo"
+                value={tipo}
+                opciones={TIPOS}
+                onChange={(e) => setTipo(e.target.value as PeregrinaTipo)}
+              />
+
+              <Eleccion
+                etiqueta="Modalidad"
+                value={modalidad}
+                opciones={MODALIDADES_ELEGIBLES}
+                onChange={(e) => setModalidad(e.target.value as Modalidad)}
+              />
+            </div>
+
+            <p className="text-base leading-relaxed text-tinta-suave">
+              La imagen se registra en la misma Diócesis/Localidad que elegiste
+              arriba, y su Código se genera solo. Cuando se guarde, va a estar
+              acá para escribirlo en la imagen.
+            </p>
+          </>
+        )}
       </fieldset>
 
       <div className="flex flex-col gap-3 sm:flex-row">

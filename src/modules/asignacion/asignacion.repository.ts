@@ -4,6 +4,7 @@ import {
   asc,
   desc,
   eq,
+  exists,
   inArray,
   isNull,
   isNotNull,
@@ -161,6 +162,57 @@ export function esSegundaAsignacionAbierta(error: unknown): boolean {
 }
 
 const CLAVE_ASIGNACION_ABIERTA = "asignacion_peregrina_abierta_key";
+
+/**
+ * Los Misioneros de un territorio, partidos por si tienen algo a cargo.
+ *
+ * Un solo predicado leído en los dos sentidos — `notExists` y `exists` sobre la
+ * misma subconsulta — porque son las dos opciones de un mismo select y una
+ * segunda consulta escrita a mano sería un segundo lugar donde discrepar.
+ *
+ * Scopeado por el territorio de la **persona** y no por el de la imagen, que es
+ * lo que la pregunta quiere decir: la Diócesis de alguien está en su propia fila,
+ * y una Peregrina que se movió mientras estaba en una casa sigue estando en esa
+ * casa. Quien la tiene no está libre, y contarlo como libre es la mentira cómoda.
+ */
+function misionerosPorTenencia(
+  alcance: Alcance,
+  filtros: FiltrosTerritoriales,
+  tenencia: "con" | "sin"
+): Promise<{ id: string; nombre: string; apellido: string }[]> {
+  const abiertaDeEste = db
+    .select({ uno: sql`1` })
+    .from(asignacion)
+    .where(and(eq(asignacion.misioneroId, misionero.id), abierta));
+
+  const territorial = [
+    alcance.tipo === "nacional"
+      ? undefined
+      : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
+    filtros.diocesisLocalidadId
+      ? eq(misionero.diocesisLocalidadId, filtros.diocesisLocalidadId)
+      : undefined,
+    filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
+    // Somebody who has left the Campaña is neither free capacity nor somebody to
+    // ask an image back from: a baja is refused while an Asignación is open.
+    isNull(misionero.bajaAt),
+    tenencia === "sin" ? notExists(abiertaDeEste) : exists(abiertaDeEste),
+  ].filter((f) => f !== undefined);
+
+  return db
+    .select({
+      id: misionero.id,
+      nombre: misionero.nombre,
+      apellido: misionero.apellido,
+    })
+    .from(misionero)
+    .innerJoin(
+      diocesisLocalidad,
+      eq(diocesisLocalidad.id, misionero.diocesisLocalidadId)
+    )
+    .where(and(...territorial))
+    .orderBy(asc(misionero.apellido), asc(misionero.nombre));
+}
 
 /**
  * AsignacionRepository
@@ -359,37 +411,24 @@ export class AsignacionRepository {
     alcance: Alcance,
     filtros: FiltrosTerritoriales = {}
   ): Promise<{ id: string; nombre: string; apellido: string }[]> {
-    const abiertaDeEste = db
-      .select({ uno: sql`1` })
-      .from(asignacion)
-      .where(and(eq(asignacion.misioneroId, misionero.id), abierta));
+    return misionerosPorTenencia(alcance, filtros, "sin");
+  }
 
-    const territorial = [
-      alcance.tipo === "nacional"
-        ? undefined
-        : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
-      filtros.diocesisLocalidadId
-        ? eq(misionero.diocesisLocalidadId, filtros.diocesisLocalidadId)
-        : undefined,
-      filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
-      // Somebody who has left the Campaña is not free capacity.
-      isNull(misionero.bajaAt),
-      notExists(abiertaDeEste),
-    ].filter((f) => f !== undefined);
-
-    return db
-      .select({
-        id: misionero.id,
-        nombre: misionero.nombre,
-        apellido: misionero.apellido,
-      })
-      .from(misionero)
-      .innerJoin(
-        diocesisLocalidad,
-        eq(diocesisLocalidad.id, misionero.diocesisLocalidadId)
-      )
-      .where(and(...territorial))
-      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
+  /**
+   * Misioneros with at least one image in their charge — the other half of the
+   * listado's tenencia filter.
+   *
+   * The same query with `exists` instead of `notExists`, deliberately: "who has
+   * their hands free" and "who is holding something" have to be two readings of
+   * one predicate, or the two options of one select would disagree about somebody
+   * whose Peregrina has moved Diócesis. It ignores the image's territory for the
+   * same reason its twin does — an image in somebody's house is in that house.
+   */
+  static async findMisionerosConPeregrina(
+    alcance: Alcance,
+    filtros: FiltrosTerritoriales = {}
+  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
+    return misionerosPorTenencia(alcance, filtros, "con");
   }
 
   /**

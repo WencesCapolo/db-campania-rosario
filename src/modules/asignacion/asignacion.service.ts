@@ -348,6 +348,24 @@ export class AsignacionService {
   }
 
   /**
+   * Misioneros holding at least one image — the other half of the listado's
+   * tenencia filter.
+   *
+   * Same scope rule as its twin above, and the same reason: the question is about
+   * the people of a territory, so it is their own Diócesis that bounds it. An
+   * image that has since moved elsewhere still counts as held.
+   */
+  static async listarMisionerosConPeregrina(
+    actor: CurrentUser,
+    filtros: FiltrosTerritoriales = {}
+  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
+    const operacion = "AsignacionService.listarMisionerosConPeregrina";
+    const alcance = derivarAlcance(actor, operacion);
+    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
+    return AsignacionRepository.findMisionerosConPeregrina(alcance, filtros);
+  }
+
+  /**
    * Images that have not changed hands in `dias` days — user story 8.
    *
    * The threshold is the caller's, because nobody in the Campaña has drawn the

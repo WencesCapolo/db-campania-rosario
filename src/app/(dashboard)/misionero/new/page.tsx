@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/get-current-user";
+import { getPeregrinasDisponiblesAction } from "@/modules/peregrina/peregrina.router";
 import Volver from "@/components/Volver";
 // Un directorio arriba: el mismo formulario vive también arriba de la tabla del
 // listado, con `enListado`, y una copia por pantalla sería dos veces la validación
@@ -20,6 +21,11 @@ export const dynamic = "force-dynamic";
 export default async function NuevoMisioneroPage() {
   await getCurrentUser();
 
+  // Las imágenes libres, para el último fieldset del formulario. La lectura no va
+  // en un try: una negativa la agarra `error.tsx`, y un picker vacío por un
+  // rechazo diría que el territorio no tiene ninguna.
+  const disponibles = await getPeregrinasDisponiblesAction();
+
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
       <div className="space-y-2">
@@ -31,7 +37,7 @@ export default async function NuevoMisioneroPage() {
         </p>
       </div>
 
-      <CrearMisioneroForm />
+      <CrearMisioneroForm disponibles={disponibles} />
     </main>
   );
 }

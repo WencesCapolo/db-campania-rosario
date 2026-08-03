@@ -15,6 +15,16 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * purpose — those belong to an image, and a "Misioneros de Modalidad Jóvenes"
  * filter would be inventing a relationship the Campaña does not record.
  *
+ * El select de tenencia tiene las dos respuestas y no una. «Sólo los que no tienen
+ * ninguna» es capacidad libre — a quién se le puede entregar algo. «Sólo los que
+ * tienen alguna» es la pregunta del otro lado, la que aparece cuando falta una
+ * imagen o cuando hay que pedir devoluciones, y con una sola opción había que
+ * leerla por descarte sobre la columna «¿Tiene imagen?», página por página.
+ *
+ * Un valor y no dos banderas: son excluyentes, y `sinImagen=1&conImagen=1` es una
+ * dirección sin respuesta. «Todos» borra el parámetro en lugar de escribir un
+ * tercer valor, así que la dirección de una lista sin filtrar no lo nombra.
+ *
  * In the address like every other filter, so the tablero's "Misioneros sin imagen"
  * card can link straight here with the filter already applied, and so coming back
  * from a person's page does not throw the search away.
@@ -25,14 +35,18 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * agrega un toque para ahorrar un renglón.
  */
 
-const TENENCIA = [{ valor: "1", etiqueta: "Sólo los que no tienen ninguna" }];
+const TENENCIA = [
+  { valor: "con", etiqueta: "Sólo los que tienen alguna imagen" },
+  { valor: "sin", etiqueta: "Sólo los que no tienen ninguna" },
+];
 
 export default function FiltrosDeMisionero({
   q,
-  sinImagen,
+  tenencia,
 }: {
   q: string;
-  sinImagen: boolean;
+  /** `null` es «Todos», y es lo que se ve cuando la dirección no dice nada. */
+  tenencia: "con" | "sin" | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,8 +87,8 @@ export default function FiltrosDeMisionero({
         etiqueta="¿Tiene alguna imagen?"
         opciones={TENENCIA}
         vacia="Todos"
-        value={sinImagen ? "1" : ""}
-        onChange={(e) => aplicar({ sinImagen: e.target.value })}
+        value={tenencia ?? ""}
+        onChange={(e) => aplicar({ imagen: e.target.value })}
       />
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -82,13 +96,13 @@ export default function FiltrosDeMisionero({
           {pendiente ? "Buscando…" : "Buscar"}
         </Boton>
 
-        {(q || sinImagen) && (
+        {(q || tenencia) && (
           <Boton
             tono="secundario"
             disabled={pendiente}
             onClick={() => {
               setBorrador("");
-              aplicar({ q: "", sinImagen: "" });
+              aplicar({ q: "", imagen: "" });
             }}
           >
             Limpiar filtros

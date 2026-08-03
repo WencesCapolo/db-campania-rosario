@@ -198,6 +198,69 @@ describe.each([
     expect(idle.map((p) => p.id)).toEqual([nunca.id]);
   });
 
+  it("los Misioneros con alguna imagen son sólo los de su Diócesis", async () => {
+    // El filtro «sólo los que tienen alguna» del listado. En Río Cuarto hay
+    // alguien teniendo la vecina, así que la mitad negativa tiene algo que ver:
+    // si el scope fuera provincial, esa persona aparecería acá.
+    const conImagen = await AsignacionService.listarMisionerosConPeregrina(
+      obtenerActor()
+    );
+
+    expect(conImagen.map((m) => m.id)).toEqual([misioneroPropio.id]);
+    expect(conImagen.map((m) => m.apellido)).not.toContain("DeRioCuarto");
+  });
+
+  it("las dos mitades del filtro parten su territorio y no se solapan", async () => {
+    // `misioneroVecino` no tiene ninguna, pero es de Río Cuarto: no está en
+    // ninguna de las dos listas. La única persona de Villa María es la que tiene
+    // la propia, así que «sin» vuelve vacía — y eso es la partición, no un cero
+    // por haber mirado el territorio equivocado.
+    const [conImagen, sinImagen] = await Promise.all([
+      AsignacionService.listarMisionerosConPeregrina(obtenerActor()),
+      AsignacionService.listarMisionerosSinPeregrina(obtenerActor()),
+    ]);
+
+    const libre = await crearMisioneroDirecto({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: sistema.id,
+      apellido: "Libre",
+    });
+
+    expect(conImagen.map((m) => m.id)).toEqual([misioneroPropio.id]);
+    expect(sinImagen).toEqual([]);
+    expect(
+      await AsignacionService.listarMisionerosSinPeregrina(obtenerActor())
+    ).toMatchObject([{ id: libre.id }]);
+  });
+
+  it("tener una imagen de otro territorio cuenta como tenerla", async () => {
+    // La misma asimetría que la columna «¿Tiene imagen?»: la Peregrina se movió de
+    // Diócesis y sigue en la misma casa, así que quien la tiene no está libre. Se
+    // prueba en las dos listas, porque el error cómodo es que aparezca en ambas.
+    const deZapala = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.zapala.id,
+      createdById: sistema.id,
+    });
+    const suyo = await crearMisioneroDirecto({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: sistema.id,
+      apellido: "ConUnaDeZapala",
+    });
+    await AsignacionService.asignar(asesor, {
+      peregrinaId: deZapala.id,
+      misioneroId: suyo.id,
+      nota: null,
+    });
+
+    const [conImagen, sinImagen] = await Promise.all([
+      AsignacionService.listarMisionerosConPeregrina(obtenerActor()),
+      AsignacionService.listarMisionerosSinPeregrina(obtenerActor()),
+    ]);
+
+    expect(conImagen.map((m) => m.id)).toContain(suyo.id);
+    expect(sinImagen.map((m) => m.id)).not.toContain(suyo.id);
+  });
+
   it("las tenencias de una página de Misioneros no dicen nada de un Misionero vecino", async () => {
     // La columna «¿Tiene imagen?» del listado, con un id ajeno mezclado entre los
     // propios: la fila del vecino vuelve vacía y no con su Peregrina, así que

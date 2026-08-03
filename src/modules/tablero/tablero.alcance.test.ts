@@ -139,6 +139,12 @@ describe.each([
     ).rejects.toThrow(NoAutorizadoError);
 
     await expect(
+      AsignacionService.listarMisionerosConPeregrina(obtenerActor(), {
+        diocesisLocalidadId: territorio.rioCuarto.id,
+      })
+    ).rejects.toThrow(NoAutorizadoError);
+
+    await expect(
       AsignacionService.listarEstancadas(obtenerActor(), 30, {
         diocesisLocalidadId: territorio.rioCuarto.id,
       })

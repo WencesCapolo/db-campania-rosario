@@ -5,9 +5,11 @@ import {
   getMisionerosPaginadosAction,
 } from "@/modules/misionero/misionero.router";
 import {
+  getMisionerosConPeregrinaAction,
   getMisionerosSinPeregrinaAction,
   getTenenciasDeMisionerosAction,
 } from "@/modules/asignacion/asignacion.router";
+import { getPeregrinasDisponiblesAction } from "@/modules/peregrina/peregrina.router";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import type { TenenciaDeMisioneroDTO } from "@/modules/asignacion/asignacion.types";
@@ -59,21 +61,40 @@ import CrearMisioneroForm from "./CrearMisioneroForm";
  * con la misma distinción que hace la negativa al dar de baja a un Misionero.
  *
  * Dos filtros, los dos en la dirección. El buscador es `MisioneroService.search`, y
- * «sólo los que no tienen ninguna» es la otra mitad de la tarjeta de capacidad
+ * el de tenencia tiene las dos respuestas: «sólo los que tienen alguna» y «sólo los
+ * que no tienen ninguna». La segunda es la otra mitad de la tarjeta de capacidad
  * libre del tablero, que linkea derecho acá para que encontrar a alguien libre y
- * abrir su ficha sea un viaje y no dos.
+ * abrir su ficha sea un viaje y no dos; la primera es la pregunta del otro lado —
+ * quién tiene que devolver algo, a quién llamar cuando falta una imagen.
  *
- * El filtro «sin imagen» se aplica intersecando con la lista scopeada de gente sin
- * Asignación abierta y no con una segunda consulta filtrada. El anti-join ignora a
+ * Un solo parámetro, `?imagen=con|sin`, y no dos banderas: son excluyentes, y dos
+ * banderas dejan escribir `sinImagen=1&conImagen=1`, que no tiene respuesta. Un
+ * valor que no es ninguno de los dos se descarta y se listan todos, porque eso es
+ * un dedazo y no una escalada.
+ *
+ * El filtro se aplica intersecando con la lista scopeada de gente con —o sin—
+ * Asignación abierta, y no con una segunda consulta filtrada. El join ignora a
  * propósito el territorio de la *imagen* — quien tiene una Peregrina que después se
  * movió de Diócesis no está libre — y eso es una propiedad de
- * `findMisionerosSinPeregrina`, no algo que esta pantalla deba repetir.
+ * `findMisionerosSinPeregrina` y su gemela, no algo que esta pantalla deba repetir.
  *
  * La lectura no va en un try a propósito. Tira en una negativa, `error.tsx` la
  * agarra, y `Vacio` sólo se alcanza cuando la consulta de verdad no trajo nada: «no
  * hay Misioneros» mostrado a quien fue rechazado le diría que su territorio está
  * vacío, y a quien está tanteando le confirmaría que existe.
  */
+
+/**
+ * Las dos respuestas del filtro de tenencia, y nada más.
+ *
+ * Un `?imagen=` con cualquier otra cosa se descarta y se listan todos: un valor
+ * que no existe es un dedazo o un link viejo, y contestarlo con una lista vacía
+ * haría parecer que el territorio se quedó sin gente.
+ */
+type FiltroDeTenencia = "con" | "sin";
+
+const esTenencia = (valor?: string): valor is FiltroDeTenencia =>
+  valor === "con" || valor === "sin";
 
 const CELDA = "px-4 py-3 align-middle";
 
@@ -84,51 +105,61 @@ export const dynamic = "force-dynamic";
 export default async function MisioneroPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sinImagen?: string; pagina?: string }>;
+  searchParams: Promise<{ q?: string; imagen?: string; pagina?: string }>;
 }) {
   const params = await searchParams;
   const q = (params.q ?? "").trim();
-  const sinImagen = params.sinImagen === "1";
+  const tenencia = esTenencia(params.imagen) ? params.imagen : null;
   const paginaPedida = paginaDesdeParams(params);
   const filtros = q ? { q } : {};
 
   /*
-   * Two reads, two ways of paginating, and the difference is the anti-join.
+   * Two reads, two ways of paginating, and the difference is the join.
    *
-   * Without "sólo los que no tienen ninguna" the page comes from the database,
-   * one page of rows and a count over the same predicate. With it, the set is the
-   * intersection of two scoped reads — and the second, `findMisionerosSinPeregrina`,
+   * Without the tenencia filter the page comes from the database, one page of rows
+   * and a count over the same predicate. With it, the set is the intersection of
+   * two scoped reads — and the second, `findMisionerosSinPeregrina` or its twin,
    * deliberately ignores the *image's* territory, so it cannot be expressed as a
    * filter on this query. The intersection therefore has to be computed before it
    * can be cut, which means fetching both in full and slicing here.
    *
    * That is a real limit and it is written down rather than hidden: it is bounded
    * by the Actor's territory, so a Diócesis's worth of people, and the honest fix
-   * is an anti-join inside the filtered query — a change to
-   * `AsignacionRepository`, not something this page should fake.
+   * is the join inside the filtered query — a change to `AsignacionRepository`,
+   * not something this page should fake. It cannot live in `MisioneroRepository`
+   * either: the import chain runs misionero → peregrina → asignación, one way, so
+   * the misionero query has no `asignacion` to join against.
    */
-  const encontrados = sinImagen
+  const encontrados = tenencia
     ? await getMisionerosFiltradosAction(filtros)
     : null;
 
-  const libres = sinImagen ? await getMisionerosSinPeregrinaAction() : null;
+  const porTenencia = tenencia
+    ? tenencia === "sin"
+      ? await getMisionerosSinPeregrinaAction()
+      : await getMisionerosConPeregrinaAction()
+    : null;
 
   const pagina =
-    encontrados && libres
+    encontrados && porTenencia
       ? enMemoria(
-          encontrados.filter((m) => libres.some((l) => l.id === m.id)),
+          encontrados.filter((m) => porTenencia.some((l) => l.id === m.id)),
           paginaPedida,
         )
       : await getMisionerosPaginadosAction(filtros, paginaPedida);
 
   const misioneros = pagina.filas;
-  const filtrado = Boolean(q || sinImagen);
+  const filtrado = Boolean(q || tenencia);
 
   // Una consulta para las filas de esta página, no una por fila: veinte filas
-  // serían veinte viajes por la misma pregunta. Con el filtro «sin imagen» puesto
-  // la respuesta ya se sabe — nadie de esa lista tiene ninguna — pero se pide
-  // igual, porque «ninguna dentro de tu territorio» y «ninguna» no son lo mismo y
-  // la columna tiene que decir cuál de las dos es.
+  // serían veinte viajes por la misma pregunta. Con el filtro de tenencia puesto la
+  // respuesta gruesa ya se sabe, pero se pide igual, porque la celda dice *cuál*
+  // imagen y porque «ninguna dentro de tu territorio» y «ninguna» no son lo mismo.
+  // Las imágenes libres, para el alta de arriba: cargar a una persona y dejar
+  // asentado qué se llevó es lo mismo que hace el flujo de Asignación, y hacerlo
+  // acá evita volver a buscar por apellido a quien se acaba de tipear.
+  const disponibles = await getPeregrinasDisponiblesAction();
+
   const tenencias = misioneros.length
     ? await getTenenciasDeMisionerosAction(misioneros.map((m) => m.id))
     : [];
@@ -137,7 +168,7 @@ export default async function MisioneroPage({
   const hrefDePagina = (n: number) => {
     const query = new URLSearchParams();
     if (q) query.set("q", q);
-    if (sinImagen) query.set("sinImagen", "1");
+    if (tenencia) query.set("imagen", tenencia);
     query.set(CLAVE_DE_PAGINA, String(n));
     return `/misionero?${query.toString()}`;
   };
@@ -200,11 +231,11 @@ export default async function MisioneroPage({
               aparece en la tabla de abajo.
             </p>
 
-            <CrearMisioneroForm enListado />
+            <CrearMisioneroForm enListado disponibles={disponibles} />
           </section>
         </div>
 
-        <FiltrosDeMisionero q={q} sinImagen={sinImagen} />
+        <FiltrosDeMisionero q={q} tenencia={tenencia} />
 
         <div className="overflow-hidden rounded-marco border-2 border-borde-suave bg-papel">
           <div className="border-b-2 border-borde-suave bg-lienzo px-5 py-4 sm:px-6">

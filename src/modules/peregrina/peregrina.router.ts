@@ -82,6 +82,19 @@ export async function getPeregrinasPorEstadoAction(
   return PeregrinaService.listByEstado(actor, estado);
 }
 
+/**
+ * Las imágenes que nadie tiene ahora mismo.
+ *
+ * Es el segundo paso del flujo de Asignación, y también el picker del alta de
+ * Misioneros: cuando alguien carga a una persona que ya se llevó una imagen, la
+ * lista que necesita es la de las libres. Una que está en otra casa no se entrega
+ * desde acá — eso es `entregar`, y hay una pantalla que lo explica.
+ */
+export async function getPeregrinasDisponiblesAction(): Promise<PeregrinaDTO[]> {
+  const actor = await getCurrentUser();
+  return PeregrinaService.listDisponibles(actor);
+}
+
 export async function createPeregrinaAction(
   input: unknown
 ): Promise<ActionResult<PeregrinaDTO>> {

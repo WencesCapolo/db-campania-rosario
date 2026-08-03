@@ -83,6 +83,20 @@ export async function getMisionerosSinPeregrinaAction(): Promise<
 }
 
 /**
+ * Los Misioneros que tienen alguna imagen a cargo — el filtro «sólo los que
+ * tienen alguna» del listado.
+ *
+ * El mismo scope que su gemela: por el territorio de la *persona*. Una Peregrina
+ * que se movió de Diócesis sigue estando en la casa donde está.
+ */
+export async function getMisionerosConPeregrinaAction(): Promise<
+  { id: string; nombre: string; apellido: string }[]
+> {
+  const actor = await getCurrentUser();
+  return AsignacionService.listarMisionerosConPeregrina(actor);
+}
+
+/**
  * Qué imagen tiene cada Misionero de una página — la columna «¿Tiene imagen?».
  *
  * La lista de ids se parsea acá como todo lo demás, y viene topeada por el tamaño

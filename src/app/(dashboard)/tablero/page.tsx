@@ -425,7 +425,7 @@ function SinImagen({ tablero }: { tablero: TableroDTO }) {
           <Recorte
             total={total}
             mostradas={filas.length}
-            href="/misionero?sinImagen=1"
+            href="/misionero?imagen=sin"
           />
         </>
       )}
