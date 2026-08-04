@@ -29,6 +29,18 @@ _Avoid_: Cuenta, Miembro
 The authenticated Usuario on whose behalf an operation runs — their Rol plus the territory that bounds what they may see and change.
 _Avoid_: Session, Current user
 
+**Buzón**:
+The email address a Usuario enters by. It belongs to a Diócesis/Localidad rather than to a person: one access per territory, handed on to whoever takes the work over, and the handover is done by changing the mailbox's own password. Entering means receiving a link in that mailbox, so the Buzón is the credential and not merely a name.
+_Avoid_: Cuenta, Mail personal, Usuario
+
+**Invitación**:
+The record that brings a Usuario into existence: a Buzón, a Rol, a territory, and who issued it. Nobody self-registers and nothing expires — a mistaken one is revocada. The invited Rol is strictly below the inviter's, and the territory is the inviter's own, so the hierarchy is territorial as well as ranked (ADR 0003).
+_Avoid_: Alta, Registro, Solicitud
+
+**Enlace de invitación**:
+The address the inviter copies and sends by whatever they already use to reach the person. It opens the entering screen with the Buzón already written, so nobody types it. It carries no token and grants nothing: entering still means receiving a link in the Buzón (ADR 0011).
+_Avoid_: Enlace de entrar, Enlace mágico, Token
+
 **Rol**:
 One of four, ranked: `admin`, `asesor_nacional`, `responsable_diocesano`, `referente_local`. A Usuario may only create and manage Usuarios of a strictly lower Rol.
 
@@ -93,7 +105,7 @@ The place where a Peregrina is venerated — a santuario, ermita, or parroquia, 
 _Avoid_: Ubicación, Sede
 
 **Asignación**:
-A period during which one Tenedor — a Misionero or a Matrimonio — had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the **territory** each end was registered from, and never with a person: Referentes Locales share one login per territory, so the record can answer *where* and cannot answer *who*.
+A period during which one Tenedor — a Misionero or a Matrimonio — had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the **territory** each end was registered from, and never with a person: a Referente Local's Buzón is one access per territory, handed on from whoever held it to whoever comes next, so the record can answer *where* and cannot answer *who*.
 A mistaken one is **corregida**, never deleted — an edit that stamps `corregidaAt`, so a typo does not become permanent history and the correction does not become invisible history.
 _Avoid_: Ubicación, Préstamo; "registrada por" followed by a person's name
 

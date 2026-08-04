@@ -1,0 +1,37 @@
+# Entrar es un enlace al Buzón, no una contraseña
+
+ADR 0003 hace que una Invitación se acepte por email y nada más: la id de Neon Auth no existe todavía cuando se escribe la invitación, así que la dirección es la única llave. Eso vale exactamente en la medida en que quien entra **demuestre** que ese buzón es suyo — y no lo demostraba. Con `email_and_password` habilitado, `requireEmailVerification: false` y `sendVerificationEmailOnSignUp: false`, cualquiera que conociera o adivinara una dirección invitada podía crearse una cuenta con esa dirección y una contraseña propia, y `getCurrentUser()` le entregaba el Rol y el territorio de la invitación. El privilegio no vivía en la invitación: vivía en saber una dirección.
+
+Así que se entra por un enlace al Buzón. Se habilita el plugin `magic_link`, se apaga `email_and_password` upstream — no sólo en la pantalla — y el enlace recibido *es* la prueba de pertenencia que ADR 0003 daba por supuesta. Google queda habilitado: el Buzón de una Localidad suele ser un Gmail parroquial, y ahí un toque es mejor que una vuelta por el correo.
+
+## Consecuencias
+
+Desaparecen la contraseña y todo lo que cuelga de ella: crear cuenta, olvidé mi contraseña, elegir una nueva. Son tres pantallas menos que mantener y, sobre todo, tres menos que explicarle por teléfono a alguien que entra cada registro a mano. `credentials={false}` en el proveedor alcanza para las dos cosas: el paquete manda la vista `sign-in` a la de `magic-link`, y el pie de «Crear cuenta» lo dibuja `credentials && signUp`, así que se va solo.
+
+Apagar `email_and_password` termina el acceso por contraseña de la única identidad que existía. La cubren Google y el enlace, sobre el mismo Gmail.
+
+`magic_link.disable_sign_up` queda en `false`, y tiene que quedar: una persona recién invitada no tiene identidad todavía, y con el alta cerrada no podría entrar nunca. El costo es que cualquiera que escriba una dirección cualquiera crea una identidad suelta en `neon_auth`. Es inofensivo por ADR 0002: una identidad sin fila en `users` no es un Usuario, no tiene Rol y no lee ni una Peregrina — termina en `/sin-autorizacion`. No se barren: un barrido borraría a quien fue invitado y todavía no se enteró.
+
+El enlace vive una hora, contra los cinco minutos que trae Neon. El correo llega a un teléfono que está en un cajón y quien lo abre no siempre es quien escribió la dirección; cinco minutos convertirían en llamado de soporte algo que pasa más o menos una vez por semana, porque la sesión dura siete días y se renueva sola con el uso. Lo que hace tolerable la hora es que el enlace es de un solo uso: es una hora en la que **una** persona entra **una** vez, no una hora de acceso abierto.
+
+La app no manda ningún correo, y sigue sin mandar ninguno. Quien invita avisa por teléfono o por WhatsApp, la persona pide su propio enlace, y así la jerarquía no depende de que se entregue un mail — que es la dependencia que ADR 0003 rechazó para los webhooks.
+
+Lo que sí da la app es un **enlace de invitación** para copiar: `invitar` devuelve una dirección que lleva a la pantalla de entrar con el Buzón ya escrito, y quien invita la manda por donde ya se habla con esa persona. Así nadie tipea la dirección, que era el precio de no mandar correos — `normalizarEmail` sólo recorta y baja a minúsculas, así que un punto de más en un Gmail habría terminado en `/sin-autorizacion` sin explicación.
+
+Ese enlace **no** es el enlace de entrar, y la diferencia es la que sostiene todo lo demás: no lleva ningún token, sólo el Buzón a la vista, y por eso se puede mandar por WhatsApp sin cuidado. No da acceso — apretar el botón manda el enlace de verdad al Buzón, y ahí sigue haciendo falta abrir el correo. El token de entrar no se puede copiar de ninguna parte, y eso es una propiedad de Neon Auth administrado y no una decisión nuestra: ninguna ruta de su API lo devuelve, así que sólo existe dentro del mail que Neon manda.
+
+`MagicLinkForm` del paquete no se puede precargar — tiene `defaultValues: { email: "" }` adentro y sólo lee `redirectTo` de la dirección — así que el formulario de esa pantalla es nuestro y llama a `authClient.signIn.magicLink`. Es la única pieza de credenciales que escribimos a mano, y es un campo y un botón.
+
+`/sin-autorizacion` tiene que decir igual con **qué** dirección entraste: es donde se nota que alguien llegó con la cuenta de Google equivocada, que es el único camino que queda para llegar sin ser quien se esperaba.
+
+La sesión dura siete días y se corre sola con el uso — se probó que se corre: una sesión viva se estiró a ocho días mientras se la usaba. Así que quien abre la app cada semana no vuelve a ver la pantalla de entrar nunca, y quien la abre una vez por mes pide un enlace por mes, solo, porque la contraseña del Buzón ya es suya. Se quisieron seis meses y **no se puede**: el número es de Better Auth y Neon no lo expone. No hay campo de sesión en `project_config`, no hay ruta en la API, y `PATCH .../auth/config` — que por nombre parece el lugar — acepta un solo campo, `name`, que es cómo se llama el proyecto de auth; cualquier otra cosa la descarta en silencio. Llegar a seis meses pediría emitir nosotros una cookie firmada de seis meses arriba de la de Neon, o dejar de usar Neon Auth administrado. Se eligió el default, y conviene que se sepa que fue una elección y no un olvido: siete días es también lo que dura la confianza en el teléfono de quien traspasó el Buzón, y seis meses habría que discutirlo de nuevo junto con el traspaso.
+
+El traspaso del Buzón queda afuera del sistema: se cambia la contraseña del correo. La app no interviene, y la sesión del teléfono anterior sigue sirviendo hasta siete días. En una Campaña donde el traspaso ocurre porque alguien dejó la tarea, eso es una semana de confianza y no una amenaza. Cortar de verdad y en el acto ya existe y es otra cosa: la baja del Usuario, que `motivoDeRefusa` rechaza en el pedido siguiente sin importar qué cookie haya.
+
+## Opciones consideradas
+
+Verificar el correo y conservar la contraseña cerraba el agujero con un cambio más chico, y se rechazó porque deja en pie la contraseña: en un acceso que se traspasa, la contraseña circula por WhatsApp igual, y la que se olvida es un llamado.
+
+Un código de seis dígitos en lugar del enlace se rechazó por una razón sola, y es la de siempre acá: es una cosa más para tipear, y esta gente entra cada registro a mano. Se rechazó **sabiendo** que era el camino más barato y más robusto de los dos, así que conviene dejar anotado qué se resignó. `sign-in/email-otp` ya está montado upstream y `sign-in/magic-link` da 404: el código no habría necesitado habilitar ningún plugin. Y el código no se pierde en un webview — un enlace abierto desde la aplicación de Gmail deja la sesión en el navegador interno de Gmail, así que alguien que después vuelve a Chrome se encuentra afuera, sin ninguna forma de entender por qué. Si eso aparece en la práctica, la salida ya está descripta acá y no hay que volver a discutirla.
+
+Crear la identidad al invitar — con la API de administración de Neon, que devolvería la id y volvería innecesario el emparejamiento por email — se rechazó por dos: mete en el entorno de la app una `NEON_API_KEY` con poder de crear y borrar identidades, y hace que aprovisionar dependa de una llamada HTTP justo en el momento en que ADR 0003 decidió no depender de una. Además, una dirección mal escrita fallaría en silencio para siempre, en vez de aterrizar en `/sin-autorizacion`.

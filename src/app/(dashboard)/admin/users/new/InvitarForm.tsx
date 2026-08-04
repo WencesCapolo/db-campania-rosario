@@ -101,9 +101,23 @@ export default function InvitarForm({
         </Mensaje>
       )}
 
+      {/* Historia 48. El Buzón es la dirección de un territorio y no la de una
+          persona: es lo que se traspasa cambiándole la contraseña al correo el día
+          que quien la sostiene deja la tarea. Invitar el Gmail personal de alguien
+          ata el acceso a esa persona, y eso se descubre cuando ya se fue. El aviso
+          va antes del campo porque después del campo llega tarde. */}
+      <Mensaje tono="neutro">
+        <p>
+          Escribí el <strong>Buzón</strong> del territorio: la dirección de
+          correo de la Diócesis o de la Localidad, no el correo personal de la
+          persona. El acceso queda atado al Buzón, y se traspasa cambiándole la
+          contraseña a ese correo.
+        </p>
+      </Mensaje>
+
       <Campo
-        etiqueta="Email de la persona"
-        ayuda="Va a poder entrar con este email. Nadie se registra por su cuenta."
+        etiqueta="Correo del Buzón"
+        ayuda="Ahí va a llegarle el enlace para entrar. No hay contraseñas: nadie se registra por su cuenta."
         type="email"
         autoComplete="email"
         required

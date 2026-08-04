@@ -7,7 +7,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 ## 2. Read these first
 
 - **`CONTEXT.md`** (repo root) — the domain glossary. It is authoritative for vocabulary. Use these exact terms in code, UI copy, and commit messages. Do not invent synonyms.
-- **`docs/adr/`** — ten decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, 0009 before touching a colour, a typeface or a border, and 0010 before touching who a Peregrina is in the charge *of*.
+- **`docs/adr/`** — eleven decisions that are hard to reverse. Read 0001, 0003 and 0011 before changing authorization, user provisioning or how somebody enters, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, 0009 before touching a colour, a typeface or a border, and 0010 before touching who a Peregrina is in the charge *of*. There are no passwords: entering is a link sent to a Buzón, which is a territory's address and not a person's (ADR 0011).
 - **`docs/PRODUCTION-PLAN.md`** — current state, phases, and open questions.
 
 ## 3. Tech stack
@@ -15,7 +15,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 - **Framework:** Next.js 16 (App Router), TypeScript strict. `next lint` no longer exists; the entry point is the ESLint CLI, and `eslint-config-next` ships flat config directly
 - **Database:** Neon Postgres
 - **ORM:** Drizzle
-- **Auth:** Neon Auth (Managed Better Auth), identity in the `neon_auth` schema
+- **Auth:** Neon Auth (Managed Better Auth), identity in the `neon_auth` schema. **There are no passwords**: `email_and_password` is off upstream and `credentials` is off in the provider, so entering is a magic link to the Buzón (one hour, single use) or Google. Four settings live only in Neon Auth's API and not in this repo — the `magic_link` plugin on with `expires_in: 60` **minutes**, `disable_sign_up` false, `email_and_password` off, `organization` off — so a change to how somebody enters is verified by hand against the running app, never by the suite (ADR 0011)
 - **Styling:** Tailwind CSS v4, with own primitives — no component library
 - **Client data:** server components and server actions. TanStack Query is the chosen answer *when* a screen needs client-side fetching, and is deliberately **not installed yet** — nothing does. The one client-side read in the app, the territory picker, is an effect with three explicit states
 - **Validation:** Zod

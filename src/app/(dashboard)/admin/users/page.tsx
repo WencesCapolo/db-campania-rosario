@@ -13,6 +13,7 @@ import Mensaje from "@/components/Mensaje";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import RevocarInvitacion from "./RevocarInvitacion";
+import CopiarEnlaceDeInvitacion from "./CopiarEnlaceDeInvitacion";
 import EditarUsuario from "./EditarUsuario";
 import BajaDeUsuario from "./BajaDeUsuario";
 
@@ -164,7 +165,10 @@ export default async function UsuariosPage() {
         )}
       </Tarjeta>
 
-      {/* ── Invitaciones pendientes — historia 13 ── */}
+      {/* ── Invitaciones pendientes — historias 13, 25 y 47 ──
+          Cada una lleva su Enlace de invitación, porque saber quién no entró
+          todavía y volver a avisarle son la misma tarea partida en dos pantallas
+          si el enlace no está acá. */}
       <Tarjeta titulo="Invitados que todavía no entraron">
         {pendientes.length === 0 ? (
           <p className="text-base leading-relaxed text-tinta-suave">
@@ -184,6 +188,8 @@ export default async function UsuariosPage() {
                     ? ` — ${i.diocesisLocalidad.nombre}`
                     : " — todo el país"}
                 </p>
+
+                <CopiarEnlaceDeInvitacion buzon={i.email} />
 
                 <RevocarInvitacion id={i.id} email={i.email} />
               </li>
