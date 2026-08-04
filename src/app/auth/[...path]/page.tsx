@@ -110,13 +110,21 @@ const CLASES = {
   },
 };
 
-export default function StackHandlerPage({
+/*
+ * La ruta es `/auth/[...path]` y no otra, y eso no es una preferencia: el
+ * `basePath` de `NeonAuthUIProvider` es `/auth` por defecto, y de ahí salen
+ * todos los enlaces que dibuja el paquete — «Crear cuenta», «¿Olvidaste la
+ * contraseña?» — más el `callbackURL` del correo de recuperación. Montada en
+ * cualquier otro segmento, la pantalla de entrar anda y cada enlace que sale de
+ * ella da 404.
+ */
+export default function PantallaDeCredenciales({
   params,
 }: {
-  params: Promise<{ stack: string[] }>;
+  params: Promise<{ path: string[] }>;
 }) {
-  const { stack } = React.use(params);
-  const path = stack?.[0] || "sign-in";
+  const { path: segmentos } = React.use(params);
+  const path = segmentos?.[0] || "sign-in";
   const portada = PORTADAS[path] ?? PORTADAS["sign-in"];
 
   return (

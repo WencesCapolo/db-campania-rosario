@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth/server";
  * that says it is about the network boundary. The runtime is Node, and is not
  * configurable; nothing here needs the edge.
  */
-export const proxy = auth.middleware({ loginUrl: "/handler/sign-in" });
+export const proxy = auth.middleware({ loginUrl: "/auth/sign-in" });
 
 export const config = {
     matcher: [
@@ -14,11 +14,14 @@ export const config = {
          * paths, but the actual auth redirect is handled server-side by
          * getCurrentUser().
          *
-         * Excludes: /, /handler/**, /api/auth/**, /_next/**, and static files.
+         * Excludes: /, /auth/**, /api/auth/**, /_next/**, and static files.
          */
         "/dashboard/:path*",
+        "/tablero/:path*",
         "/peregrina/:path*",
         "/misionero/:path*",
+        "/matrimonio/:path*",
+        "/asignacion/:path*",
         "/admin/:path*",
     ],
 };

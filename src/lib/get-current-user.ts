@@ -43,7 +43,7 @@ export async function getCurrentUser(opts?: {
 
   if (!authUser) {
     if (opts?.optional) return null;
-    redirect("/handler/sign-in");
+    redirect("/auth/sign-in");
   }
 
   const identidad = {

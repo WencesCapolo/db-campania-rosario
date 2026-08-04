@@ -55,7 +55,7 @@ export default async function SinAutorizacionPage({
 
       <p>
         <Link
-          href="/handler/sign-out"
+          href="/auth/sign-out"
           className="inline-flex min-h-12 items-center text-base font-semibold text-accion underline"
         >
           Cerrar sesión
