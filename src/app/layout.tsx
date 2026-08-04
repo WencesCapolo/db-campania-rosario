@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { NeonAuthUIProvider } from "@neondatabase/auth/react/ui";
 import { authClient } from "@/lib/auth/client";
+import { LOCALIZACION_AUTH } from "@/lib/auth/localizacion";
 import "@neondatabase/auth/ui/css";
 import "./globals.css";
 import { openSans } from "./fuentes";
@@ -44,6 +45,21 @@ export default function RootLayout({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           authClient={authClient as any}
           redirectTo="/dashboard"
+          /*
+           * Claro, y declarado en lugar de heredado.
+           *
+           * El default del proveedor es `system`, que con el teléfono en oscuro
+           * le pone `dark` al <html> y pinta las pantallas de Neon Auth con su
+           * paleta oscura — arriba de una aplicación que es clara en todas las
+           * demás. Es la misma media verdad que el bloque borrado de
+           * `prefers-color-scheme` en globals.css: el día que haya modo oscuro
+           * de verdad, esto vuelve a `system` junto con la otra mitad de la
+           * tabla de contraste.
+           */
+          defaultTheme="light"
+          /* El castellano de las pantallas de credenciales. Va en el proveedor
+             y no en cada pantalla para que también alcance a las de cuenta. */
+          localization={LOCALIZACION_AUTH}
         >
           {children}
         </NeonAuthUIProvider>

@@ -182,6 +182,56 @@ html {
 }
 
 /*
+ * ─── El puente con Neon Auth ─────────────────────────────────────────────────
+ *
+ * Las pantallas de entrar, crear cuenta y recuperar la contraseña las dibuja
+ * @neondatabase/auth con su propio build de Tailwind, que no lee nuestros
+ * tokens: lee los nombres de shadcn (`--primary`, `--border`, `--radius`) con un
+ * fallback propio — `--neon-primary: var(--primary, oklch(.205 0 0))`. Así que
+ * el tema de la Campaña llega ahí definiendo *esos* nombres, una sola vez, con
+ * los mismos valores de arriba. Es un puente y no una segunda paleta: si un
+ * token cambia, estas pantallas cambian con él.
+ *
+ * Van en `:root` y no en `@theme` porque no tienen que volverse utilidades —
+ * nadie debería poder escribir `bg-primary` en una pantalla nuestra. Y van sin
+ * capa, igual que el resto del archivo, porque el CSS del paquete tampoco tiene
+ * capa: lo que decide es el orden, y globals.css se importa después.
+ *
+ * Los pares mantienen los mismos contrastes que verifica contraste.test.ts, que
+ * es la razón por la que ningún valor de acá es nuevo. `--input` es el borde de
+ * un control, así que lleva borde-fuerte y no borde-suave: un campo tiene que
+ * verse campo antes de que nadie lo toque.
+ *
+ * `--neon-radius` es la excepción que se pisa directo: el build ya resolvió su
+ * fallback a .625rem y no deja un `--radius` que mirar.
+ */
+:root {
+  --background: var(--color-papel);
+  --foreground: var(--color-tinta);
+  --card: var(--color-papel);
+  --card-foreground: var(--color-tinta);
+  --popover: var(--color-papel);
+  --popover-foreground: var(--color-tinta);
+
+  --primary: var(--color-azul);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-lienzo);
+  --secondary-foreground: var(--color-azul);
+  --accent: var(--color-lienzo);
+  --accent-foreground: var(--color-azul-noche);
+  --muted: var(--color-lienzo);
+  --muted-foreground: var(--color-tinta-suave);
+  --destructive: var(--color-peligro);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--color-borde-suave);
+  --input: var(--color-borde-fuerte);
+  --ring: var(--color-foco);
+
+  --neon-radius: var(--radius-marco);
+}
+
+/*
  * The focus ring's geometry lives outside @theme on purpose. Everything inside
  * that block becomes a utility class — `--color-accion` gives `bg-accion`,
  * `text-accion`, `border-accion`, which is exactly what we want — but a
