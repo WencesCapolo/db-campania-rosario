@@ -1,7 +1,10 @@
 import {
   MisioneroRepository,
+  type FilaDeRoster,
   type MisioneroConTerritorio,
 } from "./misionero.repository";
+import { mapearMatrimonio, mapearMisionero } from "./misionero.mapper";
+import type { TenedorDTO } from "./matrimonio.types";
 import type {
   MisioneroDTO,
   CreateMisioneroInput,
@@ -10,7 +13,6 @@ import type {
 } from "./misionero.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
-import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
 import {
   dentroDelAlcance,
@@ -51,39 +53,21 @@ import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository
 export class MisioneroService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  /**
+   * The row-to-DTO mapping moved to `misionero.mapper.ts` when the Matrimonio
+   * arrived: `MatrimonioService` renders two spouses, so the same mapping is now
+   * needed by two services in this module. Kept as a name here because every
+   * read below reads better with it.
+   */
   private static toDTO(row: MisioneroConTerritorio): MisioneroDTO {
-    let resumenesAnuales: Record<string, string> = {};
-    try {
-      resumenesAnuales = JSON.parse(
-        row.misionero.resumenesAnuales ?? "{}"
-      ) as Record<string, string>;
-    } catch {
-      resumenesAnuales = {};
-    }
+    return mapearMisionero(row);
+  }
 
-    const diocesisLocalidad = mapearDiocesisLocalidad({
-      diocesis: row.diocesis,
-      provincia: row.provincia,
-    });
-
-    return {
-      id: row.misionero.id,
-      nombre: row.misionero.nombre,
-      apellido: row.misionero.apellido,
-      telefono: row.misionero.telefono ?? null,
-      estado: row.misionero.estado,
-      diocesisLocalidad,
-      provincia: diocesisLocalidad.provincia.nombre,
-      region: diocesisLocalidad.region,
-      deBaja: row.misionero.bajaAt !== null,
-      centroTipo: row.misionero.centroTipo ?? null,
-      centroNombre: row.misionero.centroNombre ?? null,
-      anioConsagracion: row.misionero.anioConsagracion ?? null,
-      resumenesAnuales,
-      createdById: row.misionero.createdById,
-      createdAt: row.misionero.createdAt,
-      updatedAt: row.misionero.updatedAt,
-    };
+  /** One roster row — a person, or the household that replaces two of them. */
+  private static toTenedorDTO(fila: FilaDeRoster): TenedorDTO {
+    return fila.tipo === "persona"
+      ? { tipo: "persona", persona: mapearMisionero(fila.persona) }
+      : { tipo: "matrimonio", matrimonio: mapearMatrimonio(fila.matrimonio) };
   }
 
   /** The row this Actor may act on, or a logged refusal. */
@@ -142,40 +126,44 @@ export class MisioneroService {
   }
 
   /**
-   * The listado, filtered — territory plus a name search (stories 5 and 6 of the
-   * tablero, and the search issue #4 left owed).
+   * The collapsed roster, filtered — territory plus a name search (stories 5 and
+   * 6 of the tablero, and the search issue #4 left owed).
    *
-   * `search` above stays: it is the picker's read, takes a bare string, and is
-   * called from the assignment flow. This one takes the shared filters, so the
-   * Misionero list and the tablero ask the same question.
+   * It answers in `TenedorDTO`, not `MisioneroDTO`, and that is the whole point
+   * of ADR 0010: `/misionero` lists **individuals who are nobody's spouse, plus
+   * households**. A Misionero in an active Matrimonio is not here, because they
+   * are not a holder on their own — the couple is, as one row. A search hits
+   * either spouse, so "Benítez" finds "Ana Álvarez y Juan Benítez".
+   *
+   * `search` above stays and still answers in people: it is a bare-string read
+   * called from the assignment flow, and it has not been collapsed yet.
    */
   static async listFiltrados(
     actor: CurrentUser,
     filtros: FiltrosTerritoriales & { q?: string }
-  ): Promise<MisioneroDTO[]> {
+  ): Promise<TenedorDTO[]> {
     const operacion = "MisioneroService.listFiltrados";
     const alcance = derivarAlcance(actor, operacion);
     exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
 
     const rows = await MisioneroRepository.findFiltrados(alcance, filtros);
-    return rows.map(MisioneroService.toDTO);
+    return rows.map(MisioneroService.toTenedorDTO);
   }
 
   /**
-   * The listado, filtered and cut into pages — story 23 of the interface issue.
+   * The same roster, cut into pages — story 23 of the interface issue.
    *
    * Counted by an aggregate over the same predicate the rows come from, never by
-   * fetching them and taking the length. The page is clamped against that total
-   * here, because this is the only layer that knows how many pages there are.
-   *
-   * `listFiltrados` above stays: it answers "every Misionero matching", which is
-   * what the assignment flow's picker needs.
+   * fetching them and taking the length — and over the *union*, so a couple
+   * counts once and the total matches the rows somebody can actually page
+   * through. The page is clamped against that total here, because this is the
+   * only layer that knows how many pages there are.
    */
   static async listPagina(
     actor: CurrentUser,
     filtros: FiltrosTerritoriales & { q?: string },
     pagina = 1
-  ): Promise<Pagina<MisioneroDTO>> {
+  ): Promise<Pagina<TenedorDTO>> {
     const operacion = "MisioneroService.listPagina";
     const alcance = derivarAlcance(actor, operacion);
     exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
@@ -190,7 +178,7 @@ export class MisioneroService {
       rango(actual)
     );
 
-    return armarPagina(rows.map(MisioneroService.toDTO), total, actual);
+    return armarPagina(rows.map(MisioneroService.toTenedorDTO), total, actual);
   }
 
   // `dashboardStats` is gone: the counts are `TableroService.resumen` now, so

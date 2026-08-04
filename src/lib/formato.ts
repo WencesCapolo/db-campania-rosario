@@ -49,6 +49,48 @@ export function nombreCompleto(p: { nombre: string; apellido: string }): string 
   return `${p.nombre} ${p.apellido}`;
 }
 
+/** Apellido first, because a list is scanned by surname and not read as prose. */
+export function nombreEnLista(p: Persona): string {
+  return `${p.apellido}, ${p.nombre}`;
+}
+
+type Persona = { nombre: string; apellido: string };
+
+/**
+ * A Tenedor's name — one Misionero, or a Matrimonio as a single answer.
+ *
+ * ADR 0010: a couple is one Tenedor, so every screen that asks "who has this
+ * image" gets one name back and never two rows. These two functions are the only
+ * place that decides how that name reads, which is the same reason
+ * `nombreCompleto` is here rather than in a page.
+ *
+ * The couple's surname collapses when both spouses share it — `Pérez, Ana y
+ * Juan` rather than `Pérez, Ana y Pérez, Juan`. It is a string comparison with
+ * nothing downstream of it: the sort key is spouse A's surname either way, so a
+ * mismatch here is cosmetic and can never move a row in the listado. It exists
+ * because the uncollapsed version reads like the system entered the household
+ * twice, which is the confusion a Matrimonio is for removing.
+ */
+export type TenedorConNombre =
+  | { tipo: "persona"; persona: Persona }
+  | { tipo: "matrimonio"; matrimonio: { misioneroA: Persona; misioneroB: Persona } };
+
+export function nombreDeTenedor(t: TenedorConNombre): string {
+  if (t.tipo === "persona") return nombreCompleto(t.persona);
+  const { misioneroA: a, misioneroB: b } = t.matrimonio;
+  return a.apellido === b.apellido
+    ? `${a.nombre} y ${b.nombre} ${a.apellido}`
+    : `${nombreCompleto(a)} y ${nombreCompleto(b)}`;
+}
+
+export function nombreDeTenedorEnLista(t: TenedorConNombre): string {
+  if (t.tipo === "persona") return nombreEnLista(t.persona);
+  const { misioneroA: a, misioneroB: b } = t.matrimonio;
+  return a.apellido === b.apellido
+    ? `${a.apellido}, ${a.nombre} y ${b.nombre}`
+    : `${nombreEnLista(a)} y ${nombreEnLista(b)}`;
+}
+
 /**
  * A territory, never a person.
  *

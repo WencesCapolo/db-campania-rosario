@@ -7,7 +7,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 ## 2. Read these first
 
 - **`CONTEXT.md`** (repo root) — the domain glossary. It is authoritative for vocabulary. Use these exact terms in code, UI copy, and commit messages. Do not invent synonyms.
-- **`docs/adr/`** — nine decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, and 0009 before touching a colour, a typeface or a border.
+- **`docs/adr/`** — ten decisions that are hard to reverse. Read 0001 and 0003 before changing authorization or user provisioning, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, 0009 before touching a colour, a typeface or a border, and 0010 before touching who a Peregrina is in the charge *of*.
 - **`docs/PRODUCTION-PLAN.md`** — current state, phases, and open questions.
 
 ## 3. Tech stack

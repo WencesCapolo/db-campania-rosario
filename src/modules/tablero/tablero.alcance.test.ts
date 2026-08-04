@@ -92,7 +92,7 @@ describe.each([
     const tablero = await TableroService.resumen(obtenerActor());
 
     expect(tablero.nuncaAsignadas?.total).toBe(1);
-    expect(tablero.misionerosSinPeregrina.total).toBe(1);
+    expect(tablero.tenedoresSinPeregrina.total).toBe(1);
   });
 
   it("pedir otra Diócesis por la URL se rechaza, no se ignora", async () => {
@@ -133,13 +133,13 @@ describe.each([
 
   it("las listas cruzadas también se rechazan con un territorio ajeno", async () => {
     await expect(
-      AsignacionService.listarMisionerosSinPeregrina(obtenerActor(), {
+      AsignacionService.listarTenedoresSinPeregrina(obtenerActor(), {
         diocesisLocalidadId: territorio.rioCuarto.id,
       })
     ).rejects.toThrow(NoAutorizadoError);
 
     await expect(
-      AsignacionService.listarMisionerosConPeregrina(obtenerActor(), {
+      AsignacionService.listarTenedoresConPeregrina(obtenerActor(), {
         diocesisLocalidadId: territorio.rioCuarto.id,
       })
     ).rejects.toThrow(NoAutorizadoError);

@@ -24,6 +24,7 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 | Código | System-generated `[Provincia Modalidad Número]`, sequential per provincia + modalidad. Never hand-typed |
 | Estado | Activa / En reparación / Extraviada. Legacy `inactiva` retained, not offered for new entry |
 | History | Asignación as a period; one open row per Peregrina, enforced in the service and by a partial unique index — ADR 0004 |
+| Tenedor | A Peregrina is in the charge of one Misionero **or** one Matrimonio. Polymorphic pointer with a check constraint, not a supertype table; a married person never holds alone; the listado and the figures are a union — ADR 0010 |
 | Deletion | Soft delete only. Blocked while an Asignación is open |
 | Asignación scope | Through the Peregrina's territory, so a Peregrina that moves takes its history with it — ADR 0004 |
 | Driver | `neon-serverless` in production, not `neon-http`: the latter throws on `db.transaction` |

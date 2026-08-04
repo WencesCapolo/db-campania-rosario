@@ -9,6 +9,23 @@ import {
 import { FILAS_POR_PAGINA } from "@/lib/paginacion";
 import { NoAutorizadoError } from "@/lib/errors";
 import type { CurrentUser } from "@/modules/user/user.types";
+import type { TenedorDTO } from "./matrimonio.types";
+
+/**
+ * The listado answers in Tenedores now — a person, or the household that
+ * replaces two of them (ADR 0010). Everything this file asserts is about the
+ * *ordering* and the *count*, which are properties of the union rather than of
+ * either kind, so the two accessors below are all the change it needed.
+ */
+function idDe(fila: TenedorDTO): string {
+  return fila.tipo === "persona" ? fila.persona.id : fila.matrimonio.id;
+}
+
+function apellidoDe(fila: TenedorDTO): string {
+  return fila.tipo === "persona"
+    ? fila.persona.apellido
+    : fila.matrimonio.misioneroA.apellido;
+}
 
 /**
  * La paginación del listado de Misioneros — story 23.
@@ -44,11 +61,11 @@ async function idsDeTodasLasPaginas(
   filtros = {}
 ): Promise<string[]> {
   const primera = await MisioneroService.listPagina(actor, filtros, 1);
-  const ids = primera.filas.map((m) => m.id);
+  const ids = primera.filas.map(idDe);
 
   for (let n = 2; n <= primera.paginas; n += 1) {
     const pagina = await MisioneroService.listPagina(actor, filtros, n);
-    ids.push(...pagina.filas.map((m) => m.id));
+    ids.push(...pagina.filas.map(idDe));
   }
 
   return ids;
@@ -101,7 +118,9 @@ describe("el total es del conjunto, no de la página", () => {
     expect(pagina.total).toBe(1);
     expect(pagina.paginas).toBe(1);
     expect(pagina.filas).toHaveLength(1);
-    expect(pagina.filas[0]?.apellido).toBe("Quiroga");
+
+    const fila = pagina.filas[0];
+    expect(fila && apellidoDe(fila)).toBe("Quiroga");
   });
 
   it("una página que no existe se recorta a la última", async () => {

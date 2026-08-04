@@ -13,7 +13,7 @@ import FlujoDeAsignacion from "./FlujoDeAsignacion";
 export const dynamic = "force-dynamic";
 
 export default async function NuevaAsignacionPage() {
-  const { misioneros, peregrinas } = await getOpcionesParaAsignarAction();
+  const { tenedores, peregrinas } = await getOpcionesParaAsignarAction();
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
@@ -21,12 +21,12 @@ export default async function NuevaAsignacionPage() {
         <Volver href="/peregrina">Volver a Peregrinas</Volver>
         <h1 className="text-3xl font-bold text-tinta">Entregar una imagen</h1>
         <p className="text-base leading-relaxed text-tinta-suave">
-          Registrá que una Peregrina pasó a un Misionero. Si ya la tiene otra
-          persona, se cierra su período y queda en el historial.
+          Registrá que una Peregrina pasó a un Misionero o a un Matrimonio. Si
+          ya la tiene otro, se cierra su período y queda en el historial.
         </p>
       </div>
 
-      <FlujoDeAsignacion misioneros={misioneros} peregrinas={peregrinas} />
+      <FlujoDeAsignacion tenedores={tenedores} peregrinas={peregrinas} />
     </main>
   );
 }

@@ -10,7 +10,8 @@ import Insignia from "@/components/Insignia";
 import Mensaje from "@/components/Mensaje";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
-import { dias, fecha, nombreCompleto } from "@/lib/formato";
+import { dias, fecha, nombreDeTenedor } from "@/lib/formato";
+import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
 import BajaDePeregrina from "./BajaDePeregrina";
 
 /**
@@ -66,10 +67,17 @@ export default async function PeregrinaPage({
         {abierta ? (
           <div className="space-y-4">
             <p className="text-base leading-relaxed">
-              La tiene <strong>{nombreCompleto(abierta.misionero)}</strong>
-              {abierta.misionero.deBaja ? " (dado de baja)" : ""}, desde el{" "}
+              La tiene <strong>{nombreDeTenedor(abierta.tenedor)}</strong>
+              {abierta.tenedor.deBaja ? " (dado de baja)" : ""}, desde el{" "}
               {fecha(abierta.abiertaAt)} — {dias(abierta.diasEnCargo)}.
             </p>
+
+            {/* Una pareja es **un** Tenedor y se nombra una sola vez. La «y»
+                sola se pasa por alto en un teléfono, así que la clase va
+                también como palabra. */}
+            {abierta.tenedor.tipo === "matrimonio" && (
+              <Insignia tono="neutro">Matrimonio</Insignia>
+            )}
 
             {peregrina.estado === "extraviada" && (
               // The open Asignación stays open on purpose when an image is
@@ -78,18 +86,17 @@ export default async function PeregrinaPage({
               // screen exists to answer — user story 6.
               <Mensaje tono="alerta">
                 <p>
-                  La imagen está registrada como extraviada. Éste es el último
-                  Misionero que la tuvo, y es por donde conviene empezar a
-                  buscarla.
+                  La imagen está registrada como extraviada. Éstas son las
+                  últimas manos en las que estuvo, y es por donde conviene
+                  empezar a buscarla.
                 </p>
               </Mensaje>
             )}
 
-            <BotonEnlace
-              tono="secundario"
-              href={`/misionero/${abierta.misionero.id}`}
-            >
-              Ver a {nombreCompleto(abierta.misionero)}
+            {/* Cada clase de Tenedor tiene su propia página: la de la persona,
+                o la de la pareja. */}
+            <BotonEnlace tono="secundario" href={hrefDeTenedor(abierta.tenedor)}>
+              Ver a {nombreDeTenedor(abierta.tenedor)}
             </BotonEnlace>
           </div>
         ) : (
@@ -132,7 +139,7 @@ export default async function PeregrinaPage({
               .slice(0, 3)
               .map((a) => (
                 <li key={a.id} className="text-base leading-relaxed">
-                  <strong>{nombreCompleto(a.misionero)}</strong> —{" "}
+                  <strong>{nombreDeTenedor(a.tenedor)}</strong> —{" "}
                   {fecha(a.abiertaAt)} a{" "}
                   {a.cerradaAt ? fecha(a.cerradaAt) : "hoy"} (
                   {dias(a.diasEnCargo)})

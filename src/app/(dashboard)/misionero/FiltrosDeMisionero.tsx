@@ -29,6 +29,11 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * card can link straight here with the filter already applied, and so coming back
  * from a person's page does not throw the search away.
  *
+ * El buscador encuentra a un matrimonio por el apellido de cualquiera de los dos
+ * — «Benítez» trae a «Álvarez, Ana y Benítez, Juan» (ADR 0010). Eso va en la
+ * ayuda del campo y no en la etiqueta: la etiqueta se lee cada vez que alguien
+ * pasa por acá y ya nombra tres cosas, y una cuarta la vuelve un párrafo.
+ *
  * Los dos controles quedan a la vista, y ahí se aparta del listado de Peregrinas,
  * que pliega los suyos. Ahí son seis selects que empujan las filas afuera de un
  * teléfono; acá es uno, y un botón «Mostrar filtros» que esconde un solo select
@@ -76,6 +81,7 @@ export default function FiltrosDeMisionero({
     >
       <Campo
         etiqueta="Buscar por nombre, apellido o territorio"
+        ayuda="En un matrimonio alcanza con el apellido de cualquiera de los dos."
         type="search"
         inputMode="search"
         placeholder="Gómez"

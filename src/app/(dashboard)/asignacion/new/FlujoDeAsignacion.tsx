@@ -10,9 +10,15 @@ import Boton, { BotonEnlace } from "@/components/Boton";
 import Eleccion from "@/components/Eleccion";
 import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
+import Insignia from "@/components/Insignia";
 import { Vacio } from "@/components/EstadosAsincronicos";
-import { nombreCompleto } from "@/lib/formato";
-import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
+import { nombreDeTenedor } from "@/lib/formato";
+import {
+  opcionDeTenedorConTerritorio,
+  tenedorDeDTO,
+} from "@/lib/tenedor-en-pantalla";
+import { valorDeTenedor } from "@/modules/misionero/matrimonio.types";
+import type { TenedorDTO } from "@/modules/misionero/matrimonio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 
 /**
@@ -39,6 +45,13 @@ import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
  * not exist; it links, and the route exists. And step 2 says who has each image in
  * the option itself — finding that out at the confirmation is finding out after
  * the point where choosing a different image was still easy.
+ *
+ * El paso 1 elige un **Tenedor**, no una persona: una imagen la puede tener un
+ * Misionero o un Matrimonio, y la lista es una sola con las dos clases adentro
+ * (ADR 0010). Un Misionero casado no aparece — la pareja lo reemplaza — así que
+ * no hay forma de elegir una opción que el service vaya a rechazar. El
+ * `<option value>` es `persona:abc` / `matrimonio:def`, que es lo que un
+ * `<select>` nativo sabe llevar: un string.
  */
 
 type Paso = 1 | 2 | 3;
@@ -46,23 +59,26 @@ type Paso = 1 | 2 | 3;
 const PASOS = 3;
 
 export default function FlujoDeAsignacion({
-  misioneros,
+  tenedores,
   peregrinas,
 }: {
-  misioneros: MisioneroDTO[];
+  /** El roster colapsado: personas solteras y matrimonios, una fila cada uno. */
+  tenedores: TenedorDTO[];
   peregrinas: PeregrinaDTO[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
   const [paso, setPaso] = useState<Paso>(1);
-  const [misioneroId, setMisioneroId] = useState("");
+  const [valor, setValor] = useState("");
   const [peregrinaId, setPeregrinaId] = useState("");
   const [nota, setNota] = useState("");
   const [notaCierre, setNotaCierre] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const misionero = misioneros.find((m) => m.id === misioneroId);
+  const elegido = tenedores.find(
+    (t) => valorDeTenedor(tenedorDeDTO(t)) === valor,
+  );
   const peregrina = peregrinas.find((p) => p.id === peregrinaId);
   // The image is out. Confirming closes that period and opens the next one.
   const tenencia = peregrina?.tenenciaActual ?? null;
@@ -70,11 +86,11 @@ export default function FlujoDeAsignacion({
   // Three states on every async surface, and this is the empty one. A picker with
   // nothing in it has to say what to do next and give somebody a way to get
   // there, rather than sit there being empty.
-  if (misioneros.length === 0) {
+  if (tenedores.length === 0) {
     return (
       <Vacio
         titulo="Todavía no hay Misioneros en tu territorio"
-        mensaje="Una imagen se entrega a una persona, así que hay que cargar a la persona primero."
+        mensaje="Una imagen se entrega a un Misionero o a un Matrimonio, así que hay que cargarlos primero."
         accion={
           <BotonEnlace href="/misionero/new">Cargar un Misionero</BotonEnlace>
         }
@@ -97,20 +113,21 @@ export default function FlujoDeAsignacion({
   }
 
   function confirmar() {
-    if (!peregrina || !misionero) return;
+    if (!peregrina || !elegido) return;
     setError(null);
+    const tenedor = tenedorDeDTO(elegido);
 
     startTransition(async () => {
       const resultado = tenencia
         ? await entregarAction({
             peregrinaId: peregrina.id,
-            misioneroId: misionero.id,
+            tenedor,
             notaCierre: notaCierre.trim() || null,
             nota: nota.trim() || null,
           })
         : await asignarAction({
             peregrinaId: peregrina.id,
-            misioneroId: misionero.id,
+            tenedor,
             nota: nota.trim() || null,
           });
 
@@ -144,38 +161,42 @@ export default function FlujoDeAsignacion({
         </Mensaje>
       )}
 
-      {/* ── Paso 1: Elegir Misionero ── */}
+      {/* ── Paso 1: Elegir quién la recibe ── */}
       {paso === 1 && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-tinta">
-            Paso 1: Elegir Misionero
+            Paso 1: Elegir quién la recibe
           </h2>
 
           <Eleccion
             etiqueta="¿A quién pasa la imagen?"
-            vacia="Elegí un Misionero…"
-            value={misioneroId}
-            opciones={misioneros.map((m) => ({
-              valor: m.id,
-              etiqueta: `${m.apellido}, ${m.nombre} — ${m.diocesisLocalidad.nombre}`,
-            }))}
-            onChange={(e) => setMisioneroId(e.target.value)}
+            ayuda="Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
+            vacia="Elegí un Misionero o un Matrimonio…"
+            value={valor}
+            opciones={tenedores.map(opcionDeTenedorConTerritorio)}
+            onChange={(e) => setValor(e.target.value)}
           />
 
-          <Boton disabled={!misioneroId} onClick={() => setPaso(2)}>
+          {/* La «y» sola se pasa por alto en un teléfono, así que la clase de
+              Tenedor se dice con una palabra además de con el nombre. */}
+          {elegido?.tipo === "matrimonio" && (
+            <Insignia tono="neutro">Matrimonio</Insignia>
+          )}
+
+          <Boton disabled={!elegido} onClick={() => setPaso(2)}>
             Siguiente
           </Boton>
         </div>
       )}
 
       {/* ── Paso 2: Elegir Imagen ── */}
-      {paso === 2 && misionero && (
+      {paso === 2 && elegido && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-tinta">
             Paso 2: Elegir Imagen
           </h2>
           <p className="text-base text-tinta-suave">
-            Para {nombreCompleto(misionero)}.
+            Para {nombreDeTenedor(elegido)}.
           </p>
 
           <Eleccion
@@ -185,7 +206,7 @@ export default function FlujoDeAsignacion({
             opciones={peregrinas.map((p) => ({
               valor: p.id,
               etiqueta: p.tenenciaActual
-                ? `${p.codigo} — la tiene ${nombreCompleto(p.tenenciaActual)}`
+                ? `${p.codigo} — la tiene ${nombreDeTenedor(p.tenenciaActual)}`
                 : `${p.codigo} — sin entregar`,
             }))}
             onChange={(e) => setPeregrinaId(e.target.value)}
@@ -203,7 +224,7 @@ export default function FlujoDeAsignacion({
       )}
 
       {/* ── Paso 3: Confirmar ── */}
-      {paso === 3 && peregrina && misionero && (
+      {paso === 3 && peregrina && elegido && (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-tinta">Confirmar</h2>
 
@@ -214,7 +235,8 @@ export default function FlujoDeAsignacion({
             <p>
               La Peregrina{" "}
               <strong className="font-mono">{peregrina.codigo}</strong> queda a
-              cargo de <strong>{nombreCompleto(misionero)}</strong>.
+              cargo de <strong>{nombreDeTenedor(elegido)}</strong>
+              {elegido.tipo === "matrimonio" ? ", que son un Matrimonio" : ""}.
             </p>
             {tenencia && (
               // Say the consequence before it happens. Somebody's period of
@@ -222,7 +244,8 @@ export default function FlujoDeAsignacion({
               // agree with.
               <p>
                 Se cierra el período de{" "}
-                <strong>{nombreCompleto(tenencia)}</strong>, que la tiene ahora.
+                <strong>{nombreDeTenedor(tenencia)}</strong>, que la tiene
+                ahora.
                 Su período queda en el historial.
               </p>
             )}

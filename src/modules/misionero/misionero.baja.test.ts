@@ -55,7 +55,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
   it("se rechaza y el mensaje nombra el Código pendiente — historias 13 y 14", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -81,7 +81,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     for (const p of [peregrina, otra]) {
       await AsignacionService.asignar(referente, {
         peregrinaId: p.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         nota: null,
       });
     }
@@ -94,7 +94,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
   it("se puede una vez registrada la devolución", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -115,12 +115,12 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
 
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.entregar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaCierre: null,
       nota: null,
     });
@@ -141,7 +141,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     // territorio confirmaría un registro que este Actor no puede leer.
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await PeregrinaService.update(asesor, peregrina.id, {
@@ -160,7 +160,7 @@ describe("un Misionero dado de baja", () => {
   beforeEach(async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: "Entregada en la jornada diocesana.",
     });
     await AsignacionService.devolver(referente, {
@@ -179,7 +179,7 @@ describe("un Misionero dado de baja", () => {
     // Y sale de las cifras: alguien que dejó la Campaña no es capacidad ociosa.
     const tablero = await TableroService.resumen(referente);
     expect(tablero.totalMisioneros).toBe(0);
-    expect(tablero.misionerosSinPeregrina.total).toBe(0);
+    expect(tablero.tenedoresSinPeregrina.total).toBe(0);
   });
 
   it("sigue resolviendo por nombre dentro del historial — historia 15", async () => {
@@ -191,9 +191,13 @@ describe("un Misionero dado de baja", () => {
     );
 
     expect(historial).toHaveLength(1);
-    expect(historial[0].misionero.nombre).toBe("Ana");
-    expect(historial[0].misionero.apellido).toBe("Álvarez");
-    expect(historial[0].misionero.deBaja).toBe(true);
+    expect(historial[0].tenedor).toMatchObject({
+      tipo: "persona",
+      // La baja del Tenedor y la de la persona son la misma cuando el Tenedor
+      // es una persona; en un Matrimonio son dos cosas distintas.
+      deBaja: true,
+      persona: { nombre: "Ana", apellido: "Álvarez", deBaja: true },
+    });
     expect(historial[0].notaApertura).toBe("Entregada en la jornada diocesana.");
   });
 
@@ -210,7 +214,7 @@ describe("un Misionero dado de baja", () => {
     await expect(
       AsignacionService.asignar(referente, {
         peregrinaId: peregrina.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         nota: null,
       })
     ).rejects.toThrow(/está dado de baja/);

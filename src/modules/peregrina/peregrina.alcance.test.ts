@@ -169,12 +169,12 @@ describe.each([
 
     await AsignacionService.asignar(asesor, {
       peregrinaId: propia.id,
-      misioneroId: suyo.id,
+      tenedor: { tipo: "persona", id: suyo.id },
       nota: null,
     });
     await AsignacionService.asignar(asesor, {
       peregrinaId: vecina.id,
-      misioneroId: ajeno.id,
+      tenedor: { tipo: "persona", id: ajeno.id },
       nota: null,
     });
 

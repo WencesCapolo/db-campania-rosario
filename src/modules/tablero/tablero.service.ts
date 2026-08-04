@@ -72,7 +72,7 @@ export class TableroService {
       crecimiento,
       extraviadas,
       nuncaAsignadas,
-      misionerosSinPeregrina,
+      tenedoresSinPeregrina,
       estancadas,
     ] = await Promise.all([
       PeregrinaRepository.contarTotal(alcance, filtros),
@@ -88,7 +88,7 @@ export class TableroService {
       nacional ? PeregrinaRepository.contarPorMes(alcance, filtros) : null,
       TableroService.extraviadas(alcance, filtros),
       TableroService.nuncaAsignadas(alcance, filtros),
-      AsignacionRepository.findMisionerosSinPeregrina(alcance, territoriales),
+      AsignacionRepository.findTenedoresSinPeregrina(alcance, territoriales),
       AsignacionRepository.findPeregrinasEstancadas(
         alcance,
         dias,
@@ -109,7 +109,7 @@ export class TableroService {
       crecimiento,
       extraviadas,
       nuncaAsignadas,
-      misionerosSinPeregrina: recortar(misionerosSinPeregrina),
+      tenedoresSinPeregrina: recortar(tenedoresSinPeregrina),
       // `abiertaAt` se queda en el repositorio: la tarjeta dice «hace 412 días»,
       // que es la cifra sobre la que alguien actúa, y una fecha al lado sería la
       // misma información dos veces en el ancho de un teléfono.
@@ -117,8 +117,9 @@ export class TableroService {
         estancadas.map((fila) => ({
           peregrinaId: fila.peregrinaId,
           codigo: fila.codigo,
-          misioneroNombre: fila.misioneroNombre,
-          misioneroApellido: fila.misioneroApellido,
+          // El Tenedor entero y no dos campos sueltos: las manos pueden ser dos,
+          // y la tarjeta dice a quién llamar (ADR 0010).
+          tenedor: fila.tenedor,
           dias: fila.dias,
         }))
       ),
@@ -187,12 +188,9 @@ function aFilaExtraviada(row: PeregrinaConTerritorio): FilaExtraviada {
   return {
     id: row.peregrina.id,
     codigo: row.peregrina.codigo,
-    ultimoMisionero: row.misioneroActual
-      ? {
-          id: row.misioneroActual.id,
-          nombre: row.misioneroActual.nombre,
-          apellido: row.misioneroActual.apellido,
-        }
-      : null,
+    // `tenedorActual` ya viene resuelto y es una respuesta, no dos: un
+    // Matrimonio se lee como un Tenedor y no como el cónyuge que se tipeó
+    // primero — que era la mitad de la respuesta que el PRD vino a arreglar.
+    ultimoTenedor: row.tenedorActual,
   };
 }

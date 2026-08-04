@@ -4,6 +4,7 @@ import type {
   PeregrinaTipo,
 } from "@/modules/peregrina/peregrina.schema";
 import type { Region } from "@/modules/territorio/territorio.schema";
+import type { TenedorResueltoDTO } from "@/lib/tenedor";
 
 /**
  * What the tablero is, as a type.
@@ -66,7 +67,15 @@ export interface ConteoPorMes {
 
 // ── Filas ─────────────────────────────────────────────────────────────────────
 
-/** An Extraviada and the Misionero who last had it — story 9. */
+/**
+ * An Extraviada and whoever last had it — story 9.
+ *
+ * The Tenedor whole, and not a loose nombre/apellido pair, because the hands an
+ * image was last in can be two: a card that says «la tenía Ana Álvarez» when the
+ * couple had it names half the household, and the other half is who answers the
+ * phone. `nombreDeTenedor` in `lib/formato.ts` is the only place that decides
+ * how it reads (ADR 0010).
+ */
 export interface FilaExtraviada {
   id: string;
   codigo: string;
@@ -74,15 +83,15 @@ export interface FilaExtraviada {
    * Null only when nobody ever had it. Marking a Peregrina `extraviada`
    * deliberately leaves its Asignación open, precisely so this name survives.
    */
-  ultimoMisionero: { id: string; nombre: string; apellido: string } | null;
+  ultimoTenedor: TenedorResueltoDTO | null;
 }
 
 /** An image that has not changed hands in a long time — story 8. */
 export interface FilaEstancada {
   peregrinaId: string;
   codigo: string;
-  misioneroNombre: string;
-  misioneroApellido: string;
+  /** One answer to «¿quién la tiene?», whether that is one person or a couple. */
+  tenedor: TenedorResueltoDTO;
   dias: number;
 }
 
@@ -91,11 +100,12 @@ export interface FilaPeregrinaBreve {
   codigo: string;
 }
 
-export interface FilaMisioneroBreve {
-  id: string;
-  nombre: string;
-  apellido: string;
-}
+/*
+ * No hay `FilaMisioneroBreve`. La tarjeta de manos libres lista **Tenedores**, y
+ * un `{ id, nombre, apellido }` no puede escribir un hogar: la casa aparecía dos
+ * veces o con la mitad de su nombre. Es `TenedorResueltoDTO`, que es la misma
+ * forma que contestan la tarjeta de Extraviadas y la de estancadas.
+ */
 
 // ── El tablero ────────────────────────────────────────────────────────────────
 
@@ -139,7 +149,14 @@ export interface TableroDTO {
   /** Null when a Tenencia filter is active — same reason as above. */
   nuncaAsignadas: Muestra<FilaPeregrinaBreve> | null;
 
-  misionerosSinPeregrina: Muestra<FilaMisioneroBreve>;
+  /**
+   * Quiénes tienen las manos libres — historia 5.
+   *
+   * Tenedores y no Misioneros, y una pareja cuenta **una vez**: la cifra de esta
+   * tarjeta linkea a una lista, y una casa contada dos veces daría un número más
+   * grande que la lista que abre (ADR 0010).
+   */
+  tenedoresSinPeregrina: Muestra<TenedorResueltoDTO>;
   estancadas: Muestra<FilaEstancada>;
 
   /** The threshold behind `estancadas`, so the screen can name it. */

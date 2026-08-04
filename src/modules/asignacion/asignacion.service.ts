@@ -2,6 +2,7 @@ import {
   AsignacionRepository,
   esSegundaAsignacionAbierta,
   type AsignacionCompleta,
+  type TenedorConTerritorio,
 } from "./asignacion.repository";
 import type {
   AsignacionDTO,
@@ -10,13 +11,21 @@ import type {
   DevolverInput,
   EntregarInput,
   RegistroDTO,
-  TenenciaDeMisioneroDTO,
+  TenenciaDeTenedorDTO,
 } from "./asignacion.types";
+import type { TenedorResueltoDTO } from "@/lib/tenedor";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { PeregrinaRepository } from "@/modules/peregrina/peregrina.repository";
 import type { PeregrinaConTerritorio } from "@/modules/peregrina/peregrina.repository";
-import { MisioneroRepository } from "@/modules/misionero/misionero.repository";
-import type { MisioneroConTerritorio } from "@/modules/misionero/misionero.repository";
+import { MatrimonioRepository } from "@/modules/misionero/matrimonio.repository";
+// ↑ Un repositorio de otro módulo, río arriba, para una guarda entre entidades:
+//   exactamente la forma que ADR 0004 permite y la única que no arma un ciclo.
+//   Nunca el service.
+import {
+  valorDeTenedor,
+  type Tenedor,
+} from "@/modules/misionero/matrimonio.types";
+import { nombreDeTenedor } from "@/lib/formato";
 import {
   dentroDelAlcance,
   derivarAlcance,
@@ -76,12 +85,7 @@ export class AsignacionService {
         codigo: row.peregrinaCodigo,
         deBaja: row.peregrinaBajaAt !== null,
       },
-      misionero: {
-        id: a.misioneroId,
-        nombre: row.misioneroNombre,
-        apellido: row.misioneroApellido,
-        deBaja: row.misioneroBajaAt !== null,
-      },
+      tenedor: row.tenedor,
       abiertaAt: a.abiertaAt,
       cerradaAt: a.cerradaAt,
       abierta: a.cerradaAt === null,
@@ -138,36 +142,91 @@ export class AsignacionService {
     return row;
   }
 
-  private static async exigirMisioneroVisible(
+  /**
+   * El Tenedor sobre el que se va a escribir, o una negativa — una sola guarda
+   * para las dos clases (ADR 0010).
+   *
+   * Un Matrimonio no tiene territorio propio: es el del cónyuge A, y está bien
+   * definido porque los dos comparten Diócesis por construcción. El repositorio
+   * ya lo aplanó, así que acá no hay ninguna rama por `tipo`.
+   */
+  private static async exigirTenedorVisible(
     actor: CurrentUser,
     alcance: Alcance,
-    misioneroId: string,
+    tenedor: Tenedor,
     operacion: string
-  ): Promise<MisioneroConTerritorio> {
-    const row = await MisioneroRepository.findByIdSinAlcance(misioneroId);
-    if (!row) throw new NoEncontradoError("No existe ese Misionero.");
+  ): Promise<TenedorConTerritorio> {
+    const row = await AsignacionRepository.findTenedorSinAlcance(tenedor);
+    if (!row) {
+      throw new NoEncontradoError(
+        tenedor.tipo === "persona"
+          ? "No existe ese Misionero."
+          : "No existe ese Matrimonio."
+      );
+    }
 
     // Both ends are checked, exactly as they are on a move: otherwise a Referente
     // Local could hand one of their images to somebody in the next Diócesis and
     // lose sight of it in the same motion.
-    exigirDentroDelAlcance(
-      actor,
-      alcance,
-      row.misionero.diocesisLocalidadId,
-      operacion
-    );
+    exigirDentroDelAlcance(actor, alcance, row.diocesisLocalidadId, operacion);
 
     return row;
   }
 
-  /** A Misionero who has left the Campaña cannot take charge of anything new. */
-  private static exigirMisioneroActivo(row: MisioneroConTerritorio): void {
-    if (row.misionero.bajaAt !== null) {
-      throw new ValidacionError(
-        `${row.misionero.nombre} ${row.misionero.apellido} está dado de baja, ` +
-          "así que no puede tener una Peregrina a cargo. Reactivalo primero."
-      );
-    }
+  /** Quien se fue de la Campaña — o el Matrimonio que terminó — no recibe nada. */
+  private static exigirTenedorActivo(row: TenedorConTerritorio): void {
+    if (!row.tenedor.deBaja) return;
+
+    throw new ValidacionError(
+      row.tenedor.tipo === "persona"
+        ? `${nombreDeTenedor(row.tenedor)} está dado de baja, así que no puede ` +
+          "tener una Peregrina a cargo. Reactivalo primero."
+        : `El Matrimonio de ${nombreDeTenedor(row.tenedor)} está dado de baja, ` +
+          "así que no puede tener una Peregrina a cargo."
+    );
+  }
+
+  /**
+   * **Un Misionero casado nunca tiene una imagen solo** — ADR 0010.
+   *
+   * Si un cónyuge pudiera recibirla por su cuenta tendría que aparecer en el
+   * picker, y aparecer en el picker es aparecer en el listado: el Matrimonio
+   * pasaría a ser una tercera fila al lado de las dos que vino a reemplazar.
+   *
+   * `MatrimonioRepository` es un repositorio río arriba y se lee para una guarda
+   * entre entidades — la forma que ADR 0004 permite. No hay ninguna restricción
+   * de storage detrás de esto, igual que «un Misionero puede tener varias
+   * Peregrinas a la vez» (2026-07-25): es una regla de negocio y vive acá.
+   *
+   * La corre `asignar` y también `entregar`. ADR 0010 nombra sólo `asignar`
+   * porque es la puerta que se discutió, pero las dos abren un período: una
+   * regla que cuida una sola de las dos puertas no es una regla.
+   */
+  private static async exigirQueNoEsteCasado(
+    alcance: Alcance,
+    tenedor: Tenedor
+  ): Promise<void> {
+    if (tenedor.tipo !== "persona") return;
+
+    const casado = await MatrimonioRepository.deMisionero(alcance, tenedor.id);
+    if (!casado) return;
+
+    // El nombre de la pareja sale del repositorio propio, resuelto: la fila de
+    // `matrimonio` tiene dos ids y ningún nombre, y la negativa tiene que decir
+    // a quién elegir en lugar de a quién no.
+    const pareja = await AsignacionRepository.findTenedorSinAlcance({
+      tipo: "matrimonio",
+      id: casado.id,
+    });
+
+    const comoSeLlaman = pareja
+      ? `«${nombreDeTenedor(pareja.tenedor)}»`
+      : "que integra";
+
+    throw new ValidacionError(
+      `Esa persona está en el Matrimonio ${comoSeLlaman}, y un Matrimonio tiene ` +
+        "la imagen a cargo como una sola persona. Elegí el Matrimonio en la lista."
+    );
   }
 
   /** A Peregrina out of service is not handed to anybody. */
@@ -213,7 +272,14 @@ export class AsignacionService {
     return rows.map(AsignacionService.toDTO);
   }
 
-  /** Every Peregrina a Misionero has ever had charge of — user story 7. */
+  /**
+   * Every Peregrina a Misionero has ever had charge of — user story 7.
+   *
+   * Incluye lo que tuvo su Matrimonio: la casa era la de los dos, y una página
+   * de una persona a la que le falta justo lo del hogar tiene un agujero con la
+   * forma de los años que estuvo casada. El repositorio lo resuelve; acá sólo se
+   * comprueba que la persona sea visible.
+   */
   static async historialDeMisionero(
     actor: CurrentUser,
     misioneroId: string
@@ -221,10 +287,10 @@ export class AsignacionService {
     const operacion = "AsignacionService.historialDeMisionero";
     const alcance = derivarAlcance(actor, operacion);
 
-    await AsignacionService.exigirMisioneroVisible(
+    await AsignacionService.exigirTenedorVisible(
       actor,
       alcance,
-      misioneroId,
+      { tipo: "persona", id: misioneroId },
       operacion
     );
 
@@ -268,41 +334,55 @@ export class AsignacionService {
   }
 
   /**
-   * Qué tiene cada uno de una página de Misioneros — la columna «¿Tiene imagen?»
-   * del listado.
+   * Qué tiene cada uno de una página de **Tenedores** — la columna «¿Tiene
+   * imagen?» del listado.
+   *
+   * Toma Tenedores y contesta con la misma clave, para que una fila del listado
+   * pueda buscarse a sí misma. Preguntar por id de Misionero era el bug: la fila
+   * de una pareja lleva un id de `matrimonio`, no coincidía con nada y la celda
+   * decía «Ninguna» con la imagen en la casa (ADR 0010).
+   *
+   * La clave del mapa es `valorDeTenedor` y no el id pelado: un id de persona y
+   * uno de pareja viven en tablas distintas, y una colisión pondría la imagen de
+   * una casa en la fila de otra.
    *
    * Una consulta para la página entera y no una por fila: veinte filas serían
    * veinte viajes, y es la misma pregunta hecha veinte veces.
    *
-   * El repositorio scopea por el territorio de la persona, así que un id de otra
+   * El repositorio scopea por el territorio del Tenedor, así que un id de otra
    * Diócesis no devuelve nada — pasar ids ajenos no enseña si esa persona tiene
    * una imagen. Lo que este método decide es lo otro: **nombrar** el Código. Sale
    * sólo cuando la imagen está dentro del alcance; las demás se cuentan en
    * `ajenas`, porque una imagen movida a otra Diócesis sigue estando en la casa de
    * quien la tiene y decir «Ninguna» sería mentir en la dirección cómoda.
    */
-  static async tenenciasDeMisioneros(
+  static async tenenciasDeTenedores(
     actor: CurrentUser,
-    misioneroIds: string[]
-  ): Promise<TenenciaDeMisioneroDTO[]> {
+    tenedores: Tenedor[]
+  ): Promise<TenenciaDeTenedorDTO[]> {
     const alcance = derivarAlcance(
       actor,
-      "AsignacionService.tenenciasDeMisioneros"
+      "AsignacionService.tenenciasDeTenedores"
     );
 
-    const filas = await AsignacionRepository.findAbiertasDeMisioneros(
+    const filas = await AsignacionRepository.findAbiertasDeTenedores(
       alcance,
-      misioneroIds
+      tenedores
     );
 
-    const porMisionero = new Map<string, TenenciaDeMisioneroDTO>();
-    for (const id of misioneroIds) {
-      porMisionero.set(id, { misioneroId: id, peregrinas: [], ajenas: 0 });
+    const porTenedor = new Map<string, TenenciaDeTenedorDTO>();
+    for (const t of tenedores) {
+      porTenedor.set(valorDeTenedor(t), {
+        tenedor: t,
+        peregrinas: [],
+        ajenas: 0,
+      });
     }
 
     for (const fila of filas) {
-      // Existe siempre: el repositorio sólo devuelve filas de los ids pedidos.
-      const tenencia = porMisionero.get(fila.misioneroId);
+      // Existe siempre: el repositorio sólo devuelve filas de los Tenedores
+      // pedidos.
+      const tenencia = porTenedor.get(valorDeTenedor(fila.tenedor));
       if (!tenencia) continue;
 
       if (dentroDelAlcance(alcance, fila.peregrinaDiocesisLocalidadId)) {
@@ -315,7 +395,7 @@ export class AsignacionService {
       }
     }
 
-    return [...porMisionero.values()];
+    return [...porTenedor.values()];
   }
 
   /** Peregrinas nobody has ever had charge of — user story 19. */
@@ -330,39 +410,46 @@ export class AsignacionService {
   }
 
   /**
-   * Misioneros with their hands free — user story 5 of the tablero.
+   * Tenedores with their hands free — user story 5 of the tablero.
    *
-   * Scoped by the *person's* territory rather than by an image's, which is what
-   * the question means: "who here could take one". The repository ignores the
-   * image's territory when deciding whether somebody is free, so a Misionero
-   * holding a Peregrina that has since moved Diócesis is not offered.
+   * Antes se llamaba `listarMisionerosSinPeregrina`, y el nombre había pasado a
+   * mentir: lo que contesta son las filas del listado, que son Tenedores, y una
+   * pareja es una de ellas y cuenta una vez (ADR 0010). Un nombre que sigue
+   * compilando mientras contesta otra pregunta es exactamente el modo de falla de
+   * este cambio.
+   *
+   * Scoped by the *holder's* territory rather than by an image's, which is what
+   * the question means: "who here could take one". A couple's territory is spouse
+   * A's. The repository ignores the image's territory when deciding whether
+   * somebody is free, so a Tenedor holding a Peregrina that has since moved
+   * Diócesis is not offered.
    */
-  static async listarMisionerosSinPeregrina(
+  static async listarTenedoresSinPeregrina(
     actor: CurrentUser,
     filtros: FiltrosTerritoriales = {}
-  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
-    const operacion = "AsignacionService.listarMisionerosSinPeregrina";
+  ): Promise<TenedorResueltoDTO[]> {
+    const operacion = "AsignacionService.listarTenedoresSinPeregrina";
     const alcance = derivarAlcance(actor, operacion);
     exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-    return AsignacionRepository.findMisionerosSinPeregrina(alcance, filtros);
+    return AsignacionRepository.findTenedoresSinPeregrina(alcance, filtros);
   }
 
   /**
-   * Misioneros holding at least one image — the other half of the listado's
+   * Tenedores holding at least one image — the other half of the listado's
    * tenencia filter.
    *
    * Same scope rule as its twin above, and the same reason: the question is about
-   * the people of a territory, so it is their own Diócesis that bounds it. An
+   * the holders of a territory, so it is their own Diócesis that bounds it. An
    * image that has since moved elsewhere still counts as held.
    */
-  static async listarMisionerosConPeregrina(
+  static async listarTenedoresConPeregrina(
     actor: CurrentUser,
     filtros: FiltrosTerritoriales = {}
-  ): Promise<{ id: string; nombre: string; apellido: string }[]> {
-    const operacion = "AsignacionService.listarMisionerosConPeregrina";
+  ): Promise<TenedorResueltoDTO[]> {
+    const operacion = "AsignacionService.listarTenedoresConPeregrina";
     const alcance = derivarAlcance(actor, operacion);
     exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-    return AsignacionRepository.findMisionerosConPeregrina(alcance, filtros);
+    return AsignacionRepository.findTenedoresConPeregrina(alcance, filtros);
   }
 
   /**
@@ -412,13 +499,14 @@ export class AsignacionService {
     );
     AsignacionService.exigirPeregrinaActiva(peregrina);
 
-    const misionero = await AsignacionService.exigirMisioneroVisible(
+    const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,
       alcance,
-      input.misioneroId,
+      input.tenedor,
       operacion
     );
-    AsignacionService.exigirMisioneroActivo(misionero);
+    AsignacionService.exigirTenedorActivo(tenedor);
+    await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
 
     const abierta = await AsignacionRepository.findAbiertaDePeregrina(
       alcance,
@@ -427,7 +515,7 @@ export class AsignacionService {
     if (abierta) {
       throw new ConflictoError(
         `La Peregrina ${peregrina.peregrina.codigo} ya está a cargo de ` +
-          `${abierta.misioneroNombre} ${abierta.misioneroApellido}. ` +
+          `${nombreDeTenedor(abierta.tenedor)}. ` +
           "Si pasó a otra persona, usá «Pasar a otro Misionero» en lugar de asignarla de nuevo."
       );
     }
@@ -435,7 +523,7 @@ export class AsignacionService {
     return AsignacionService.abrirTraduciendoElConflicto(
       {
         peregrinaId: input.peregrinaId,
-        misioneroId: input.misioneroId,
+        tenedor: input.tenedor,
         registradaPorId: actor.id,
         notaApertura: input.nota ?? null,
       },
@@ -467,13 +555,14 @@ export class AsignacionService {
     );
     AsignacionService.exigirPeregrinaActiva(peregrina);
 
-    const misionero = await AsignacionService.exigirMisioneroVisible(
+    const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,
       alcance,
-      input.misioneroId,
+      input.tenedor,
       operacion
     );
-    AsignacionService.exigirMisioneroActivo(misionero);
+    AsignacionService.exigirTenedorActivo(tenedor);
+    await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
 
     const actual = await AsignacionRepository.findAbiertaDePeregrina(
       alcance,
@@ -485,10 +574,16 @@ export class AsignacionService {
           "así que no hay a quién pasársela. Usá «Asignar» directamente."
       );
     }
-    if (actual.asignacion.misioneroId === input.misioneroId) {
+    // Los dos campos, porque un id de Misionero y uno de Matrimonio son dos
+    // espacios de ids distintos: comparar sólo el id haría de una persona y una
+    // pareja «el mismo Tenedor» si alguna vez colisionaran.
+    if (
+      actual.tenedor.tipo === input.tenedor.tipo &&
+      actual.tenedor.id === input.tenedor.id
+    ) {
       throw new ValidacionError(
         `La Peregrina ${peregrina.peregrina.codigo} ya está a cargo de ` +
-          `${actual.misioneroNombre} ${actual.misioneroApellido}.`
+          `${nombreDeTenedor(actual.tenedor)}.`
       );
     }
 
@@ -504,7 +599,7 @@ export class AsignacionService {
         },
         {
           peregrinaId: input.peregrinaId,
-          misioneroId: input.misioneroId,
+          tenedor: input.tenedor,
           abiertaAt: ahora,
           registradaPorId: actor.id,
           notaApertura: input.nota ?? null,
@@ -600,17 +695,22 @@ export class AsignacionService {
         ? false
         : actual.asignacion.cerradaAt === null;
 
-    if (input.misioneroId !== undefined) {
-      const misionero = await AsignacionService.exigirMisioneroVisible(
+    if (input.tenedor !== undefined) {
+      const tenedor = await AsignacionService.exigirTenedorVisible(
         actor,
         alcance,
-        input.misioneroId,
+        input.tenedor,
         operacion
       );
       // A closed period may perfectly well name somebody who has since left the
       // Campaña — that is what history is. An open one may not: they would be
       // holding an image while being absent from every active list.
-      if (seguiraAbierta) AsignacionService.exigirMisioneroActivo(misionero);
+      if (seguiraAbierta) {
+        AsignacionService.exigirTenedorActivo(tenedor);
+        // Y tampoco por acá se cuela una imagen a nombre de un solo cónyuge:
+        // corregir un período abierto es decir quién la tiene ahora.
+        await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
+      }
     }
 
     const abiertaAt = input.abiertaAt ?? actual.asignacion.abiertaAt;
@@ -632,9 +732,7 @@ export class AsignacionService {
       const row = await AsignacionRepository.corregir(
         input.asignacionId,
         {
-          ...(input.misioneroId !== undefined && {
-            misioneroId: input.misioneroId,
-          }),
+          ...(input.tenedor !== undefined && { tenedor: input.tenedor }),
           ...(input.abiertaAt !== undefined && { abiertaAt: input.abiertaAt }),
           ...(input.cerradaAt !== undefined && { cerradaAt: input.cerradaAt }),
           ...(input.notaApertura !== undefined && {

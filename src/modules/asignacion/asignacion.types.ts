@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  tenedorSchema,
+  type Tenedor,
+} from "@/modules/misionero/matrimonio.types";
+import type { TenedorResueltoDTO } from "@/lib/tenedor";
 
 // ── DTOs (what the UI receives) ───────────────────────────────────────────────
 
@@ -16,17 +21,16 @@ export interface RegistroDTO {
   diocesisLocalidad: string | null;
 }
 
-/** The Misionero side of an Asignación, resolved to a name. */
-export interface MisioneroDeAsignacionDTO {
-  id: string;
-  nombre: string;
-  apellido: string;
-  /**
-   * They have left the Campaña. Historical Asignaciones still name them, which
-   * is user story 15 and the reason nothing is ever destroyed.
-   */
-  deBaja: boolean;
-}
+/**
+ * The holder side of an Asignación, resolved to a name — one Misionero, or one
+ * Matrimonio (ADR 0010).
+ *
+ * Re-exported rather than redefined: `peregrina.tenenciaActual` answers the same
+ * question off the denormalised pointer, and two shapes for one answer is how a
+ * screen ends up with two ways of rendering a couple. See `lib/tenedor.ts` for
+ * why the type lives where it does.
+ */
+export type { TenedorResueltoDTO, PersonaDeTenedorDTO } from "@/lib/tenedor";
 
 /** The Peregrina side, resolved to its Código. */
 export interface PeregrinaDeAsignacionDTO {
@@ -36,18 +40,26 @@ export interface PeregrinaDeAsignacionDTO {
 }
 
 /**
- * Qué imagen tiene un Misionero ahora mismo — la columna «¿Tiene imagen?» del
+ * Qué imagen tiene un **Tenedor** ahora mismo — la columna «¿Tiene imagen?» del
  * listado de Misioneros.
  *
- * `ajenas` existe porque la pregunta se contesta sin scopear por el territorio de
- * la imagen: una Peregrina movida a otra Diócesis mientras alguien la tiene en la
+ * Va por Tenedor y no por Misionero, que es el bug que ADR 0010 avisa que falla
+ * en silencio: el listado es una unión cuyas filas son Tenedores, y la fila de un
+ * Matrimonio lleva un id de `matrimonio`. Pasado a una API por Misionero no
+ * coincidía con nada y la celda decía «Ninguna» con la imagen en la casa.
+ *
+ * La clave es el `Tenedor` entero y no el id solo: un id de persona y uno de
+ * pareja son dos espacios de ids distintos, y comparar sólo el id haría de una
+ * persona y un Matrimonio la misma fila si alguna vez colisionaran. `ajenas`
+ * existe porque la pregunta se contesta sin scopear por el territorio de la
+ * imagen: una Peregrina movida a otra Diócesis mientras alguien la tiene en la
  * casa sigue estando en esa casa. Su Código no se puede nombrar — sería confirmar
  * un registro que el Actor no puede leer — así que se cuenta y se dice que hay una
  * imagen de otro territorio. Es la misma distinción que hace la negativa al dar de
  * baja a un Misionero.
  */
-export interface TenenciaDeMisioneroDTO {
-  misioneroId: string;
+export interface TenenciaDeTenedorDTO {
+  tenedor: Tenedor;
   /** Las que el Actor podría haber leído igual, ordenadas por Código. */
   peregrinas: { id: string; codigo: string }[];
   /** Cuántas tiene abiertas fuera del alcance del Actor. */
@@ -57,7 +69,8 @@ export interface TenenciaDeMisioneroDTO {
 export interface AsignacionDTO {
   id: string;
   peregrina: PeregrinaDeAsignacionDTO;
-  misionero: MisioneroDeAsignacionDTO;
+  /** Quién tuvo la imagen en este período: un Misionero, o un Matrimonio. */
+  tenedor: TenedorResueltoDTO;
 
   abiertaAt: Date;
   /** Null means open: this Misionero has the image right now. */
@@ -98,10 +111,20 @@ const nota = z
 
 const id = (que: string) => z.string().min(1, `Elegí ${que}.`);
 
-/** Give a Peregrina that nobody currently has to a Misionero — story 1 and 8. */
+/**
+ * El Tenedor, tal como llega de un `<select>` — story 1 y ADR 0010.
+ *
+ * Se parsea acá, en el borde, y no en el service: una unión discriminada mal
+ * formada no tiene que poder llegar a una regla de negocio. Es el mismo esquema
+ * que arma el `<option value>`, así que la pantalla y el router no pueden
+ * discrepar sobre qué es un Tenedor.
+ */
+const tenedor = tenedorSchema;
+
+/** Give a Peregrina that nobody currently has to a Tenedor — story 1 and 8. */
 export const asignarSchema = z.object({
   peregrinaId: id("una Peregrina"),
-  misioneroId: id("un Misionero"),
+  tenedor,
   nota,
 });
 
@@ -115,14 +138,22 @@ export const asignarSchema = z.object({
  */
 export const entregarSchema = z.object({
   peregrinaId: id("una Peregrina"),
-  misioneroId: id("el nuevo Misionero"),
+  /** Quién la recibe: el nuevo Misionero, o el nuevo Matrimonio. */
+  tenedor,
   /** Context for the period that ends. */
   notaCierre: nota,
   /** Context for the period that begins. */
   nota,
 });
 
-/** The image came back and is not going straight out again — story 3. */
+/**
+ * The image came back and is not going straight out again — story 3.
+ *
+ * No lleva Tenedor, y eso no es un olvido de ADR 0010: devolver cierra *el
+ * período abierto*, sea de quien sea, y una Peregrina tiene a lo sumo uno. Pedir
+ * quién la devuelve sería pedir un dato que el sistema ya tiene y contra el que
+ * habría que validar la respuesta.
+ */
 export const devolverSchema = z.object({
   peregrinaId: id("una Peregrina"),
   notaCierre: nota,
@@ -135,7 +166,8 @@ export const devolverSchema = z.object({
 export const corregirSchema = z
   .object({
     asignacionId: z.string().min(1),
-    misioneroId: z.string().min(1).optional(),
+    /** Corregir quién la tuvo: la persona equivocada, o el Matrimonio entero. */
+    tenedor: tenedorSchema.optional(),
     abiertaAt: z.coerce.date().optional(),
     cerradaAt: z.coerce.date().optional(),
     notaApertura: nota,
@@ -143,7 +175,7 @@ export const corregirSchema = z
   })
   .refine(
     (v) =>
-      v.misioneroId !== undefined ||
+      v.tenedor !== undefined ||
       v.abiertaAt !== undefined ||
       v.cerradaAt !== undefined ||
       v.notaApertura !== undefined ||

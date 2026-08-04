@@ -1,6 +1,6 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
-import { getMisionerosAction } from "@/modules/misionero/misionero.router";
+import { getMisionerosFiltradosAction } from "@/modules/misionero/misionero.router";
 import EstadoDePeregrina from "@/modules/peregrina/EstadoDePeregrina";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
@@ -8,7 +8,7 @@ import Mensaje from "@/components/Mensaje";
 import Volver from "@/components/Volver";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
-import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
+import { dias, fecha, nombreDeTenedor, registro } from "@/lib/formato";
 import RegistrarDevolucion from "./RegistrarDevolucion";
 import CorregirAsignacion from "./CorregirAsignacion";
 
@@ -48,15 +48,18 @@ export default async function HistorialPage({
 }) {
   const { id } = await params;
 
-  // The Misionero list is read here, alongside the history, because every period
+  // The Tenedor list is read here, alongside the history, because every period
   // carries a correction dialog and each of those needs the same picker. One read
   // for the page rather than one per period, and it is the Actor's own scoped list
-  // — `MisioneroService.listAll` derives its filter, so this cannot widen what a
-  // correction may point at.
-  const [peregrina, historial, misioneros] = await Promise.all([
+  // — `MisioneroService.listFiltrados` derives its filter, so this cannot widen
+  // what a correction may point at.
+  //
+  // El roster colapsado, no la lista de personas: un período pudo ser de un
+  // Matrimonio, y un cónyuge casado no es corregible por separado (ADR 0010).
+  const [peregrina, historial, tenedores] = await Promise.all([
     getPeregrinaByIdAction(id),
     getHistorialDePeregrinaAction(id),
-    getMisionerosAction(),
+    getMisionerosFiltradosAction({}),
   ]);
 
   const abierta = historial.find((a) => a.abierta) ?? null;
@@ -86,10 +89,14 @@ export default async function HistorialPage({
         {abierta ? (
           <div className="space-y-4">
             <p className="text-base leading-relaxed">
-              La tiene <strong>{nombreCompleto(abierta.misionero)}</strong>
-              {abierta.misionero.deBaja ? " (dado de baja)" : ""}, desde el{" "}
+              La tiene <strong>{nombreDeTenedor(abierta.tenedor)}</strong>
+              {abierta.tenedor.deBaja ? " (dado de baja)" : ""}, desde el{" "}
               {fecha(abierta.abiertaAt)} — {dias(abierta.diasEnCargo)}.
             </p>
+
+            {abierta.tenedor.tipo === "matrimonio" && (
+              <Insignia tono="neutro">Matrimonio</Insignia>
+            )}
 
             {peregrina.estado === "extraviada" && (
               // Marking a Peregrina Extraviada leaves this period open on
@@ -108,7 +115,7 @@ export default async function HistorialPage({
             <RegistrarDevolucion
               peregrinaId={peregrina.id}
               codigo={peregrina.codigo}
-              misionero={nombreCompleto(abierta.misionero)}
+              tenedor={nombreDeTenedor(abierta.tenedor)}
             />
           </div>
         ) : (
@@ -139,9 +146,15 @@ export default async function HistorialPage({
                 className="space-y-1 border-b-2 border-borde pb-5 last:border-b-0 last:pb-0"
               >
                 <p className="text-base font-bold text-tinta">
-                  {nombreCompleto(a.misionero)}
-                  {a.misionero.deBaja ? " (dado de baja)" : ""}
+                  {nombreDeTenedor(a.tenedor)}
+                  {a.tenedor.deBaja ? " (dado de baja)" : ""}
                 </p>
+
+                {/* Un período de una pareja se lee como la pareja, siempre y
+                    también después de la baja: eso es lo que era entonces. */}
+                {a.tenedor.tipo === "matrimonio" && (
+                  <Insignia tono="neutro">Matrimonio</Insignia>
+                )}
 
                 <p className="text-base leading-relaxed text-tinta">
                   {fecha(a.abiertaAt)} a{" "}
@@ -177,7 +190,7 @@ export default async function HistorialPage({
                 )}
 
                 <div className="pt-2">
-                  <CorregirAsignacion asignacion={a} misioneros={misioneros} />
+                  <CorregirAsignacion asignacion={a} tenedores={tenedores} />
                 </div>
               </li>
             ))}

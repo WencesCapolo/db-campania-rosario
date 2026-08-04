@@ -1,0 +1,1481 @@
+{
+  "id": "7fb48cdc-411d-4756-9d50-ca71bc9d0fb7",
+  "prevId": "4c5adb5f-b08f-4a3e-a959-a4a161593159",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.diocesis_localidad": {
+      "name": "diocesis_localidad",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provincia_id": {
+          "name": "provincia_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region": {
+          "name": "region",
+          "type": "region",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "diocesis_localidad_provincia_nombre_key": {
+          "name": "diocesis_localidad_provincia_nombre_key",
+          "columns": [
+            {
+              "expression": "provincia_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nombre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "diocesis_localidad_provincia_idx": {
+          "name": "diocesis_localidad_provincia_idx",
+          "columns": [
+            {
+              "expression": "provincia_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "diocesis_localidad_region_idx": {
+          "name": "diocesis_localidad_region_idx",
+          "columns": [
+            {
+              "expression": "region",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "diocesis_localidad_provincia_id_provincia_id_fk": {
+          "name": "diocesis_localidad_provincia_id_provincia_id_fk",
+          "tableFrom": "diocesis_localidad",
+          "tableTo": "provincia",
+          "columnsFrom": [
+            "provincia_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.provincia": {
+      "name": "provincia",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abreviatura": {
+          "name": "abreviatura",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "provincia_nombre_key": {
+          "name": "provincia_nombre_key",
+          "columns": [
+            {
+              "expression": "nombre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "provincia_abreviatura_key": {
+          "name": "provincia_abreviatura_key",
+          "columns": [
+            {
+              "expression": "abreviatura",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'referente_local'"
+        },
+        "diocesis_localidad_id": {
+          "name": "diocesis_localidad_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "users_diocesis_localidad_idx": {
+          "name": "users_diocesis_localidad_idx",
+          "columns": [
+            {
+              "expression": "diocesis_localidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_role_idx": {
+          "name": "users_role_idx",
+          "columns": [
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "users_diocesis_localidad_id_diocesis_localidad_id_fk": {
+          "name": "users_diocesis_localidad_id_diocesis_localidad_id_fk",
+          "tableFrom": "users",
+          "tableTo": "diocesis_localidad",
+          "columnsFrom": [
+            "diocesis_localidad_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.misionero": {
+      "name": "misionero",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "apellido": {
+          "name": "apellido",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telefono": {
+          "name": "telefono",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "misionero_estado",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activo'"
+        },
+        "diocesis_localidad_id": {
+          "name": "diocesis_localidad_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "centro_tipo": {
+          "name": "centro_tipo",
+          "type": "centro_tipo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "centro_nombre": {
+          "name": "centro_nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anio_consagracion": {
+          "name": "anio_consagracion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resumenes_anuales": {
+          "name": "resumenes_anuales",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'"
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "misionero_diocesis_localidad_idx": {
+          "name": "misionero_diocesis_localidad_idx",
+          "columns": [
+            {
+              "expression": "diocesis_localidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "misionero_estado_idx": {
+          "name": "misionero_estado_idx",
+          "columns": [
+            {
+              "expression": "estado",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "misionero_baja_idx": {
+          "name": "misionero_baja_idx",
+          "columns": [
+            {
+              "expression": "baja_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "misionero_diocesis_localidad_id_diocesis_localidad_id_fk": {
+          "name": "misionero_diocesis_localidad_id_diocesis_localidad_id_fk",
+          "tableFrom": "misionero",
+          "tableTo": "diocesis_localidad",
+          "columnsFrom": [
+            "diocesis_localidad_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "misionero_created_by_id_users_id_fk": {
+          "name": "misionero_created_by_id_users_id_fk",
+          "tableFrom": "misionero",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.matrimonio": {
+      "name": "matrimonio",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "misionero_a_id": {
+          "name": "misionero_a_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "misionero_b_id": {
+          "name": "misionero_b_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "misionero_estado",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activo'"
+        },
+        "centro_tipo": {
+          "name": "centro_tipo",
+          "type": "centro_tipo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "centro_nombre": {
+          "name": "centro_nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "matrimonio_misionero_a_idx": {
+          "name": "matrimonio_misionero_a_idx",
+          "columns": [
+            {
+              "expression": "misionero_a_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matrimonio_misionero_b_idx": {
+          "name": "matrimonio_misionero_b_idx",
+          "columns": [
+            {
+              "expression": "misionero_b_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matrimonio_baja_idx": {
+          "name": "matrimonio_baja_idx",
+          "columns": [
+            {
+              "expression": "baja_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "matrimonio_misionero_a_id_misionero_id_fk": {
+          "name": "matrimonio_misionero_a_id_misionero_id_fk",
+          "tableFrom": "matrimonio",
+          "tableTo": "misionero",
+          "columnsFrom": [
+            "misionero_a_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matrimonio_misionero_b_id_misionero_id_fk": {
+          "name": "matrimonio_misionero_b_id_misionero_id_fk",
+          "tableFrom": "matrimonio",
+          "tableTo": "misionero",
+          "columnsFrom": [
+            "misionero_b_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matrimonio_created_by_id_users_id_fk": {
+          "name": "matrimonio_created_by_id_users_id_fk",
+          "tableFrom": "matrimonio",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.peregrina": {
+      "name": "peregrina",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo_num": {
+          "name": "codigo_num",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "peregrina_tipo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'peregrina'"
+        },
+        "estado": {
+          "name": "estado",
+          "type": "peregrina_estado",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activa'"
+        },
+        "diocesis_localidad_id": {
+          "name": "diocesis_localidad_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modalidad": {
+          "name": "modalidad",
+          "type": "modalidad",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "misionero_actual_id": {
+          "name": "misionero_actual_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matrimonio_actual_id": {
+          "name": "matrimonio_actual_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baja_at": {
+          "name": "baja_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "peregrina_diocesis_localidad_idx": {
+          "name": "peregrina_diocesis_localidad_idx",
+          "columns": [
+            {
+              "expression": "diocesis_localidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_estado_idx": {
+          "name": "peregrina_estado_idx",
+          "columns": [
+            {
+              "expression": "estado",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_modalidad_idx": {
+          "name": "peregrina_modalidad_idx",
+          "columns": [
+            {
+              "expression": "modalidad",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_baja_idx": {
+          "name": "peregrina_baja_idx",
+          "columns": [
+            {
+              "expression": "baja_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_misionero_actual_idx": {
+          "name": "peregrina_misionero_actual_idx",
+          "columns": [
+            {
+              "expression": "misionero_actual_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_activas_por_territorio_idx": {
+          "name": "peregrina_activas_por_territorio_idx",
+          "columns": [
+            {
+              "expression": "diocesis_localidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "estado",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "modalidad",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tipo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"peregrina\".\"baja_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "peregrina_matrimonio_actual_idx": {
+          "name": "peregrina_matrimonio_actual_idx",
+          "columns": [
+            {
+              "expression": "matrimonio_actual_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "peregrina_diocesis_localidad_id_diocesis_localidad_id_fk": {
+          "name": "peregrina_diocesis_localidad_id_diocesis_localidad_id_fk",
+          "tableFrom": "peregrina",
+          "tableTo": "diocesis_localidad",
+          "columnsFrom": [
+            "diocesis_localidad_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "peregrina_misionero_actual_id_misionero_id_fk": {
+          "name": "peregrina_misionero_actual_id_misionero_id_fk",
+          "tableFrom": "peregrina",
+          "tableTo": "misionero",
+          "columnsFrom": [
+            "misionero_actual_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "peregrina_matrimonio_actual_id_matrimonio_id_fk": {
+          "name": "peregrina_matrimonio_actual_id_matrimonio_id_fk",
+          "tableFrom": "peregrina",
+          "tableTo": "matrimonio",
+          "columnsFrom": [
+            "matrimonio_actual_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "peregrina_created_by_id_users_id_fk": {
+          "name": "peregrina_created_by_id_users_id_fk",
+          "tableFrom": "peregrina",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "peregrina_codigo_unique": {
+          "name": "peregrina_codigo_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "codigo"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "peregrina_un_solo_tenedor_actual": {
+          "name": "peregrina_un_solo_tenedor_actual",
+          "value": "num_nonnulls(\"peregrina\".\"misionero_actual_id\", \"peregrina\".\"matrimonio_actual_id\") <= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.asignacion": {
+      "name": "asignacion",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "peregrina_id": {
+          "name": "peregrina_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "misionero_id": {
+          "name": "misionero_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "matrimonio_id": {
+          "name": "matrimonio_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abierta_at": {
+          "name": "abierta_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "cerrada_at": {
+          "name": "cerrada_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registrada_por_id": {
+          "name": "registrada_por_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cerrada_por_id": {
+          "name": "cerrada_por_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nota_apertura": {
+          "name": "nota_apertura",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nota_cierre": {
+          "name": "nota_cierre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corregida_at": {
+          "name": "corregida_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corregida_por_id": {
+          "name": "corregida_por_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "asignacion_peregrina_abierta_key": {
+          "name": "asignacion_peregrina_abierta_key",
+          "columns": [
+            {
+              "expression": "peregrina_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"asignacion\".\"cerrada_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "asignacion_peregrina_idx": {
+          "name": "asignacion_peregrina_idx",
+          "columns": [
+            {
+              "expression": "peregrina_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "asignacion_misionero_idx": {
+          "name": "asignacion_misionero_idx",
+          "columns": [
+            {
+              "expression": "misionero_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "asignacion_abiertas_por_fecha_idx": {
+          "name": "asignacion_abiertas_por_fecha_idx",
+          "columns": [
+            {
+              "expression": "abierta_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"asignacion\".\"cerrada_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "asignacion_matrimonio_idx": {
+          "name": "asignacion_matrimonio_idx",
+          "columns": [
+            {
+              "expression": "matrimonio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "asignacion_peregrina_id_peregrina_id_fk": {
+          "name": "asignacion_peregrina_id_peregrina_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "peregrina",
+          "columnsFrom": [
+            "peregrina_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "asignacion_misionero_id_misionero_id_fk": {
+          "name": "asignacion_misionero_id_misionero_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "misionero",
+          "columnsFrom": [
+            "misionero_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "asignacion_matrimonio_id_matrimonio_id_fk": {
+          "name": "asignacion_matrimonio_id_matrimonio_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "matrimonio",
+          "columnsFrom": [
+            "matrimonio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "asignacion_registrada_por_id_users_id_fk": {
+          "name": "asignacion_registrada_por_id_users_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "users",
+          "columnsFrom": [
+            "registrada_por_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "asignacion_cerrada_por_id_users_id_fk": {
+          "name": "asignacion_cerrada_por_id_users_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "users",
+          "columnsFrom": [
+            "cerrada_por_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "asignacion_corregida_por_id_users_id_fk": {
+          "name": "asignacion_corregida_por_id_users_id_fk",
+          "tableFrom": "asignacion",
+          "tableTo": "users",
+          "columnsFrom": [
+            "corregida_por_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "asignacion_un_solo_tenedor": {
+          "name": "asignacion_un_solo_tenedor",
+          "value": "num_nonnulls(\"asignacion\".\"misionero_id\", \"asignacion\".\"matrimonio_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.invitacion": {
+      "name": "invitacion",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rol": {
+          "name": "rol",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diocesis_localidad_id": {
+          "name": "diocesis_localidad_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "invitacion_estado",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pendiente'"
+        },
+        "invitada_por_id": {
+          "name": "invitada_por_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "aceptada_at": {
+          "name": "aceptada_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocada_at": {
+          "name": "revocada_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "invitacion_email_pendiente_key": {
+          "name": "invitacion_email_pendiente_key",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"invitacion\".\"estado\" = 'pendiente'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "invitacion_estado_idx": {
+          "name": "invitacion_estado_idx",
+          "columns": [
+            {
+              "expression": "estado",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "invitacion_diocesis_localidad_idx": {
+          "name": "invitacion_diocesis_localidad_idx",
+          "columns": [
+            {
+              "expression": "diocesis_localidad_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "invitacion_diocesis_localidad_id_diocesis_localidad_id_fk": {
+          "name": "invitacion_diocesis_localidad_id_diocesis_localidad_id_fk",
+          "tableFrom": "invitacion",
+          "tableTo": "diocesis_localidad",
+          "columnsFrom": [
+            "diocesis_localidad_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitacion_invitada_por_id_users_id_fk": {
+          "name": "invitacion_invitada_por_id_users_id_fk",
+          "tableFrom": "invitacion",
+          "tableTo": "users",
+          "columnsFrom": [
+            "invitada_por_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitacion_usuario_id_users_id_fk": {
+          "name": "invitacion_usuario_id_users_id_fk",
+          "tableFrom": "invitacion",
+          "tableTo": "users",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.region": {
+      "name": "region",
+      "schema": "public",
+      "values": [
+        "NOA",
+        "CENTRO",
+        "CUYO",
+        "NEA",
+        "BS. AS",
+        "R. PAM",
+        "R. PAT"
+      ]
+    },
+    "public.role": {
+      "name": "role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "asesor_nacional",
+        "responsable_diocesano",
+        "referente_local"
+      ]
+    },
+    "public.centro_tipo": {
+      "name": "centro_tipo",
+      "schema": "public",
+      "values": [
+        "santuario",
+        "ermita",
+        "parroquia"
+      ]
+    },
+    "public.misionero_estado": {
+      "name": "misionero_estado",
+      "schema": "public",
+      "values": [
+        "activo",
+        "inactivo"
+      ]
+    },
+    "public.modalidad": {
+      "name": "modalidad",
+      "schema": "public",
+      "values": [
+        "MIS",
+        "FAM",
+        "MAT",
+        "TRA",
+        "RIE",
+        "DUL",
+        "JOV",
+        "NVI",
+        "SAL",
+        "SER",
+        "TAX",
+        "HPR",
+        "CEN",
+        "SOR",
+        "SAC",
+        "VOC"
+      ]
+    },
+    "public.peregrina_estado": {
+      "name": "peregrina_estado",
+      "schema": "public",
+      "values": [
+        "activa",
+        "inactiva",
+        "en_reparacion",
+        "extraviada"
+      ]
+    },
+    "public.peregrina_tipo": {
+      "name": "peregrina_tipo",
+      "schema": "public",
+      "values": [
+        "peregrina",
+        "auxiliar"
+      ]
+    },
+    "public.invitacion_estado": {
+      "name": "invitacion_estado",
+      "schema": "public",
+      "values": [
+        "pendiente",
+        "aceptada",
+        "revocada"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

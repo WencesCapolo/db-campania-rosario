@@ -12,14 +12,18 @@ import {
 import type {
   ActionResult,
   AsignacionDTO,
-  TenenciaDeMisioneroDTO,
+  TenedorResueltoDTO,
+  TenenciaDeTenedorDTO,
 } from "./asignacion.types";
 import { aResultado } from "@/lib/errors";
 import { FILAS_POR_PAGINA } from "@/lib/paginacion";
 import { z } from "zod";
 import { MisioneroService } from "@/modules/misionero/misionero.service";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
-import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
+import {
+  tenedorSchema,
+  type TenedorDTO,
+} from "@/modules/misionero/matrimonio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 
 /**
@@ -69,49 +73,62 @@ export async function getPeregrinasNuncaAsignadasAction(): Promise<
 }
 
 /**
- * Los Misioneros con las manos libres — la tarjeta del tablero, y el filtro «sin
- * imagen» del listado de Misioneros.
+ * Los Tenedores con las manos libres — la tarjeta del tablero, y el filtro «sin
+ * imagen» del listado.
  *
- * Scoped por el territorio de la *persona* y no por el de una imagen: la pregunta
- * es quién de acá podría recibir una.
+ * Tenedores y no Misioneros: un matrimonio con las manos libres es **una** fila,
+ * no dos, y ninguno de los dos esposos aparece por su cuenta (ADR 0010). Contaba
+ * personas hasta que se lo rekeyeó, y entonces una pareja sin imagen figuraba dos
+ * veces en una tarjeta que dice contar a quienes pueden recibir una.
+ *
+ * Scoped por el territorio del *Tenedor* y no por el de una imagen: la pregunta
+ * es quién de acá podría recibir una. El de un matrimonio es el del esposo A.
  */
-export async function getMisionerosSinPeregrinaAction(): Promise<
-  { id: string; nombre: string; apellido: string }[]
+export async function getTenedoresSinPeregrinaAction(): Promise<
+  TenedorResueltoDTO[]
 > {
   const actor = await getCurrentUser();
-  return AsignacionService.listarMisionerosSinPeregrina(actor);
+  return AsignacionService.listarTenedoresSinPeregrina(actor);
 }
 
 /**
- * Los Misioneros que tienen alguna imagen a cargo — el filtro «sólo los que
+ * Los Tenedores que tienen alguna imagen a cargo — el filtro «sólo los que
  * tienen alguna» del listado.
  *
- * El mismo scope que su gemela: por el territorio de la *persona*. Una Peregrina
+ * El mismo scope que su gemela: por el territorio del *Tenedor*. Una Peregrina
  * que se movió de Diócesis sigue estando en la casa donde está.
  */
-export async function getMisionerosConPeregrinaAction(): Promise<
-  { id: string; nombre: string; apellido: string }[]
+export async function getTenedoresConPeregrinaAction(): Promise<
+  TenedorResueltoDTO[]
 > {
   const actor = await getCurrentUser();
-  return AsignacionService.listarMisionerosConPeregrina(actor);
+  return AsignacionService.listarTenedoresConPeregrina(actor);
 }
 
 /**
- * Qué imagen tiene cada Misionero de una página — la columna «¿Tiene imagen?».
+ * Qué imagen tiene cada Tenedor de una página — la columna «¿Tiene imagen?».
  *
- * La lista de ids se parsea acá como todo lo demás, y viene topeada por el tamaño
- * de página: esto contesta por las filas que se están mostrando, no por un
+ * Lleva Tenedores enteros y no ids sueltos, y eso no es ceremonia: el id de una
+ * persona y el de un matrimonio viven en espacios distintos, así que un id solo
+ * no dice contra qué columna buscarse. Mientras llevó ids de Misionero, la fila
+ * de una pareja preguntaba por un id que no existe en `misionero` y la celda
+ * contestaba «Ninguna» con la imagen adentro de la casa.
+ *
+ * La lista se parsea acá como todo lo demás, y viene topeada por el tamaño de
+ * página: esto contesta por las filas que se están mostrando, no por un
  * territorio entero de una vez.
  */
-export async function getTenenciasDeMisionerosAction(
-  misioneroIds: unknown
-): Promise<TenenciaDeMisioneroDTO[]> {
+export async function getTenenciasDeTenedoresAction(
+  tenedores: unknown
+): Promise<TenenciaDeTenedorDTO[]> {
   const actor = await getCurrentUser();
-  const parsed = idsDeMisioneroSchema.parse(misioneroIds ?? []);
-  return AsignacionService.tenenciasDeMisioneros(actor, parsed);
+  const parsed = tenedoresDeUnaPaginaSchema.parse(tenedores ?? []);
+  return AsignacionService.tenenciasDeTenedores(actor, parsed);
 }
 
-const idsDeMisioneroSchema = z.array(z.string().min(1)).max(FILAS_POR_PAGINA);
+const tenedoresDeUnaPaginaSchema = z
+  .array(tenedorSchema)
+  .max(FILAS_POR_PAGINA);
 
 /**
  * The two lists the stepped assignment flow needs, in one round trip.
@@ -122,7 +139,7 @@ const idsDeMisioneroSchema = z.array(z.string().min(1)).max(FILAS_POR_PAGINA);
  * pause and two.
  */
 export async function getOpcionesParaAsignarAction(): Promise<{
-  misioneros: MisioneroDTO[];
+  tenedores: TenedorDTO[];
   peregrinas: PeregrinaDTO[];
 }> {
   const actor = await getCurrentUser();
@@ -131,11 +148,18 @@ export async function getOpcionesParaAsignarAction(): Promise<{
   // has it — and then close that period instead of refusing. Hiding held images
   // would make "she passed it on to me" an unrepresentable sentence, which is user
   // story 1.
-  const [misioneros, peregrinas] = await Promise.all([
-    MisioneroService.listAll(actor),
+  //
+  // El roster colapsado y no `listAll`, que sigue contestando en personas: acá se
+  // ofrece **quién puede recibir una imagen**, y un Misionero casado no puede
+  // recibirla solo (ADR 0010). `asignar` lo rechaza igual, pero ofrecer una opción
+  // que siempre termina en un rechazo es peor bug que el rechazo — y ponerla en el
+  // picker es ponerla en el listado, que es la tercera fila que el Matrimonio vino
+  // a sacar.
+  const [tenedores, peregrinas] = await Promise.all([
+    MisioneroService.listFiltrados(actor, {}),
     PeregrinaService.listAll(actor),
   ]);
-  return { misioneros, peregrinas };
+  return { tenedores, peregrinas };
 }
 
 // ── Writes ────────────────────────────────────────────────────────────────────
@@ -152,7 +176,9 @@ export async function asignarAction(
     AsignacionService.asignar(actor, parsed.data)
   );
 
-  if (result.ok) revalidarTenencia(parsed.data.peregrinaId, parsed.data.misioneroId);
+  if (result.ok) {
+    revalidarTenencia(parsed.data.peregrinaId, result.data.tenedor);
+  }
 
   return result;
 }
@@ -170,9 +196,9 @@ export async function entregarAction(
   );
 
   if (result.ok) {
-    revalidarTenencia(parsed.data.peregrinaId, parsed.data.misioneroId);
-    // The outgoing Misionero's own page changed too.
-    revalidatePath(`/misionero/${result.data.cerrada.misionero.id}`);
+    revalidarTenencia(parsed.data.peregrinaId, result.data.abierta.tenedor);
+    // The outgoing Tenedor's own page changed too.
+    revalidarTenedor(result.data.cerrada.tenedor);
   }
 
   return result;
@@ -191,7 +217,7 @@ export async function devolverAction(
   );
 
   if (result.ok) {
-    revalidarTenencia(parsed.data.peregrinaId, result.data.misionero.id);
+    revalidarTenencia(parsed.data.peregrinaId, result.data.tenedor);
   }
 
   return result;
@@ -210,7 +236,7 @@ export async function corregirAsignacionAction(
   );
 
   if (result.ok) {
-    revalidarTenencia(result.data.peregrina.id, result.data.misionero.id);
+    revalidarTenencia(result.data.peregrina.id, result.data.tenedor);
   }
 
   return result;
@@ -219,12 +245,33 @@ export async function corregirAsignacionAction(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Every surface that shows who has what, after a change of charge. */
-function revalidarTenencia(peregrinaId: string, misioneroId: string): void {
+function revalidarTenencia(
+  peregrinaId: string,
+  tenedor: TenedorResueltoDTO
+): void {
   revalidatePath("/peregrina");
   revalidatePath(`/peregrina/${peregrinaId}`);
   revalidatePath(`/peregrina/${peregrinaId}/historial`);
   revalidatePath("/misionero");
-  revalidatePath(`/misionero/${misioneroId}`);
+  revalidarTenedor(tenedor);
+}
+
+/**
+ * La página del Tenedor, sea de quién sea.
+ *
+ * Para un Matrimonio se invalidan **también** las de los dos cónyuges: cada
+ * persona tiene su propia página, y lo que muestra de lo que tiene a cargo ahora
+ * pasa por la pareja. Invalidar sólo `/misionero/<matrimonio>` dejaría las dos
+ * páginas de las personas mostrando lo de ayer.
+ */
+function revalidarTenedor(tenedor: TenedorResueltoDTO): void {
+  if (tenedor.tipo === "persona") {
+    revalidatePath(`/misionero/${tenedor.id}`);
+    return;
+  }
+  revalidatePath(`/matrimonio/${tenedor.id}`);
+  revalidatePath(`/misionero/${tenedor.matrimonio.misioneroA.id}`);
+  revalidatePath(`/misionero/${tenedor.matrimonio.misioneroB.id}`);
 }
 
 /**

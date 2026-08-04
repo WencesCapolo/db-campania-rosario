@@ -5,15 +5,19 @@ import {
   getMisionerosPaginadosAction,
 } from "@/modules/misionero/misionero.router";
 import {
-  getMisionerosConPeregrinaAction,
-  getMisionerosSinPeregrinaAction,
-  getTenenciasDeMisionerosAction,
+  getTenedoresConPeregrinaAction,
+  getTenedoresSinPeregrinaAction,
+  getTenenciasDeTenedoresAction,
 } from "@/modules/asignacion/asignacion.router";
 import { getPeregrinasDisponiblesAction } from "@/modules/peregrina/peregrina.router";
-import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
-import type { TenenciaDeMisioneroDTO } from "@/modules/asignacion/asignacion.types";
+import {
+  valorDeTenedor,
+  type TenedorDTO,
+} from "@/modules/misionero/matrimonio.types";
+import type { TenenciaDeTenedorDTO } from "@/modules/asignacion/asignacion.types";
 import { BotonEnlace } from "@/components/Boton";
+import Insignia from "@/components/Insignia";
 import Paginador from "@/components/Paginador";
 import Volver from "@/components/Volver";
 import { Vacio } from "@/components/EstadosAsincronicos";
@@ -26,7 +30,7 @@ import {
   rango,
   type Pagina,
 } from "@/lib/paginacion";
-import { nombreCompleto } from "@/lib/formato";
+import { nombreDeTenedorEnLista } from "@/lib/formato";
 import FiltrosDeMisionero from "./FiltrosDeMisionero";
 import CrearMisioneroForm from "./CrearMisioneroForm";
 
@@ -57,7 +61,7 @@ import CrearMisioneroForm from "./CrearMisioneroForm";
  * está scopeada por el territorio de la *imagen*: una Peregrina movida a otra
  * Diócesis sigue estando en la casa de quien la tiene, así que decir «Ninguna»
  * sería mentir en la dirección cómoda. Su Código, en cambio, sólo se nombra cuando
- * el Actor podía leerlo igual — lo decide `AsignacionService.tenenciasDeMisioneros`,
+ * el Actor podía leerlo igual — lo decide `AsignacionService.tenenciasDeTenedores`,
  * con la misma distinción que hace la negativa al dar de baja a un Misionero.
  *
  * Dos filtros, los dos en la dirección. El buscador es `MisioneroService.search`, y
@@ -76,12 +80,27 @@ import CrearMisioneroForm from "./CrearMisioneroForm";
  * Asignación abierta, y no con una segunda consulta filtrada. El join ignora a
  * propósito el territorio de la *imagen* — quien tiene una Peregrina que después se
  * movió de Diócesis no está libre — y eso es una propiedad de
- * `findMisionerosSinPeregrina` y su gemela, no algo que esta pantalla deba repetir.
+ * `findTenedoresSinPeregrina` y su gemela, no algo que esta pantalla deba repetir.
  *
  * La lectura no va en un try a propósito. Tira en una negativa, `error.tsx` la
  * agarra, y `Vacio` sólo se alcanza cuando la consulta de verdad no trajo nada: «no
  * hay Misioneros» mostrado a quien fue rechazado le diría que su territorio está
  * vacío, y a quien está tanteando le confirmaría que existe.
+ *
+ * **La tabla es de Tenedores y no de personas.** Un matrimonio es una fila y sus
+ * dos cónyuges no son ninguna (ADR 0010): el listado era el lugar donde la misma
+ * casa aparecía dos veces y había que saber que eran una. El nombre lo arma
+ * `nombreDeTenedorEnLista`, que colapsa el apellido cuando es el mismo, y la fila
+ * lleva además una `Insignia` que dice «Matrimonio» — la «y» del medio se pierde
+ * en un teléfono, y la Insignia trae glifo y palabra, así que la distinción no
+ * queda en el color.
+ *
+ * El nombre sigue siendo el link, y lleva a la ficha del Tenedor: `/misionero/:id`
+ * en una persona, `/matrimonio/:id` en una casa. No a la ficha de uno de los dos
+ * cónyuges — abrir «Álvarez, Ana y Benítez, Juan» y aterrizar en Ana es la misma
+ * media verdad que este cambio saca del listado. El teléfono, el Centro y el
+ * estado de baja de la fila son los del matrimonio; el territorio es el del
+ * cónyuge A, que es de dónde lo toma el propio modelo.
  */
 
 /**
@@ -95,6 +114,86 @@ type FiltroDeTenencia = "con" | "sin";
 
 const esTenencia = (valor?: string): valor is FiltroDeTenencia =>
   valor === "con" || valor === "sin";
+
+/** El id de la fila, que es el del Tenedor y no el de una persona adentro. */
+function idDeFila(fila: TenedorDTO): string {
+  return fila.tipo === "persona" ? fila.persona.id : fila.matrimonio.id;
+}
+
+/**
+ * Lo que la fila muestra además del nombre, venga de una persona o de una casa.
+ *
+ * El teléfono, el Centro y la baja son del matrimonio cuando hay matrimonio —
+ * eso es lo que la casa comparte. El territorio no: un matrimonio no tiene uno
+ * propio y sale del cónyuge A, que es exactamente de donde lo saca el modelo para
+ * scopearlo (ADR 0010), así que la pantalla no está eligiendo nada acá.
+ */
+function datosDeLaFila(fila: TenedorDTO) {
+  if (fila.tipo === "persona") {
+    const p = fila.persona;
+    return {
+      diocesisLocalidad: p.diocesisLocalidad.nombre,
+      provincia: p.provincia,
+      telefono: p.telefono,
+      telefonos: telefonosDe([p]),
+      centroTipo: p.centroTipo,
+      centroNombre: p.centroNombre,
+      deBaja: p.deBaja,
+    };
+  }
+
+  const m = fila.matrimonio;
+  return {
+    diocesisLocalidad: m.misioneroA.diocesisLocalidad.nombre,
+    provincia: m.misioneroA.provincia,
+    telefonos: telefonosDe([m.misioneroA, m.misioneroB]),
+    centroTipo: m.centroTipo,
+    centroNombre: m.centroNombre,
+    deBaja: m.deBaja,
+  };
+}
+
+/**
+ * Los teléfonos de la fila, que son de personas y no de casas.
+ *
+ * Un matrimonio tiene hasta dos, cada uno de uno de los dos, y los dos son
+ * opcionales — así que la celda muestra ninguno, uno o los dos. Cuando hay más de
+ * uno cada número dice de quién es: llamar es llamarle a alguien, y un par de
+ * números sin nombre obliga a probar los dos.
+ */
+function telefonosDe(
+  personas: { nombre: string; telefono: string | null }[],
+): { deQuien: string; numero: string }[] {
+  const conNumero = personas.filter((p) => p.telefono);
+  return conNumero.map((p) => ({
+    deQuien: conNumero.length > 1 ? p.nombre : "",
+    // Filtrado arriba: acá ya no puede ser null.
+    numero: p.telefono ?? "",
+  }));
+}
+
+/**
+ * Si la fila está en la lista de Tenedores con —o sin— imagen, que es el filtro
+ * de tenencia.
+ *
+ * Una pertenencia por identidad y nada más, porque las dos listas están keyeadas
+ * igual: `findTenedoresSinPeregrina` y su gemela contestan por Tenedor, de la
+ * misma forma en que el roster arma sus filas.
+ *
+ * No siempre fue así. Mientras contestaron por Misionero, esto buscaba a un
+ * matrimonio por sus dos cónyuges — y no alcanzaba, porque las Asignaciones de un
+ * matrimonio apuntan al matrimonio y no a ninguno de los dos, así que una casa
+ * con una imagen a cargo caía del lado equivocado del filtro sin que nada
+ * fallara. Era la lectura polimórfica a medias que ADR 0010 avisa que falla en
+ * silencio, y se arregló donde correspondía: en `AsignacionRepository`.
+ *
+ * La clave es `valorDeTenedor` y no el id pelado. El id de una persona y el de un
+ * matrimonio viven en espacios distintos, y compararlos sueltos es cómo dos cosas
+ * que no son la misma llegan a parecerlo.
+ */
+function claveDeFila(fila: TenedorDTO): string {
+  return valorDeTenedor({ tipo: fila.tipo, id: idDeFila(fila) });
+}
 
 const CELDA = "px-4 py-3 align-middle";
 
@@ -118,7 +217,7 @@ export default async function MisioneroPage({
    *
    * Without the tenencia filter the page comes from the database, one page of rows
    * and a count over the same predicate. With it, the set is the intersection of
-   * two scoped reads — and the second, `findMisionerosSinPeregrina` or its twin,
+   * two scoped reads — and the second, `findTenedoresSinPeregrina` or its twin,
    * deliberately ignores the *image's* territory, so it cannot be expressed as a
    * filter on this query. The intersection therefore has to be computed before it
    * can be cut, which means fetching both in full and slicing here.
@@ -136,19 +235,23 @@ export default async function MisioneroPage({
 
   const porTenencia = tenencia
     ? tenencia === "sin"
-      ? await getMisionerosSinPeregrinaAction()
-      : await getMisionerosConPeregrinaAction()
+      ? await getTenedoresSinPeregrinaAction()
+      : await getTenedoresConPeregrinaAction()
+    : null;
+
+  const clavesConTenencia = porTenencia
+    ? new Set(porTenencia.map((t) => valorDeTenedor({ tipo: t.tipo, id: t.id })))
     : null;
 
   const pagina =
-    encontrados && porTenencia
+    encontrados && clavesConTenencia
       ? enMemoria(
-          encontrados.filter((m) => porTenencia.some((l) => l.id === m.id)),
+          encontrados.filter((t) => clavesConTenencia.has(claveDeFila(t))),
           paginaPedida,
         )
       : await getMisionerosPaginadosAction(filtros, paginaPedida);
 
-  const misioneros = pagina.filas;
+  const filas = pagina.filas;
   const filtrado = Boolean(q || tenencia);
 
   // Una consulta para las filas de esta página, no una por fila: veinte filas
@@ -160,10 +263,14 @@ export default async function MisioneroPage({
   // acá evita volver a buscar por apellido a quien se acaba de tipear.
   const disponibles = await getPeregrinasDisponiblesAction();
 
-  const tenencias = misioneros.length
-    ? await getTenenciasDeMisionerosAction(misioneros.map((m) => m.id))
+  const tenencias = filas.length
+    ? await getTenenciasDeTenedoresAction(
+        filas.map((f) => ({ tipo: f.tipo, id: idDeFila(f) })),
+      )
     : [];
-  const tenenciaDe = new Map(tenencias.map((t) => [t.misioneroId, t]));
+  const tenenciaDe = new Map(
+    tenencias.map((t) => [valorDeTenedor(t.tenedor), t]),
+  );
 
   const hrefDePagina = (n: number) => {
     const query = new URLSearchParams();
@@ -226,9 +333,9 @@ export default async function MisioneroPage({
               Cargar un Misionero
             </h2>
             <p className="mt-1 mb-5 text-base leading-relaxed text-tinta-suave">
-              Una persona de la Campaña: no entra al sistema ni tiene contraseña,
-              es quien puede tener una imagen a cargo. Se carga acá mismo y
-              aparece en la tabla de abajo.
+              Una persona de la Campaña, o un matrimonio: no entra al sistema ni
+              tiene contraseña, es quien puede tener una imagen a cargo. Se
+              carga acá mismo y aparece en la tabla de abajo.
             </p>
 
             <CrearMisioneroForm enListado disponibles={disponibles} />
@@ -243,13 +350,18 @@ export default async function MisioneroPage({
               Las personas
             </h2>
             <p className="mt-1 text-base text-tinta-suave" aria-live="polite">
-              {/* El conjunto entero, del agregado — no las filas de esta página. */}
-              {pagina.total === 1 ? "1 persona" : `${pagina.total} personas`}
+              {/* El conjunto entero, del agregado — no las filas de esta página.
+                  «Personas y matrimonios» porque eso es lo que se cuenta: un
+                  matrimonio es uno acá y dos en la vida, y decir «personas» a
+                  secas haría que el número no cerrara con las filas de abajo. */}
+              {pagina.total === 1
+                ? "1 persona o matrimonio"
+                : `${pagina.total} personas y matrimonios`}
               {filtrado ? " con esos filtros" : " en tu territorio"}
             </p>
           </div>
 
-          {misioneros.length === 0 ? (
+          {filas.length === 0 ? (
             <div className="px-5 py-6 sm:px-6">
               {filtrado ? (
                 <Vacio
@@ -290,67 +402,106 @@ export default async function MisioneroPage({
                 </thead>
 
                 <tbody>
-                  {misioneros.map((m) => (
-                    <tr
-                      key={m.id}
-                      className="border-b border-borde-suave last:border-b-0 hover:bg-lienzo"
-                    >
-                      <th scope="row" className={`${CELDA} font-normal`}>
-                        {/* El nombre es el link y es lo primero de la fila: quien
-                            busca a alguien está emparejando un apellido. */}
-                        <Link
-                          href={`/misionero/${m.id}`}
-                          className="text-lg font-bold text-azul"
-                        >
-                          {nombreCompleto(m)}
-                        </Link>
-                        {m.deBaja && (
-                          <span className="mt-1 block text-sm text-tinta-suave">
-                            dado de baja
+                  {filas.map((fila) => {
+                    const id = idDeFila(fila);
+                    const casa = datosDeLaFila(fila);
+
+                    return (
+                      <tr
+                        key={id}
+                        className="border-b border-borde-suave last:border-b-0 hover:bg-lienzo"
+                      >
+                        <th scope="row" className={`${CELDA} font-normal`}>
+                          {/* El nombre es el link y es lo primero de la fila:
+                              quien busca a alguien está emparejando un apellido.
+                              La ficha de un matrimonio es la del matrimonio, no
+                              la de uno de los dos. */}
+                          <Link
+                            href={
+                              fila.tipo === "persona"
+                                ? `/misionero/${id}`
+                                : `/matrimonio/${id}`
+                            }
+                            className="text-lg font-bold text-azul"
+                          >
+                            {nombreDeTenedorEnLista(fila)}
+                          </Link>
+
+                          {fila.tipo === "matrimonio" && (
+                            <span className="mt-2 block">
+                              <Insignia>Matrimonio</Insignia>
+                            </span>
+                          )}
+
+                          {casa.deBaja && (
+                            <span className="mt-1 block text-sm text-tinta-suave">
+                              {fila.tipo === "matrimonio"
+                                ? "matrimonio dado de baja"
+                                : "dado de baja"}
+                            </span>
+                          )}
+                        </th>
+
+                        <td className={CELDA}>
+                          <Tenencia tenencia={tenenciaDe.get(claveDeFila(fila))} />
+                        </td>
+
+                        <td className={`${CELDA} text-tinta`}>
+                          {casa.diocesisLocalidad}
+                          <span className="block text-sm text-tinta-suave">
+                            {casa.provincia}
                           </span>
-                        )}
-                      </th>
+                        </td>
 
-                      <td className={CELDA}>
-                        <Tenencia tenencia={tenenciaDe.get(m.id)} />
-                      </td>
+                        <td className={`${CELDA} whitespace-nowrap text-tinta`}>
+                          {casa.telefonos.length === 0 ? (
+                            <span className="text-tinta-suave">
+                              Sin teléfono
+                            </span>
+                          ) : (
+                            /* Un link `tel:` porque esta columna existe para
+                               llamar: en un teléfono llamar es tocarlo, y en una
+                               computadora sigue siendo texto que se puede copiar.
+                               Un matrimonio puede tener dos, y entonces cada uno
+                               dice de quién es. */
+                            <span className="flex flex-col gap-1">
+                              {casa.telefonos.map((t) => (
+                                <span key={t.numero}>
+                                  <a
+                                    href={`tel:${t.numero}`}
+                                    className="text-accion"
+                                  >
+                                    {t.numero}
+                                  </a>
+                                  {t.deQuien && (
+                                    <span className="block text-sm text-tinta-suave">
+                                      {t.deQuien}
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </td>
 
-                      <td className={`${CELDA} text-tinta`}>
-                        {m.diocesisLocalidad.nombre}
-                        <span className="block text-sm text-tinta-suave">
-                          {m.provincia}
-                        </span>
-                      </td>
-
-                      <td className={`${CELDA} whitespace-nowrap text-tinta`}>
-                        {m.telefono ? (
-                          /* Un link `tel:` porque esta columna existe para
-                             llamar: en un teléfono llamar es tocarlo, y en una
-                             computadora sigue siendo texto que se puede copiar. */
-                          <a href={`tel:${m.telefono}`} className="text-accion">
-                            {m.telefono}
-                          </a>
-                        ) : (
-                          <span className="text-tinta-suave">Sin teléfono</span>
-                        )}
-                      </td>
-
-                      <td className={`${CELDA} text-tinta`}>
-                        {m.centroTipo || m.centroNombre ? (
-                          <>
-                            {m.centroTipo && CENTRO_LABELS[m.centroTipo]}
-                            {m.centroNombre && (
-                              <span className="block text-sm text-tinta-suave">
-                                {m.centroNombre}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-tinta-suave">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className={`${CELDA} text-tinta`}>
+                          {casa.centroTipo || casa.centroNombre ? (
+                            <>
+                              {casa.centroTipo &&
+                                CENTRO_LABELS[casa.centroTipo]}
+                              {casa.centroNombre && (
+                                <span className="block text-sm text-tinta-suave">
+                                  {casa.centroNombre}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-tinta-suave">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -362,7 +513,7 @@ export default async function MisioneroPage({
           paginas={pagina.paginas}
           total={pagina.total}
           porPagina={pagina.porPagina}
-          unidad="personas"
+          unidad="personas y matrimonios"
           href={hrefDePagina}
         />
 
@@ -387,7 +538,7 @@ export default async function MisioneroPage({
  * que está escrito en la Peregrina, y `whitespace-nowrap` para que «CBA JOV 0001»
  * no se corte en tres renglones.
  */
-function Tenencia({ tenencia }: { tenencia?: TenenciaDeMisioneroDTO }) {
+function Tenencia({ tenencia }: { tenencia?: TenenciaDeTenedorDTO }) {
   const propias = tenencia?.peregrinas ?? [];
   const ajenas = tenencia?.ajenas ?? 0;
 
@@ -427,9 +578,9 @@ function Tenencia({ tenencia }: { tenencia?: TenenciaDeMisioneroDTO }) {
  * slice's.
  */
 function enMemoria(
-  filas: MisioneroDTO[],
+  filas: TenedorDTO[],
   paginaPedida: number,
-): Pagina<MisioneroDTO> {
+): Pagina<TenedorDTO> {
   const actual = paginaExistente(paginaPedida, cantidadDePaginas(filas.length));
   const { limit, offset } = rango(actual);
   return armarPagina(filas.slice(offset, offset + limit), filas.length, actual);

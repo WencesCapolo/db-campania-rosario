@@ -8,6 +8,7 @@ import {
   type Modalidad,
 } from "./peregrina.schema";
 import type { Region } from "@/modules/territorio/territorio.schema";
+import type { TenedorResueltoDTO } from "@/lib/tenedor";
 import {
   filtrosTerritorialesSchema,
   type DiocesisLocalidadDTO,
@@ -84,20 +85,21 @@ export const TIPO_LABELS: Record<PeregrinaTipo, string> = {
 // get it wrong.
 
 /**
- * Who has the image right now, resolved to a name so a list can render it.
+ * Who has the image right now, resolved to a name so a list can render it — one
+ * Misionero, or one Matrimonio (ADR 0010).
  *
- * Read off Peregrina's denormalised pointer rather than the open Asignación, so
- * that a list of two hundred rows costs one join and not two hundred. `deBaja`
- * is here because a Misionero given de baja still shows up as the holder — that
- * pairing is exactly what the guard on `MisioneroService.darDeBaja` prevents, so
- * seeing it means something went wrong.
+ * Read off Peregrina's two denormalised pointers rather than the open
+ * Asignación, so that a list of two hundred rows costs a handful of joins and
+ * not two hundred. `deBaja` travels with it because a Misionero given de baja
+ * still shows up as the holder — that pairing is exactly what the guard on
+ * `MisioneroService.darDeBaja` prevents, so seeing it means something went
+ * wrong.
+ *
+ * Es el mismo tipo que lleva una Asignación: la pregunta «quién la tiene» tiene
+ * una sola forma de respuesta, la conteste el puntero o el período. Ver
+ * `lib/tenedor.ts` para por qué el tipo vive donde vive.
  */
-export interface TenenciaActualDTO {
-  misioneroId: string;
-  nombre: string;
-  apellido: string;
-  deBaja: boolean;
-}
+export type { TenedorResueltoDTO, PersonaDeTenedorDTO } from "@/lib/tenedor";
 
 export interface PeregrinaDTO {
   id: string;
@@ -108,8 +110,8 @@ export interface PeregrinaDTO {
   diocesisLocalidad: DiocesisLocalidadDTO;
   provincia: string;
   region: Region;
-  /** The open Asignación's Misionero, or null when nobody has it. */
-  tenenciaActual: TenenciaActualDTO | null;
+  /** The open Asignación's Tenedor, or null when nobody has it — *libre*. */
+  tenenciaActual: TenedorResueltoDTO | null;
   deBaja: boolean;
   createdById: string;
   createdAt: Date;
@@ -155,10 +157,11 @@ export type UpdatePeregrinaInput = z.infer<typeof updatePeregrinaSchema>;
 /**
  * Whether an image is in somebody's charge right now.
  *
- * Read off `misioneroActualId`, and therefore *not* the same question as "has
- * never been assigned", which is an anti-join against Asignación and lives in
- * `AsignacionRepository`. An image handed out and returned is `libre` here and
- * is not in the never-assigned list.
+ * Read off los dos punteros denormalizados — `libre` es que **ninguno** de los
+ * dos esté puesto (ADR 0010) —, y por lo tanto *no* es la misma pregunta que
+ * "nunca se asignó", que es un anti-join contra Asignación y vive en
+ * `AsignacionRepository`. Una imagen entregada y devuelta es `libre` acá y no
+ * está en la lista de las nunca asignadas.
  */
 export const TENENCIAS = ["libre", "asignada"] as const;
 export type Tenencia = (typeof TENENCIAS)[number];

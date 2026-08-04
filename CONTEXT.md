@@ -45,8 +45,18 @@ A Usuario who registers Misioneros and assigns Peregrinas to them within their o
 _Avoid_: Encargado de Rama, Local manager
 
 **Misionero**:
-A person who takes charge of a Peregrina. A tracked data entity only — a Misionero has no credentials and never signs in.
+A person who can take charge of a Peregrina, alone or as half of a Matrimonio. A tracked data entity only — a Misionero has no credentials and never signs in.
 _Avoid_: Usuario, Voluntario
+
+**Matrimonio**:
+A married couple who take charge of a Peregrina together — two Misioneros, one Tenedor. The couple shares a teléfono, a Centro and a territory; each spouse keeps their own Año de consagración and Resumen anual, because two people are consecrated in two different years.
+A Misionero in an active Matrimonio is **never** a holder on their own: the couple replaces them in every list and every picker, so an image is never filed under one spouse while the other is invisible. Ending a Matrimonio is a **baja**, like any other — the two spouses become individual Misioneros again, and every Asignación the couple held keeps reading as the couple, because that is what was true then (ADR 0010).
+Distinct from the `MAT` Modalidad, which is a property of the *image* and says nothing about who holds it.
+_Avoid_: Pareja, Familia (that is the `FAM` Modalidad), Cónyuges
+
+**Tenedor**:
+Whoever a Peregrina is in the charge of: one Misionero, or one Matrimonio. The word exists because Asignación and Peregrina each point at either kind, and because a screen asking "who has this image" wants one answer rather than a choice of two questions.
+_Avoid_: Responsable, Portador, Dueño
 
 ### Objects
 
@@ -83,16 +93,16 @@ The place where a Peregrina is venerated — a santuario, ermita, or parroquia, 
 _Avoid_: Ubicación, Sede
 
 **Asignación**:
-A period during which one Misionero had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the **territory** each end was registered from, and never with a person: Referentes Locales share one login per territory, so the record can answer *where* and cannot answer *who*.
+A period during which one Tenedor — a Misionero or a Matrimonio — had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the **territory** each end was registered from, and never with a person: Referentes Locales share one login per territory, so the record can answer *where* and cannot answer *who*.
 A mistaken one is **corregida**, never deleted — an edit that stamps `corregidaAt`, so a typo does not become permanent history and the correction does not become invisible history.
 _Avoid_: Ubicación, Préstamo; "registrada por" followed by a person's name
 
 **Tenencia actual**:
-The single open Asignación for a Peregrina — the Misionero responsible for it right now. A Peregrina has at most one, and no Asignación is ever overwritten: handing an image on closes one period and opens another.
+The single open Asignación for a Peregrina — the Tenedor responsible for it right now, whether that is one Misionero or a Matrimonio. A Peregrina has at most one, and no Asignación is ever overwritten: handing an image on closes one period and opens another.
 _Avoid_: Ubicación
 
 **De baja**:
-Retired rather than deleted. A Peregrina permanently out of service, a Misionero who has left the Campaña, or a Usuario whose access has ended — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real Código and a real name. Refused while an Asignación is still open: an image physically in somebody's house has not left the inventory.
+Retired rather than deleted. A Peregrina permanently out of service, a Misionero who has left the Campaña, a Matrimonio that has ended, or a Usuario whose access has ended — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real Código and a real name. Refused while an Asignación is still open: an image physically in somebody's house has not left the inventory.
 _Avoid_: Eliminar, Borrar, Baja (on its own, for a Peregrina that is merely unassigned)
 
 **Tablero**:

@@ -32,8 +32,8 @@ export default async function NuevoMisioneroPage() {
         <Volver href="/misionero">Volver a Misioneros</Volver>
         <h1 className="text-3xl font-bold text-tinta">Cargar un Misionero</h1>
         <p className="text-base leading-relaxed text-tinta-suave">
-          Una persona de la Campaña. No entra al sistema ni tiene contraseña: es
-          quien puede tener una imagen a cargo.
+          Una persona de la Campaña, o un matrimonio. No entra al sistema ni
+          tiene contraseña: es quien puede tener una imagen a cargo.
         </p>
       </div>
 

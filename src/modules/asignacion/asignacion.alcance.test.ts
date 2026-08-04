@@ -11,7 +11,14 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import type { CurrentUser } from "@/modules/user/user.types";
+import type { Tenedor } from "@/modules/misionero/matrimonio.types";
+import { nombreDeTenedor } from "@/lib/formato";
 import { NoAutorizadoError } from "@/lib/errors";
+
+/** Una persona, vista como la fila del listado que es. */
+function comoTenedor(m: { id: string }): Tenedor {
+  return { tipo: "persona", id: m.id };
+}
 
 /**
  * La matriz de alcance para Asignación, extendiendo la del issue #2.
@@ -103,7 +110,7 @@ beforeEach(async () => {
           });
     await AsignacionService.asignar(asesor, {
       peregrinaId,
-      misioneroId: misionero.id,
+      tenedor: { tipo: "persona", id: misionero.id },
       nota: null,
     });
   }
@@ -198,16 +205,18 @@ describe.each([
     expect(idle.map((p) => p.id)).toEqual([nunca.id]);
   });
 
-  it("los Misioneros con alguna imagen son sólo los de su Diócesis", async () => {
+  it("los Tenedores con alguna imagen son sólo los de su Diócesis", async () => {
     // El filtro «sólo los que tienen alguna» del listado. En Río Cuarto hay
     // alguien teniendo la vecina, así que la mitad negativa tiene algo que ver:
     // si el scope fuera provincial, esa persona aparecería acá.
-    const conImagen = await AsignacionService.listarMisionerosConPeregrina(
+    const conImagen = await AsignacionService.listarTenedoresConPeregrina(
       obtenerActor()
     );
 
-    expect(conImagen.map((m) => m.id)).toEqual([misioneroPropio.id]);
-    expect(conImagen.map((m) => m.apellido)).not.toContain("DeRioCuarto");
+    expect(conImagen.map((t) => t.id)).toEqual([misioneroPropio.id]);
+    expect(conImagen.map(nombreDeTenedor).join(" ")).not.toContain(
+      "DeRioCuarto"
+    );
   });
 
   it("las dos mitades del filtro parten su territorio y no se solapan", async () => {
@@ -216,8 +225,8 @@ describe.each([
     // la propia, así que «sin» vuelve vacía — y eso es la partición, no un cero
     // por haber mirado el territorio equivocado.
     const [conImagen, sinImagen] = await Promise.all([
-      AsignacionService.listarMisionerosConPeregrina(obtenerActor()),
-      AsignacionService.listarMisionerosSinPeregrina(obtenerActor()),
+      AsignacionService.listarTenedoresConPeregrina(obtenerActor()),
+      AsignacionService.listarTenedoresSinPeregrina(obtenerActor()),
     ]);
 
     const libre = await crearMisioneroDirecto({
@@ -226,11 +235,11 @@ describe.each([
       apellido: "Libre",
     });
 
-    expect(conImagen.map((m) => m.id)).toEqual([misioneroPropio.id]);
+    expect(conImagen.map((t) => t.id)).toEqual([misioneroPropio.id]);
     expect(sinImagen).toEqual([]);
     expect(
-      await AsignacionService.listarMisionerosSinPeregrina(obtenerActor())
-    ).toMatchObject([{ id: libre.id }]);
+      await AsignacionService.listarTenedoresSinPeregrina(obtenerActor())
+    ).toMatchObject([{ tipo: "persona", id: libre.id }]);
   });
 
   it("tener una imagen de otro territorio cuenta como tenerla", async () => {
@@ -248,20 +257,20 @@ describe.each([
     });
     await AsignacionService.asignar(asesor, {
       peregrinaId: deZapala.id,
-      misioneroId: suyo.id,
+      tenedor: { tipo: "persona", id: suyo.id },
       nota: null,
     });
 
     const [conImagen, sinImagen] = await Promise.all([
-      AsignacionService.listarMisionerosConPeregrina(obtenerActor()),
-      AsignacionService.listarMisionerosSinPeregrina(obtenerActor()),
+      AsignacionService.listarTenedoresConPeregrina(obtenerActor()),
+      AsignacionService.listarTenedoresSinPeregrina(obtenerActor()),
     ]);
 
-    expect(conImagen.map((m) => m.id)).toContain(suyo.id);
-    expect(sinImagen.map((m) => m.id)).not.toContain(suyo.id);
+    expect(conImagen.map((t) => t.id)).toContain(suyo.id);
+    expect(sinImagen.map((t) => t.id)).not.toContain(suyo.id);
   });
 
-  it("las tenencias de una página de Misioneros no dicen nada de un Misionero vecino", async () => {
+  it("las tenencias de una página de Tenedores no dicen nada de un Misionero vecino", async () => {
     // La columna «¿Tiene imagen?» del listado, con un id ajeno mezclado entre los
     // propios: la fila del vecino vuelve vacía y no con su Peregrina, así que
     // pasar ids de otra Diócesis no enseña si esa persona tiene una imagen.
@@ -270,22 +279,24 @@ describe.each([
     // prueba pasaría por no haber nada que ver.
     await AsignacionService.entregar(asesor, {
       peregrinaId: vecina.id,
-      misioneroId: misioneroVecino.id,
+      tenedor: { tipo: "persona", id: misioneroVecino.id },
       notaCierre: null,
       nota: null,
     });
 
-    const tenencias = await AsignacionService.tenenciasDeMisioneros(
+    const tenencias = await AsignacionService.tenenciasDeTenedores(
       obtenerActor(),
-      [misioneroPropio.id, misioneroVecino.id]
+      [comoTenedor(misioneroPropio), comoTenedor(misioneroVecino)]
     );
 
-    const propio = tenencias.find((t) => t.misioneroId === misioneroPropio.id);
+    const propio = tenencias.find(
+      (t) => t.tenedor.id === misioneroPropio.id
+    );
     expect(propio?.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
 
-    const vecino = tenencias.find((t) => t.misioneroId === misioneroVecino.id);
+    const vecino = tenencias.find((t) => t.tenedor.id === misioneroVecino.id);
     expect(vecino).toEqual({
-      misioneroId: misioneroVecino.id,
+      tenedor: comoTenedor(misioneroVecino),
       peregrinas: [],
       ajenas: 0,
     });
@@ -303,13 +314,13 @@ describe.each([
     });
     await AsignacionService.asignar(asesor, {
       peregrinaId: deZapala.id,
-      misioneroId: misioneroPropio.id,
+      tenedor: { tipo: "persona", id: misioneroPropio.id },
       nota: null,
     });
 
-    const [tenencia] = await AsignacionService.tenenciasDeMisioneros(
+    const [tenencia] = await AsignacionService.tenenciasDeTenedores(
       obtenerActor(),
-      [misioneroPropio.id]
+      [comoTenedor(misioneroPropio)]
     );
 
     expect(tenencia.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
@@ -318,18 +329,18 @@ describe.each([
   });
 });
 
-describe("las tenencias de una página de Misioneros, para un rol nacional", () => {
+describe("las tenencias de una página de Tenedores, para un rol nacional", () => {
   it("un Asesor Nacional ve el Código de cualquiera de las dos Diócesis", async () => {
     await AsignacionService.entregar(asesor, {
       peregrinaId: vecina.id,
-      misioneroId: misioneroVecino.id,
+      tenedor: { tipo: "persona", id: misioneroVecino.id },
       notaCierre: null,
       nota: null,
     });
 
-    const tenencias = await AsignacionService.tenenciasDeMisioneros(asesor, [
-      misioneroPropio.id,
-      misioneroVecino.id,
+    const tenencias = await AsignacionService.tenenciasDeTenedores(asesor, [
+      comoTenedor(misioneroPropio),
+      comoTenedor(misioneroVecino),
     ]);
 
     expect(
@@ -338,8 +349,8 @@ describe("las tenencias de una página de Misioneros, para un rol nacional", () 
     expect(tenencias.every((t) => t.ajenas === 0)).toBe(true);
   });
 
-  it("sin ids no hay pregunta, y la lista vuelve vacía", async () => {
-    expect(await AsignacionService.tenenciasDeMisioneros(asesor, [])).toEqual([]);
+  it("sin Tenedores no hay pregunta, y la lista vuelve vacía", async () => {
+    expect(await AsignacionService.tenenciasDeTenedores(asesor, [])).toEqual([]);
   });
 });
 
@@ -358,12 +369,12 @@ describe.each([
 
     const { abierta } = await AsignacionService.entregar(obtenerActor(), {
       peregrinaId: propia.id,
-      misioneroId: otro.id,
+      tenedor: { tipo: "persona", id: otro.id },
       notaCierre: null,
       nota: null,
     });
 
-    expect(abierta.misionero.id).toBe(otro.id);
+    expect(abierta.tenedor.id).toBe(otro.id);
   });
 
   it("NO puede asignar una Peregrina de la Diócesis vecina, aunque la vea en el selector", async () => {
@@ -375,7 +386,7 @@ describe.each([
     await expect(
       AsignacionService.asignar(obtenerActor(), {
         peregrinaId: vecina.id,
-        misioneroId: misioneroPropio.id,
+        tenedor: { tipo: "persona", id: misioneroPropio.id },
         nota: null,
       })
     ).rejects.toThrow(NoAutorizadoError);
@@ -385,7 +396,7 @@ describe.each([
     await expect(
       AsignacionService.entregar(obtenerActor(), {
         peregrinaId: ajena.id,
-        misioneroId: misioneroPropio.id,
+        tenedor: { tipo: "persona", id: misioneroPropio.id },
         notaCierre: null,
         nota: null,
       })
@@ -414,7 +425,7 @@ describe.each([
     await expect(
       AsignacionService.entregar(obtenerActor(), {
         peregrinaId: propia.id,
-        misioneroId: misioneroVecino.id,
+        tenedor: { tipo: "persona", id: misioneroVecino.id },
         notaCierre: null,
         nota: null,
       })
@@ -424,7 +435,7 @@ describe.each([
       obtenerActor(),
       propia.id
     );
-    expect(tenencia?.misionero.id).toBe(misioneroPropio.id);
+    expect(tenencia?.tenedor.id).toBe(misioneroPropio.id);
   });
 
   it("NO puede corregir una Asignación ajena", async () => {
@@ -502,7 +513,7 @@ describe("un rol territorial sin territorio falla cerrado", () => {
     await expect(
       AsignacionService.asignar(sinTerritorio, {
         peregrinaId: propia.id,
-        misioneroId: misioneroPropio.id,
+        tenedor: { tipo: "persona", id: misioneroPropio.id },
         nota: null,
       })
     ).rejects.toThrow(NoAutorizadoError);

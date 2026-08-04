@@ -11,11 +11,17 @@ import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
 import {
   deCampoDeFecha,
-  nombreCompleto,
+  nombreDeTenedor,
+  nombreDeTenedorEnLista,
   paraCampoDeFecha,
 } from "@/lib/formato";
+import { opcionDeTenedor } from "@/lib/tenedor-en-pantalla";
+import {
+  tenedorDesdeValor,
+  valorDeTenedor,
+} from "@/modules/misionero/matrimonio.types";
 import type { AsignacionDTO } from "@/modules/asignacion/asignacion.types";
-import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
+import type { TenedorDTO } from "@/modules/misionero/matrimonio.types";
 
 /**
  * Corregir un período mal cargado — historia 17.
@@ -50,20 +56,30 @@ import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
  * Misionero dado de baja, since they would be holding an image while absent from
  * every active list. The list handed in is the active one, so the second case
  * cannot be chosen; the first is left exactly as it was recorded.
+ *
+ * Lo que se corrige es el **Tenedor**, no la persona: el período pudo ser de un
+ * Matrimonio, y la lista es la misma que la del flujo de entrega — una sola, con
+ * personas solteras y parejas adentro (ADR 0010). Un período mal cargado a un
+ * cónyuge se arregla eligiendo la pareja, que es exactamente el error que este
+ * diálogo existe para arreglar.
  */
 export default function CorregirAsignacion({
   asignacion,
-  misioneros,
+  tenedores,
 }: {
   asignacion: AsignacionDTO;
-  /** Active Misioneros in the Actor's scope. */
-  misioneros: MisioneroDTO[];
+  /** El roster colapsado del alcance del Actor: solteros y matrimonios. */
+  tenedores: TenedorDTO[];
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
 
+  // `TenedorResueltoDTO` lleva `tipo` e `id` afuera de la rama justamente para
+  // esto: el valor del `<option>` se arma sin discriminar la unión.
+  const valorRegistrado = valorDeTenedor(asignacion.tenedor);
+
   const inicial = {
-    misioneroId: asignacion.misionero.id,
+    tenedor: valorRegistrado,
     abiertaAt: paraCampoDeFecha(asignacion.abiertaAt),
     cerradaAt: asignacion.cerradaAt
       ? paraCampoDeFecha(asignacion.cerradaAt)
@@ -82,23 +98,25 @@ export default function CorregirAsignacion({
     setCampos((previos) => ({ ...previos, [campo]: valor }));
   }
 
-  // A closed period whose Misionero has since left the Campaña would otherwise
+  // A closed period whose Tenedor has since left the Campaña would otherwise
   // vanish from its own picker and read as "nobody chosen". The historical name
-  // is added back, marked, so the field shows what the record says.
-  const opcionesDeMisionero = [
-    ...misioneros.map((m) => ({
-      valor: m.id,
-      etiqueta: `${m.apellido}, ${m.nombre}`,
-    })),
-    ...(misioneros.some((m) => m.id === asignacion.misionero.id)
-      ? []
-      : [
-          {
-            valor: asignacion.misionero.id,
-            etiqueta: `${asignacion.misionero.apellido}, ${asignacion.misionero.nombre} (dado de baja)`,
-          },
-        ]),
-  ];
+  // is added back, marked, so the field shows what the record says. Vale igual
+  // para un Matrimonio dado de baja: la historia sigue leyéndose como la pareja,
+  // porque eso es lo que era entonces.
+  const opciones = tenedores.map(opcionDeTenedor);
+  const opcionesDeTenedor = opciones.some((o) => o.valor === valorRegistrado)
+    ? opciones
+    : [
+        ...opciones,
+        {
+          valor: valorRegistrado,
+          etiqueta: `${nombreDeTenedorEnLista(asignacion.tenedor)} (${
+            asignacion.tenedor.tipo === "matrimonio"
+              ? "matrimonio dado de baja"
+              : "dado de baja"
+          })`,
+        },
+      ];
 
   return (
     <Dialogo
@@ -120,7 +138,7 @@ export default function CorregirAsignacion({
         <>
           <p className="mt-3 text-base leading-relaxed">
             El período de{" "}
-            <strong>{nombreCompleto(asignacion.misionero)}</strong>. Se corrige,
+            <strong>{nombreDeTenedor(asignacion.tenedor)}</strong>. Se corrige,
             no se borra: la corrección queda anotada en el historial con la
             fecha de hoy.
           </p>
@@ -136,9 +154,10 @@ export default function CorregirAsignacion({
           <div className="mt-4 space-y-5">
             <Eleccion
               etiqueta="¿Quién la tuvo?"
-              value={campos.misioneroId}
-              opciones={opcionesDeMisionero}
-              onChange={(e) => editar("misioneroId", e.target.value)}
+              ayuda="Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
+              value={campos.tenedor}
+              opciones={opcionesDeTenedor}
+              onChange={(e) => editar("tenedor", e.target.value)}
             />
 
             <Campo
@@ -200,15 +219,20 @@ export default function CorregirAsignacion({
                     return;
                   }
 
+                  // Sólo puede ser null si alguien escribió el valor a mano; el
+                  // único que arma opciones acá es este mismo módulo.
+                  const tenedor =
+                    campos.tenedor === inicial.tenedor
+                      ? undefined
+                      : (tenedorDesdeValor(campos.tenedor) ?? undefined);
+
                   const resultado = await corregirAsignacionAction({
                     asignacionId: asignacion.id,
                     // Only what changed. Sending everything would stamp a
                     // correction onto a period somebody merely looked at, and
                     // sending nothing lets the service say "No hay nada que
                     // corregir." — which is the right sentence.
-                    ...(campos.misioneroId !== inicial.misioneroId && {
-                      misioneroId: campos.misioneroId,
-                    }),
+                    ...(tenedor !== undefined && { tenedor }),
                     ...(abiertaAt !== undefined && { abiertaAt }),
                     ...(cerradaAt !== undefined && { cerradaAt }),
                     ...(campos.notaApertura !== inicial.notaApertura && {

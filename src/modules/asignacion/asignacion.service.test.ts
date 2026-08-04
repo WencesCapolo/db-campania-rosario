@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { nombreDeTenedor } from "@/lib/formato";
 import { AsignacionService } from "./asignacion.service";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import { MisioneroService } from "@/modules/misionero/misionero.service";
@@ -87,13 +88,13 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
   it("asignar una Peregrina que ya tiene alguien se rechaza, y dice quién la tiene", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
     const intento = AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       nota: null,
     });
 
@@ -104,27 +105,27 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
     // Y no cerró la de Ana por las suyas.
     const abierta = await abiertas(referente, peregrina.id);
     expect(abierta).toHaveLength(1);
-    expect(abierta[0].misionero.id).toBe(ana.id);
+    expect(abierta[0].tenedor.id).toBe(ana.id);
   });
 
   it("pasarla a otro cierra exactamente una y abre exactamente una", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
     const { cerrada, abierta } = await AsignacionService.entregar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaCierre: "Devuelta en la peregrinación diocesana.",
       nota: "Entregada en la misma jornada.",
     });
 
-    expect(cerrada.misionero.id).toBe(ana.id);
+    expect(cerrada.tenedor.id).toBe(ana.id);
     expect(cerrada.abierta).toBe(false);
     expect(cerrada.cerradaAt).not.toBeNull();
-    expect(abierta.misionero.id).toBe(beto.id);
+    expect(abierta.tenedor.id).toBe(beto.id);
     expect(abierta.abierta).toBe(true);
 
     const historial = await AsignacionService.historialDePeregrina(
@@ -138,14 +139,14 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
   it("la cuenta de abiertas es uno de punta a punta de una cadena de tres", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     expect(await abiertas(referente, peregrina.id)).toHaveLength(1);
 
     await AsignacionService.entregar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaCierre: null,
       nota: null,
     });
@@ -153,7 +154,7 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
 
     await AsignacionService.entregar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: carla.id,
+      tenedor: { tipo: "persona", id: carla.id },
       notaCierre: null,
       nota: null,
     });
@@ -164,7 +165,7 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
       peregrina.id
     );
     // Y la cadena quedó en orden, que es la pregunta que alguien hace primero.
-    expect(historial.map((a) => a.misionero.id)).toEqual([
+    expect(historial.map((a) => a.tenedor.id)).toEqual([
       ana.id,
       beto.id,
       carla.id,
@@ -178,12 +179,12 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
     const resultados = await Promise.allSettled([
       AsignacionService.asignar(referente, {
         peregrinaId: peregrina.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         nota: null,
       }),
       AsignacionService.asignar(otroReferente, {
         peregrinaId: peregrina.id,
-        misioneroId: beto.id,
+        tenedor: { tipo: "persona", id: beto.id },
         nota: null,
       }),
     ]);
@@ -203,14 +204,14 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
   it("pasarla al mismo Misionero que ya la tiene se rechaza sin tocar nada", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
     await expect(
       AsignacionService.entregar(referente, {
         peregrinaId: peregrina.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         notaCierre: null,
         nota: null,
       })
@@ -228,7 +229,7 @@ describe("la invariante: una sola Asignación abierta por Peregrina", () => {
     await expect(
       AsignacionService.entregar(referente, {
         peregrinaId: peregrina.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         notaCierre: null,
         nota: null,
       })
@@ -242,7 +243,7 @@ describe("devolver", () => {
   it("cierra la Asignación y la Peregrina queda sin ninguna abierta — historia 3", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -281,7 +282,7 @@ describe("devolver", () => {
   it("después de devolver se la puede asignar de nuevo", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -291,7 +292,7 @@ describe("devolver", () => {
 
     const nueva = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       nota: null,
     });
 
@@ -306,7 +307,7 @@ describe("lo que queda registrado", () => {
   it("cada entrada atribuye el territorio que la registró, no una persona — historia 5", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -318,7 +319,7 @@ describe("lo que queda registrado", () => {
 
     const { cerrada } = await AsignacionService.entregar(otroReferente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaCierre: null,
       nota: null,
     });
@@ -329,7 +330,7 @@ describe("lo que queda registrado", () => {
   it("guarda la nota de apertura y la de cierre por separado — historia 11", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: "Entregada en la peregrinación diocesana.",
     });
 
@@ -345,7 +346,7 @@ describe("lo que queda registrado", () => {
   it("cuenta cuánto tiempo estuvo a cargo, sin decidir qué es mucho — historia 18", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     expect(abierta.diasEnCargo).toBe(0);
@@ -372,12 +373,12 @@ describe("lo que queda registrado", () => {
 
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.asignar(referente, {
       peregrinaId: otra.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -396,7 +397,7 @@ describe("lo que queda registrado", () => {
 
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -405,7 +406,7 @@ describe("lo que queda registrado", () => {
     });
     await AsignacionService.asignar(referente, {
       peregrinaId: otra.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -427,7 +428,7 @@ describe("lo que queda registrado", () => {
 
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -448,7 +449,7 @@ describe("estados de la Peregrina", () => {
   it("marcarla extraviada deja la Asignación abierta y el último Misionero a la vista — historias 6 y 10", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -461,14 +462,14 @@ describe("estados de la Peregrina", () => {
     // que es exactamente lo que se necesita saber.
     const sigueAbierta = await abiertas(referente, peregrina.id);
     expect(sigueAbierta).toHaveLength(1);
-    expect(sigueAbierta[0].misionero.id).toBe(ana.id);
+    expect(sigueAbierta[0].tenedor.id).toBe(ana.id);
 
     const tenencia = await AsignacionService.tenenciaActual(
       referente,
       peregrina.id
     );
-    expect(tenencia?.misionero.nombre).toBe("Ana");
-    expect(extraviada.tenenciaActual?.misioneroId).toBe(ana.id);
+    expect(nombreDeTenedor(tenencia!.tenedor)).toBe("Ana Álvarez");
+    expect(extraviada.tenenciaActual?.id).toBe(ana.id);
   });
 
   it("en reparación es un estado distinto de no estar en uso — historia 9", async () => {
@@ -485,7 +486,7 @@ describe("estados de la Peregrina", () => {
   it("el estado no dice nada sobre la tenencia y viceversa", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await PeregrinaService.update(referente, peregrina.id, {
@@ -510,23 +511,23 @@ describe("corregir una Asignación — historia 17", () => {
   it("cambia el Misionero de una entrada abierta y actualiza la tenencia", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
     const corregida = await AsignacionService.corregir(referente, {
       asignacionId: abierta.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaApertura: "Se había cargado a la persona equivocada.",
     });
 
-    expect(corregida.misionero.id).toBe(beto.id);
+    expect(corregida.tenedor.id).toBe(beto.id);
     // La corrección es visible: no queda como si siempre hubiera sido Beto.
     expect(corregida.corregidaAt).not.toBeNull();
     expect(corregida.corregidaPor?.usuarioId).toBe(referente.id);
 
     const dto = await PeregrinaService.getById(referente, peregrina.id);
-    expect(dto.tenenciaActual?.misioneroId).toBe(beto.id);
+    expect(dto.tenenciaActual?.id).toBe(beto.id);
 
     // Y sigue habiendo una sola abierta: corregir no duplica.
     expect(await abiertas(referente, peregrina.id)).toHaveLength(1);
@@ -535,7 +536,7 @@ describe("corregir una Asignación — historia 17", () => {
   it("es una edición y no un borrado: la entrada sigue en el historial", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -555,7 +556,7 @@ describe("corregir una Asignación — historia 17", () => {
   it("rechaza una devolución anterior a la entrega", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -570,7 +571,7 @@ describe("corregir una Asignación — historia 17", () => {
   it("rechaza una entrega en el futuro: una Asignación registra lo que ya pasó", async () => {
     const abierta = await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -585,12 +586,12 @@ describe("corregir una Asignación — historia 17", () => {
   it("una entrada cerrada puede nombrar a un Misionero dado de baja; una abierta no", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     const { cerrada, abierta } = await AsignacionService.entregar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: beto.id,
+      tenedor: { tipo: "persona", id: beto.id },
       notaCierre: null,
       nota: null,
     });
@@ -601,15 +602,15 @@ describe("corregir una Asignación — historia 17", () => {
     // es lo que la historia es.
     const corregida = await AsignacionService.corregir(referente, {
       asignacionId: cerrada.id,
-      misioneroId: carla.id,
+      tenedor: { tipo: "persona", id: carla.id },
     });
-    expect(corregida.misionero.deBaja).toBe(true);
+    expect(corregida.tenedor.deBaja).toBe(true);
 
     // Uno abierto no: tendría una imagen a cargo y no aparecería en ninguna lista.
     await expect(
       AsignacionService.corregir(referente, {
         asignacionId: abierta.id,
-        misioneroId: carla.id,
+        tenedor: { tipo: "persona", id: carla.id },
       })
     ).rejects.toThrow(/está dado de baja/);
   });

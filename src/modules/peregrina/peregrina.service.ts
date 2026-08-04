@@ -31,6 +31,7 @@ import {
   rango,
   type Pagina,
 } from "@/lib/paginacion";
+import { nombreDeTenedor } from "@/lib/formato";
 import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
 // ↑ The one import that runs against the module direction, and it is deliberate:
 //   the guard below has to know whether an Asignación is open before it lets a
@@ -82,14 +83,7 @@ export class PeregrinaService {
       diocesisLocalidad,
       provincia: diocesisLocalidad.provincia.nombre,
       region: diocesisLocalidad.region,
-      tenenciaActual: row.misioneroActual
-        ? {
-            misioneroId: row.misioneroActual.id,
-            nombre: row.misioneroActual.nombre,
-            apellido: row.misioneroActual.apellido,
-            deBaja: row.misioneroActual.bajaAt !== null,
-          }
-        : null,
+      tenenciaActual: row.tenedorActual,
       deBaja: row.peregrina.bajaAt !== null,
       createdById: row.peregrina.createdById,
       createdAt: row.peregrina.createdAt,
@@ -370,7 +364,7 @@ export class PeregrinaService {
     if (abierta) {
       throw new ConflictoError(
         `No se puede dar de baja la Peregrina ${actual.peregrina.codigo}: ` +
-          `todavía está a cargo de ${abierta.misioneroNombre} ${abierta.misioneroApellido}. ` +
+          `todavía está a cargo de ${nombreDeTenedor(abierta.tenedor)}. ` +
           "Registrá primero que fue devuelta."
       );
     }

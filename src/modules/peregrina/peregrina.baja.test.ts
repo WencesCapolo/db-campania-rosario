@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { nombreDeTenedor } from "@/lib/formato";
 import { TableroService } from "@/modules/tablero/tablero.service";
 import { PeregrinaService } from "./peregrina.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
@@ -55,7 +56,7 @@ describe("no se puede dar de baja una Peregrina que alguien tiene", () => {
   it("se rechaza y dice quién la tiene", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
@@ -71,7 +72,7 @@ describe("no se puede dar de baja una Peregrina que alguien tiene", () => {
   it("se puede una vez devuelta", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -88,7 +89,7 @@ describe("una Peregrina dada de baja", () => {
   beforeEach(async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
-      misioneroId: ana.id,
+      tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
@@ -126,7 +127,7 @@ describe("una Peregrina dada de baja", () => {
       peregrina.id
     );
     expect(historial).toHaveLength(1);
-    expect(historial[0].misionero.apellido).toBe("Álvarez");
+    expect(nombreDeTenedor(historial[0].tenedor)).toBe("Ana Álvarez");
   });
 
   it("no aparece entre las nunca asignadas: retirada no es ociosa", async () => {
@@ -143,7 +144,7 @@ describe("una Peregrina dada de baja", () => {
     await expect(
       AsignacionService.asignar(referente, {
         peregrinaId: peregrina.id,
-        misioneroId: ana.id,
+        tenedor: { tipo: "persona", id: ana.id },
         nota: null,
       })
     ).rejects.toThrow(/está dada de baja/);

@@ -4,10 +4,12 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { users } from "@/db/schema/users";
 import { misionero } from "@/modules/misionero/misionero.schema";
+import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 import { peregrina } from "@/modules/peregrina/peregrina.schema";
 // ↑ One-way imports: asignacion → peregrina → misionero → territorio. Nothing
 //   imports asignacion back, which is what keeps the schema barrel acyclic.
@@ -39,9 +41,24 @@ export const asignacion = pgTable(
       .notNull()
       .references(() => peregrina.id),
 
-    misioneroId: text("misionero_id")
-      .notNull()
-      .references(() => misionero.id),
+    /**
+     * The Tenedor, as two nullable columns with exactly one of them filled —
+     * ADR 0010. A period belongs to one Misionero *or* to one Matrimonio.
+     *
+     * `misioneroId` lost its `not null` here rather than gaining a supertype
+     * table above it. At the Campaña's scale the supertype bought no measurable
+     * speed, and what it would have bought instead was a denormalised label —
+     * a second copy of two people's names, waiting to drift.
+     *
+     * The price, named so nobody has to rediscover it: a read that joins the
+     * misionero leg and forgets the matrimonio leg returns **fewer rows and no
+     * error**. A couple's images just vanish from a list. That is why the
+     * matrimonio visibility suite exists beside the alcance suites — the failure
+     * mode is silence, and silence needs a test rather than a reviewer.
+     */
+    misioneroId: text("misionero_id").references(() => misionero.id),
+
+    matrimonioId: text("matrimonio_id").references(() => matrimonio.id),
 
     abiertaAt: timestamp("abierta_at", { withTimezone: true })
       .notNull()
@@ -131,6 +148,24 @@ export const asignacion = pgTable(
     index("asignacion_abiertas_por_fecha_idx")
       .on(t.abiertaAt)
       .where(sql`${t.cerradaAt} is null`),
+
+    // Every read that resolves a couple's periods, and the guard that refuses to
+    // end a Matrimonio while one is open.
+    index("asignacion_matrimonio_idx").on(t.matrimonioId),
+
+    /**
+     * Exactly one Tenedor. A period with neither is a period nobody had, and a
+     * period with both is two answers to "who has it".
+     *
+     * Note this is **not** the same constraint `peregrina` carries. There, all
+     * null is legal and means *libre* — see the note on that table. Writing the
+     * two as a matched pair is the mistake to avoid: `= 1` on peregrina would
+     * make an unassigned image unstorable.
+     */
+    check(
+      "asignacion_un_solo_tenedor",
+      sql`num_nonnulls(${t.misioneroId}, ${t.matrimonioId}) = 1`
+    ),
   ]
 );
 

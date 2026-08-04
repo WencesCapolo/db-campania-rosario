@@ -10,6 +10,10 @@ import {
 } from "./misionero.types";
 import { filtrosDeMisioneroSchema } from "./misionero.types";
 import type { ActionResult, MisioneroDTO } from "./misionero.types";
+// The listado answers in Tenedores now — a person, or the household that
+// replaces two of them (ADR 0010). The single-record actions still answer in
+// people, because a Misionero is still a Misionero.
+import type { TenedorDTO } from "./matrimonio.types";
 import { aResultado } from "@/lib/errors";
 import { paginaSchema, type Pagina } from "@/lib/paginacion";
 
@@ -137,7 +141,7 @@ export async function reactivarMisioneroAction(
  */
 export async function getMisionerosFiltradosAction(
   filtros: unknown
-): Promise<MisioneroDTO[]> {
+): Promise<TenedorDTO[]> {
   const actor = await getCurrentUser();
   const parsed = filtrosDeMisioneroSchema.parse(filtros ?? {});
   return MisioneroService.listFiltrados(actor, parsed);
@@ -147,7 +151,7 @@ export async function getMisionerosFiltradosAction(
 export async function getMisionerosPaginadosAction(
   filtros: unknown,
   pagina: unknown
-): Promise<Pagina<MisioneroDTO>> {
+): Promise<Pagina<TenedorDTO>> {
   const actor = await getCurrentUser();
   const parsedFiltros = filtrosDeMisioneroSchema.parse(filtros ?? {});
   const parsedPagina = paginaSchema.parse(pagina ?? 1);

@@ -4,6 +4,10 @@ import { userEvent } from "vitest/browser";
 import FlujoDeAsignacion from "./FlujoDeAsignacion";
 import { violacionesDeAxe } from "@/test/accesibilidad";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
+import type {
+  MatrimonioDTO,
+  TenedorDTO,
+} from "@/modules/misionero/matrimonio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 
@@ -27,6 +31,12 @@ import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types
  * The router module is mocked because it is `"use server"`: importing it in a
  * browser would pull in the service, the repository and `src/db`. What is under
  * test is which action is called with what, which is exactly what a spy answers.
+ *
+ * La tercera cosa que sólo se puede comprobar acá: **una pareja es una opción, y
+ * lo que se manda es un `Tenedor`.** El roster que llega ya viene colapsado — un
+ * Misionero casado no está — así que lo que este archivo prueba es que el picker
+ * no invente una segunda forma de nombrarla y que el `<option value>` viaje
+ * entero hasta la acción (ADR 0010).
  */
 
 const asignarAction = vi.fn();
@@ -110,19 +120,57 @@ function peregrina(
   };
 }
 
+function matrimonio(
+  id: string,
+  a: MisioneroDTO,
+  b: MisioneroDTO,
+): MatrimonioDTO {
+  return {
+    id,
+    misioneroA: a,
+    misioneroB: b,
+    estado: "activo",
+    centroTipo: null,
+    centroNombre: null,
+    deBaja: false,
+    createdById: "u-1",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+  };
+}
+
+const persona = (m: MisioneroDTO): TenedorDTO => ({
+  tipo: "persona",
+  persona: m,
+});
+
 const ANA = misionero("m-1", "Ana", "Gómez");
 const BEATRIZ = misionero("m-2", "Beatriz", "Ruiz");
 
+// Mismo apellido a propósito: «Pérez, Ana y Juan» y no «Pérez, Ana y Pérez,
+// Juan», que se lee como si el sistema hubiera cargado la casa dos veces.
+const LOS_PEREZ = matrimonio(
+  "mat-1",
+  misionero("m-3", "Ana", "Pérez"),
+  misionero("m-4", "Juan", "Pérez"),
+);
+const PEREZ: TenedorDTO = { tipo: "matrimonio", matrimonio: LOS_PEREZ };
+
 const SIN_ENTREGAR = peregrina("pg-1", "CBA JOV 001", null);
 const YA_ENTREGADA = peregrina("pg-2", "CBA JOV 002", {
-  misioneroId: BEATRIZ.id,
-  nombre: "Beatriz",
-  apellido: "Ruiz",
+  tipo: "persona",
+  id: BEATRIZ.id,
   deBaja: false,
+  persona: {
+    id: BEATRIZ.id,
+    nombre: "Beatriz",
+    apellido: "Ruiz",
+    deBaja: false,
+  },
 });
 
 const TODOS = {
-  misioneros: [ANA, BEATRIZ],
+  tenedores: [persona(ANA), persona(BEATRIZ), PEREZ],
   peregrinas: [SIN_ENTREGAR, YA_ENTREGADA],
 };
 
@@ -193,7 +241,7 @@ describe("FlujoDeAsignacion", () => {
       .element(
         pantalla.getByRole("combobox", { name: "¿A quién pasa la imagen?" }),
       )
-      .toHaveValue(ANA.id);
+      .toHaveValue("persona:m-1");
   });
 
   it("dice de quién se cierra el período antes de cerrarlo", async () => {
@@ -237,7 +285,7 @@ describe("FlujoDeAsignacion", () => {
     expect(asignarAction).not.toHaveBeenCalled();
     expect(entregarAction.mock.calls[0][0]).toMatchObject({
       peregrinaId: YA_ENTREGADA.id,
-      misioneroId: ANA.id,
+      tenedor: { tipo: "persona", id: ANA.id },
     });
   });
 
@@ -268,7 +316,7 @@ describe("FlujoDeAsignacion", () => {
 
   it("cuando no hay Misioneros ofrece cargar uno", async () => {
     const pantalla = await render(
-      <FlujoDeAsignacion misioneros={[]} peregrinas={[SIN_ENTREGAR]} />,
+      <FlujoDeAsignacion tenedores={[]} peregrinas={[SIN_ENTREGAR]} />,
     );
 
     // A picker with nothing in it has to say what to do and give a way to get
@@ -281,12 +329,43 @@ describe("FlujoDeAsignacion", () => {
 
   it("cuando no hay Peregrinas ofrece registrar una", async () => {
     const pantalla = await render(
-      <FlujoDeAsignacion misioneros={[ANA]} peregrinas={[]} />,
+      <FlujoDeAsignacion tenedores={[persona(ANA)]} peregrinas={[]} />,
     );
 
     await expect
       .element(pantalla.getByRole("link", { name: "Registrar una Peregrina" }))
       .toHaveAttribute("href", "/peregrina/new");
+  });
+
+  it("un Matrimonio es una sola opción, y viaja entero hasta la acción", async () => {
+    const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
+
+    // Una fila, dos nombres, un apellido. Los dos cónyuges no están sueltos en
+    // la lista: el roster llega colapsado, y ofrecer a uno solo sería ofrecer
+    // una opción que `asignar` rechaza siempre.
+    await pantalla
+      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
+      .selectOptions("Pérez, Ana y Juan — Villa María");
+    await pantalla.getByRole("button", { name: "Siguiente" }).click();
+
+    await pantalla
+      .getByRole("combobox", { name: "¿Qué Peregrina?" })
+      .selectOptions("CBA JOV 001 — sin entregar");
+    await pantalla.getByRole("button", { name: "Siguiente" }).click();
+
+    // Un nombre, no dos, en la frase con la que alguien está de acuerdo.
+    await expect
+      .element(pantalla.getByRole("status"))
+      .toHaveTextContent("queda a cargo de Ana y Juan Pérez");
+
+    await pantalla
+      .getByRole("button", { name: "Registrar la entrega" })
+      .click();
+
+    expect(asignarAction.mock.calls[0][0]).toMatchObject({
+      peregrinaId: SIN_ENTREGAR.id,
+      tenedor: { tipo: "matrimonio", id: LOS_PEREZ.id },
+    });
   });
 
   it("no tiene violaciones de axe en ninguno de los tres pasos", async () => {

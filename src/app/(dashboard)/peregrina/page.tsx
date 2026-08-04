@@ -17,7 +17,7 @@ import Paginador from "@/components/Paginador";
 import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
 import Insignia, { type TonoDeInsignia } from "@/components/Insignia";
 import { Vacio } from "@/components/EstadosAsincronicos";
-import { nombreCompleto } from "@/lib/formato";
+import { nombreDeTenedor } from "@/lib/formato";
 import FiltrosDeInventario from "@/modules/peregrina/FiltrosDeInventario";
 import Volver from "@/components/Volver";
 import AltaRapida from "./AltaRapida";
@@ -277,8 +277,20 @@ export default async function PeregrinaListaPage({
                       </td>
 
                       <td className={`${CELDA} text-tinta`}>
+                        {/* Una pareja es **un** Tenedor: un nombre en la celda,
+                            nunca dos filas y nunca un cónyuge suelto
+                            (ADR 0010). La palabra «Matrimonio» va debajo porque
+                            la «y» sola se pasa por alto al escanear una
+                            columna. */}
                         {p.tenenciaActual ? (
-                          nombreCompleto(p.tenenciaActual)
+                          <>
+                            {nombreDeTenedor(p.tenenciaActual)}
+                            {p.tenenciaActual.tipo === "matrimonio" && (
+                              <span className="mt-1 block text-sm text-tinta-suave">
+                                Matrimonio
+                              </span>
+                            )}
+                          </>
                         ) : (
                           <span className="text-tinta-suave">Nadie</span>
                         )}

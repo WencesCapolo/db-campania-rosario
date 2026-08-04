@@ -37,11 +37,16 @@ import Mensaje from "@/components/Mensaje";
 export default function RegistrarDevolucion({
   peregrinaId,
   codigo,
-  misionero,
+  tenedor,
 }: {
   peregrinaId: string;
   codigo: string;
-  misionero: string;
+  /**
+   * Quién la tiene, ya escrito — un Misionero o un Matrimonio, siempre un solo
+   * nombre. Llega resuelto porque `nombreDeTenedor` es el único lugar que decide
+   * cómo se escribe, y este diálogo no tiene por qué ser el segundo (ADR 0010).
+   */
+  tenedor: string;
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
@@ -65,7 +70,7 @@ export default function RegistrarDevolucion({
         <>
           <p className="mt-3 text-base leading-relaxed">
             La Peregrina <strong className="font-mono">{codigo}</strong> deja de
-            estar a cargo de <strong>{misionero}</strong>. Su período queda en
+            estar a cargo de <strong>{tenedor}</strong>. Su período queda en
             el historial.
           </p>
 

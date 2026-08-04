@@ -32,8 +32,11 @@ import type {
   Region,
 } from "@/modules/territorio/territorio.schema";
 import { misionero } from "@/modules/misionero/misionero.schema";
-import type { MisioneroRow } from "@/modules/misionero/misionero.schema";
+import { matrimonio } from "@/modules/misionero/matrimonio.schema";
+import { alias } from "drizzle-orm/pg-core";
 import type { Alcance } from "@/lib/authorization/alcance";
+import { coincideAlgunNombre } from "@/lib/busqueda";
+import type { TenedorResueltoDTO } from "@/lib/tenedor";
 
 /**
  * A Peregrina is never useful without its territory resolved — Provincia and
@@ -41,16 +44,21 @@ import type { Alcance } from "@/lib/authorization/alcance";
  * not useful without knowing who has each image, so the tenencia actual comes
  * along too.
  *
- * That last join is on the denormalised `misioneroActualId`, which is one join for
+ * That last one is joined off the denormalised pointer, which is one join for
  * the whole query rather than a lookup per row. The Asignación table remains the
  * source of truth; this is a cache of its open row, written only by
  * `AsignacionRepository`.
+ *
+ * `tenedorActual` is **one** field over two nullable columns — ADR 0010. It was
+ * `misioneroActual: MisioneroRow | null`, and leaving it that way while adding
+ * `matrimonioActual` beside it would have let every caller keep compiling while
+ * quietly answering "nadie" for every image a couple has.
  */
 export interface PeregrinaConTerritorio {
   peregrina: PeregrinaRow;
   diocesis: DiocesisLocalidadRow;
   provincia: ProvinciaRow;
-  misioneroActual: MisioneroRow | null;
+  tenedorActual: TenedorResueltoDTO | null;
 }
 
 /**
@@ -64,27 +72,143 @@ export interface OpcionesDeLectura {
   incluirBajas?: boolean;
 }
 
+/**
+ * Los dos cónyuges del Matrimonio que tiene la imagen, para que la columna
+ * «¿Quién la tiene?» pueda decir «Ana y Juan Pérez» — ADR 0010.
+ */
+const esposoA = alias(misionero, "esposo_a");
+const esposoB = alias(misionero, "esposo_b");
+
+/**
+ * Las tablas que resuelven al Tenedor actual, en un solo `from`.
+ *
+ * Las dos patas del puntero polimórfico se juntan acá y en `agregando()`, y en
+ * ningún otro lado. Olvidar una devuelve **menos filas y ningún error** — el
+ * modo de falla que ADR 0010 eligió a sabiendas y por el que existe la suite de
+ * visibilidad.
+ *
+ * Ninguna está filtrada por su propia baja: si un Misionero dado de baja aparece
+ * teniendo una imagen, eso es un hecho que hay que ver y no uno que haya que
+ * esconder. `MisioneroService.darDeBaja` rechaza justamente ese par.
+ */
 function conTerritorio() {
-  return (
-    db
-      .select({
-        peregrina,
-        diocesis: diocesisLocalidad,
-        provincia,
-        misioneroActual: misionero,
-      })
-      .from(peregrina)
-      .innerJoin(
-        diocesisLocalidad,
-        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
-      )
-      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      // Left, and not filtered on the Misionero's own baja: if a Misionero given de
-      // baja still shows as holding an image, that is a fact worth seeing, not one
-      // worth hiding. `MisioneroService.darDeBaja` refuses precisely that pairing.
-      .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId))
-  );
+  return db
+    .select({
+      peregrina,
+      diocesis: diocesisLocalidad,
+      provincia,
+      misioneroActual: misionero,
+      matrimonioActual: matrimonio,
+      esposoA,
+      esposoB,
+    })
+    .from(peregrina)
+    .innerJoin(
+      diocesisLocalidad,
+      eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
+    )
+    .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
+    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId))
+    .leftJoin(matrimonio, eq(matrimonio.id, peregrina.matrimonioActualId))
+    .leftJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
+    .leftJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId));
 }
+
+/** One row of `conTerritorio()`, inferred rather than restated. */
+type FilaConTerritorio = Awaited<ReturnType<typeof conTerritorio>>[number];
+
+function aPeregrinaConTerritorio(
+  fila: FilaConTerritorio,
+): PeregrinaConTerritorio {
+  return {
+    peregrina: fila.peregrina,
+    diocesis: fila.diocesis,
+    provincia: fila.provincia,
+    tenedorActual: tenedorDeFila(fila),
+  };
+}
+
+/**
+ * Las dos columnas denormalizadas, vueltas una respuesta — o `null`, que es
+ * *libre* y es un estado normal.
+ *
+ * A diferencia de la de `asignacion`, esta no puede exigir que haya una: el
+ * check de `peregrina` es `<= 1` justamente porque una imagen que no tiene nadie
+ * tiene que poder existir.
+ */
+function tenedorDeFila(fila: FilaConTerritorio): TenedorResueltoDTO | null {
+  const m = fila.misioneroActual;
+  if (m) {
+    return {
+      tipo: "persona",
+      id: m.id,
+      deBaja: m.bajaAt !== null,
+      persona: {
+        id: m.id,
+        nombre: m.nombre,
+        apellido: m.apellido,
+        deBaja: m.bajaAt !== null,
+      },
+    };
+  }
+
+  const par = fila.matrimonioActual;
+  const a = fila.esposoA;
+  const b = fila.esposoB;
+  if (par && a && b) {
+    return {
+      tipo: "matrimonio",
+      id: par.id,
+      deBaja: par.bajaAt !== null,
+      matrimonio: {
+        misioneroA: {
+          id: a.id,
+          nombre: a.nombre,
+          apellido: a.apellido,
+          deBaja: a.bajaAt !== null,
+        },
+        misioneroB: {
+          id: b.id,
+          nombre: b.nombre,
+          apellido: b.apellido,
+          deBaja: b.bajaAt !== null,
+        },
+      },
+    };
+  }
+
+  return null;
+}
+
+async function leerVarias(
+  consulta: PromiseLike<FilaConTerritorio[]>,
+): Promise<PeregrinaConTerritorio[]> {
+  return (await consulta).map(aPeregrinaConTerritorio);
+}
+
+async function leerUna(
+  consulta: PromiseLike<FilaConTerritorio[]>,
+): Promise<PeregrinaConTerritorio | undefined> {
+  const [fila] = await consulta;
+  return fila ? aPeregrinaConTerritorio(fila) : undefined;
+}
+
+/**
+ * *Libre* es que no la tenga **nadie**, y eso son las dos columnas en null.
+ *
+ * Escrito una vez y leído en los dos sentidos, como `misionerosPorTenencia`:
+ * `libre` y `asignada` son las dos opciones de un mismo select, y dos
+ * predicados escritos a mano son dos lugares donde discrepar sobre las parejas.
+ */
+const SIN_TENEDOR = and(
+  isNull(peregrina.misioneroActualId),
+  isNull(peregrina.matrimonioActualId),
+);
+
+const CON_TENEDOR = or(
+  isNotNull(peregrina.misioneroActualId),
+  isNotNull(peregrina.matrimonioActualId),
+);
 
 /**
  * The Actor's territorial filter, as SQL. `undefined` for a country-wide Actor,
@@ -138,39 +262,28 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
       ? ilike(peregrina.codigo, `%${filtros.codigo.replace(/\s+/g, " ")}%`)
       : undefined,
     filtros.tenencia === "libre"
-      ? isNull(peregrina.misioneroActualId)
+      ? SIN_TENEDOR
       : filtros.tenencia === "asignada"
-        ? isNotNull(peregrina.misioneroActualId)
+        ? CON_TENEDOR
         : undefined,
-    condicionDeMisionero(filtros.misionero),
+    condicionDeTenedor(filtros.misionero),
   ];
 }
 
 /**
  * Quién la tiene, por nombre — el filtro que se tipea en lugar de elegirse.
  *
- * Se compara contra el nombre y el apellido **concatenados**, y en los dos
- * órdenes, porque las dos cosas que alguien escribe son "Álvarez" y "María
- * Álvarez", y a veces "Álvarez María" porque así está en la planilla de la que
- * viene copiando. Un `or` de dos `ilike` sobre las columnas sueltas no toma
- * ninguno de los nombres completos, y pedirle a la gente que sepa cuál de los dos
- * campos está buscando es pedirle que conozca el esquema.
+ * Tres personas y no una: el Misionero de la pata individual, y los dos cónyuges
+ * de la del Matrimonio. Buscar «Benítez» tiene que encontrar la imagen de «Ana
+ * Álvarez y Juan Benítez», que es la mitad del punto de ADR 0010 — antes esa
+ * imagen estaba a nombre de quien se hubiera tipeado primero.
  *
- * `ilike` y no `like`: nadie tipea la mayúscula en un buscador. No lleva índice, y
- * eso es una decisión medida y no un olvido — un `%texto%` no puede usar un índice
- * B-tree, y los dos índices compuestos que se escribieron para los listados
- * ordenados ya fueron borrados por la misma razón: el planner no los eligió
- * (ADR 0007). Esto corre sobre las filas que el territorio ya recortó.
+ * El cómo vive en `coincideAlgunNombre`, compartido con el buscador del listado
+ * de Misioneros: es la misma pregunta, y una segunda copia escrita a mano es un
+ * segundo lugar donde discrepar.
  */
-function condicionDeMisionero(termino: string | undefined): SQL | undefined {
-  const texto = termino?.trim().replace(/\s+/g, " ");
-  if (!texto) return undefined;
-
-  const patron = `%${texto}%`;
-  return or(
-    sql`(${misionero.nombre} || ' ' || ${misionero.apellido}) ilike ${patron}`,
-    sql`(${misionero.apellido} || ' ' || ${misionero.nombre}) ilike ${patron}`,
-  );
+function condicionDeTenedor(termino: string | undefined): SQL | undefined {
+  return coincideAlgunNombre(termino, misionero, esposoA, esposoB);
 }
 
 /** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
@@ -182,13 +295,17 @@ type CamposAgregados = Record<string, PgColumn | SQL<string> | SQL<number>>;
 /**
  * The aggregate `from`, with the territory and the tenencia actual joined in.
  *
- * Both joins are unconditional even when nothing filters on them, because Región
- * is one of the breakdowns and the Misionero's name is one of the filters, and the
+ * Every join is unconditional even when nothing filters on it, because Región is
+ * one of the breakdowns and the Tenedor's name is one of the filters, and the
  * alternative is two query builders that have to agree with each other. Each is a
- * foreign key with an index on both ends, and the Misionero one is `left` on a
- * unique key, so it neither drops a row nor multiplies one — an aggregate cannot
- * change its answer by joining it. When no filter mentions the Misionero, Postgres
- * removes the join outright: nothing selects from it.
+ * foreign key with an index on both ends, and the holder ones are `left` on
+ * unique keys, so none of them drops a row or multiplies one — an aggregate
+ * cannot change its answer by joining them. When no filter mentions the Tenedor,
+ * Postgres removes the joins outright: nothing selects from them.
+ *
+ * The three holder joins mirror `conTerritorio()` exactly, and they have to: a
+ * figure whose `from` reaches one leg while the list's reaches two is a figure
+ * that disagrees with the rows it links to, which is what ADR 0007 exists about.
  */
 function agregando<T extends CamposAgregados>(campos: T) {
   return db
@@ -198,7 +315,10 @@ function agregando<T extends CamposAgregados>(campos: T) {
       diocesisLocalidad,
       eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
     )
-    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId));
+    .leftJoin(misionero, eq(misionero.id, peregrina.misioneroActualId))
+    .leftJoin(matrimonio, eq(matrimonio.id, peregrina.matrimonioActualId))
+    .leftJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
+    .leftJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId));
 }
 
 /** Alcance and filters together — the `where` every aggregate shares. */
@@ -221,10 +341,11 @@ function condiciones(
  * rule one layer up. It is required rather than optional on purpose: a new read
  * that forgets to scope itself does not compile, which is user story 20.
  *
- * `misioneroActualId` is deliberately absent from every write signature here. It
- * is derived from the open Asignación and written only by `AsignacionRepository`,
- * inside the transaction that opens or closes one — a second writer is how a
- * denormalised column starts lying.
+ * `misioneroActualId` **and** `matrimonioActualId` are deliberately absent from
+ * every write signature here. Both are derived from the open Asignación and
+ * written only by `AsignacionRepository`, inside the transaction that opens or
+ * closes one — a second writer is how a denormalised column starts lying, and
+ * with two of them a second writer can also break the `<= 1` check.
  */
 export class PeregrinaRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
@@ -234,10 +355,11 @@ export class PeregrinaRepository {
     id: string,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio | undefined> {
-    const [row] = await conTerritorio()
-      .where(conAlcance(alcance, opts, eq(peregrina.id, id)))
-      .limit(1);
-    return row;
+    return leerUna(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(peregrina.id, id)))
+        .limit(1),
+    );
   }
 
   /**
@@ -254,17 +376,18 @@ export class PeregrinaRepository {
   static async findByIdSinAlcance(
     id: string,
   ): Promise<PeregrinaConTerritorio | undefined> {
-    const [row] = await conTerritorio().where(eq(peregrina.id, id)).limit(1);
-    return row;
+    return leerUna(conTerritorio().where(eq(peregrina.id, id)).limit(1));
   }
 
   static async findAll(
     alcance: Alcance,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts))
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts))
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
   static async findByEstado(
@@ -272,9 +395,11 @@ export class PeregrinaRepository {
     estado: PeregrinaEstado,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(peregrina.estado, estado)))
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(peregrina.estado, estado)))
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
   static async findByRegion(
@@ -282,9 +407,11 @@ export class PeregrinaRepository {
     region: Region,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
   static async findByModalidad(
@@ -292,9 +419,11 @@ export class PeregrinaRepository {
     modalidad: Modalidad,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(peregrina.modalidad, modalidad)))
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(peregrina.modalidad, modalidad)))
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
   static async findByDiocesisLocalidad(
@@ -302,15 +431,17 @@ export class PeregrinaRepository {
     diocesisLocalidadId: string,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(
-        conAlcance(
-          alcance,
-          opts,
-          eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
-        ),
-      )
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(
+          conAlcance(
+            alcance,
+            opts,
+            eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
+          ),
+        )
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
   static async findByProvincia(
@@ -318,9 +449,11 @@ export class PeregrinaRepository {
     provinciaId: string,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
-      .orderBy(asc(peregrina.codigo));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
+        .orderBy(asc(peregrina.codigo)),
+    );
   }
 
   static async findByCreator(
@@ -328,18 +461,28 @@ export class PeregrinaRepository {
     createdById: string,
     opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(peregrina.createdById, createdById)))
-      .orderBy(desc(peregrina.createdAt));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, opts, eq(peregrina.createdById, createdById)))
+        .orderBy(desc(peregrina.createdAt)),
+    );
   }
 
-  /** Images nobody has right now, for the assignment flow's second step. */
+  /**
+   * Images nobody has right now, for the assignment flow's second step.
+   *
+   * *Libre* son las **dos** columnas en null (ADR 0010): mirando sólo la del
+   * Misionero, cada imagen que tiene un Matrimonio aparecería en el picker de
+   * las libres y alguien la entregaría dos veces.
+   */
   static async findDisponibles(
     alcance: Alcance,
   ): Promise<PeregrinaConTerritorio[]> {
-    return conTerritorio()
-      .where(conAlcance(alcance, {}, isNull(peregrina.misioneroActualId)))
-      .orderBy(asc(peregrina.codigo));
+    return leerVarias(
+      conTerritorio()
+        .where(conAlcance(alcance, {}, SIN_TENEDOR))
+        .orderBy(asc(peregrina.codigo)),
+    );
   }
 
   /**
@@ -395,6 +538,7 @@ export class PeregrinaRepository {
         | "createdById"
         | "createdAt"
         | "misioneroActualId"
+        | "matrimonioActualId"
         | "bajaAt"
       >
     >,
@@ -518,10 +662,10 @@ export class PeregrinaRepository {
   /**
    * How many images nobody has right now — story 4, as a number.
    *
-   * `misioneroActualId is null`, which is "not out at the moment" and not "never
-   * has been": the second question is an anti-join against Asignación and lives
-   * in `AsignacionRepository`. Conflating them would count an image handed out
-   * and returned as idle capacity that has never been used.
+   * Los dos punteros en null — *libre* —, que es "no está afuera ahora mismo" y
+   * no "nunca estuvo": la segunda pregunta es un anti-join contra Asignación y
+   * vive en `AsignacionRepository`. Confundirlas contaría una imagen entregada y
+   * devuelta como capacidad ociosa que nunca se usó.
    */
   static async contarSinTenencia(
     alcance: Alcance,
@@ -577,8 +721,10 @@ export class PeregrinaRepository {
       .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
       .orderBy(asc(peregrina.codigo));
 
-    return paginacion
-      ? consulta.limit(paginacion.limit).offset(paginacion.offset)
-      : consulta;
+    return leerVarias(
+      paginacion
+        ? consulta.limit(paginacion.limit).offset(paginacion.offset)
+        : consulta,
+    );
   }
 }

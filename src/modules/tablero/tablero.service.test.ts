@@ -3,6 +3,7 @@ import { TableroService } from "./tablero.service";
 import { umbralDeDiasEstancada } from "./tablero.types";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
+import { MatrimonioService } from "@/modules/misionero/matrimonio.service";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -123,7 +124,7 @@ beforeEach(async () => {
   // la base por fuera del servicio.
   const vieja = await AsignacionService.asignar(referente, {
     peregrinaId: asignadaVieja.id,
-    misioneroId: m1.id,
+    tenedor: { tipo: "persona", id: m1.id },
     nota: null,
   });
   await AsignacionService.corregir(referente, {
@@ -133,7 +134,7 @@ beforeEach(async () => {
 
   await AsignacionService.asignar(referente, {
     peregrinaId: auxiliarReciente.id,
-    misioneroId: m2.id,
+    tenedor: { tipo: "persona", id: m2.id },
     nota: null,
   });
 
@@ -141,7 +142,7 @@ beforeEach(async () => {
   // período, y eso es lo que conserva el nombre del último Misionero.
   await AsignacionService.asignar(referente, {
     peregrinaId: extraviada.id,
-    misioneroId: m1.id,
+    tenedor: { tipo: "persona", id: m1.id },
     nota: null,
   });
   await PeregrinaService.update(referente, extraviada.id, {
@@ -267,29 +268,30 @@ describe("las cifras derivadas", () => {
 
     expect(extraviadas?.total).toBe(1);
     expect(extraviadas?.filas[0]?.id).toBe(peregrinas.extraviada);
-    expect(extraviadas?.filas[0]?.ultimoMisionero).toMatchObject({
+    expect(extraviadas?.filas[0]?.ultimoTenedor).toMatchObject({
+      tipo: "persona",
       id: misioneros.m1,
-      apellido: "Álvarez",
+      persona: { apellido: "Álvarez" },
     });
   });
 
   it("lista los Misioneros sin ninguna imagen — historia 5", async () => {
-    const { misionerosSinPeregrina } = await TableroService.resumen(referente);
+    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
 
-    expect(misionerosSinPeregrina.total).toBe(1);
-    expect(misionerosSinPeregrina.filas[0]?.id).toBe(misioneros.libre);
+    expect(tenedoresSinPeregrina.total).toBe(1);
+    expect(tenedoresSinPeregrina.filas[0]?.id).toBe(misioneros.libre);
   });
 
   it("un Misionero con dos imágenes no aparece como libre", async () => {
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrinas.libreNunca,
-      misioneroId: misioneros.libre,
+      tenedor: { tipo: "persona", id: misioneros.libre },
       nota: null,
     });
 
-    const { misionerosSinPeregrina } = await TableroService.resumen(referente);
+    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
 
-    expect(misionerosSinPeregrina.total).toBe(0);
+    expect(tenedoresSinPeregrina.total).toBe(0);
   });
 
   it("lista las que no cambiaron de manos hace mucho — historia 8", async () => {
@@ -300,9 +302,105 @@ describe("las cifras derivadas", () => {
     expect(estancadas.total).toBe(1);
     expect(estancadas.filas[0]).toMatchObject({
       peregrinaId: peregrinas.asignadaVieja,
-      misioneroApellido: "Álvarez",
+      tenedor: { tipo: "persona", persona: { apellido: "Álvarez" } },
     });
     expect(estancadas.filas[0]?.dias).toBeGreaterThanOrEqual(399);
+  });
+});
+
+describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
+  /*
+   * La mitad silenciosa de la lectura polimórfica: una tarjeta que sólo mira
+   * `misionero_id` no falla, devuelve menos filas. La casa desaparece de la
+   * tarjeta que existe para encontrarla.
+   */
+  let pareja: { id: string };
+  let delMatrimonio: { id: string };
+
+  beforeEach(async () => {
+    pareja = await MatrimonioService.create(referente, {
+      nombreA: "Rosa",
+      apellidoA: "Benegas",
+      nombreB: "Luis",
+      apellidoB: "Cardozo",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+
+    delMatrimonio = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: referente.id,
+      modalidad: "MAT",
+    });
+
+    const periodo = await AsignacionService.asignar(referente, {
+      peregrinaId: delMatrimonio.id,
+      tenedor: { tipo: "matrimonio", id: pareja.id },
+      nota: null,
+    });
+    await AsignacionService.corregir(referente, {
+      asignacionId: periodo.id,
+      abiertaAt: haceDias(400),
+    });
+  });
+
+  it("la cifra cuenta hogares y coincide con la lista que enlaza", async () => {
+    const { totalMisioneros } = await TableroService.resumen(referente);
+
+    // Tres individuales sueltos y un hogar. Cinco sería el número plausible y
+    // equivocado: los dos cónyuges contados por separado, mientras `/misionero`
+    // muestra cuatro filas.
+    expect(totalMisioneros).toBe(4);
+  });
+
+  it("un hogar con las manos libres es una fila y no dos", async () => {
+    await MatrimonioService.create(referente, {
+      nombreA: "Delia",
+      apellidoA: "Duarte",
+      nombreB: "Elías",
+      apellidoB: "Duarte",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+
+    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
+
+    // Cabrera y el hogar Duarte. Tres sería contar a los Duarte por separado —
+    // y los Benegas-Cardozo, que tienen una imagen, no tienen las manos libres
+    // por más que ninguno de los dos cónyuges la tenga a nombre propio.
+    expect(tenedoresSinPeregrina.total).toBe(2);
+    expect(tenedoresSinPeregrina.filas.map((f) => f.tipo).sort()).toEqual([
+      "matrimonio",
+      "persona",
+    ]);
+  });
+
+  it("la tarjeta de estancadas nombra al hogar entero", async () => {
+    const { estancadas } = await TableroService.resumen(referente);
+
+    const fila = estancadas.filas.find(
+      (f) => f.peregrinaId === delMatrimonio.id
+    );
+    expect(fila?.tenedor).toMatchObject({
+      tipo: "matrimonio",
+      id: pareja.id,
+      matrimonio: {
+        misioneroA: { apellido: "Benegas" },
+        misioneroB: { apellido: "Cardozo" },
+      },
+    });
+  });
+
+  it("la tarjeta de Extraviadas también", async () => {
+    await PeregrinaService.update(referente, delMatrimonio.id, {
+      estado: "extraviada",
+    });
+
+    const { extraviadas } = await TableroService.resumen(referente);
+    const fila = extraviadas?.filas.find((f) => f.id === delMatrimonio.id);
+
+    expect(fila?.ultimoTenedor).toMatchObject({
+      tipo: "matrimonio",
+      id: pareja.id,
+    });
   });
 });
 

@@ -20,7 +20,8 @@ import Barras from "@/components/Barras";
 import Tarjeta from "@/components/Tarjeta";
 import { BotonEnlace } from "@/components/Boton";
 import { Cargando } from "@/components/EstadosAsincronicos";
-import { nombreCompleto } from "@/lib/formato";
+import { nombreDeTenedor } from "@/lib/formato";
+import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
 
 /**
  * El tablero.
@@ -281,9 +282,12 @@ function Extraviadas({ tablero }: { tablero: TableroDTO }) {
                   <span className="font-mono text-lg font-bold text-accion underline">
                     {fila.codigo}
                   </span>
+                  {/* Un Matrimonio es **un** Tenedor y da un nombre, no dos:
+                      la tarjeta dice a quién llamar, y «Ana Álvarez» cuando la
+                      tienen Ana y Juan es media respuesta (ADR 0010). */}
                   <span className="text-base text-tinta">
-                    {fila.ultimoMisionero
-                      ? `La tenía ${nombreCompleto(fila.ultimoMisionero)}`
+                    {fila.ultimoTenedor
+                      ? `La tenía ${nombreDeTenedor(fila.ultimoTenedor)}`
                       : "Nunca estuvo a cargo de nadie"}
                   </span>
                 </Link>
@@ -305,13 +309,13 @@ function Estancadas({ tablero }: { tablero: TableroDTO }) {
     <Tarjeta titulo="Sin cambiar de manos">
       {total === 0 ? (
         <p className="text-base text-tinta">
-          Ninguna imagen lleva más de {tablero.umbralDeDiasEstancada} días con
-          la misma persona.
+          Ninguna imagen lleva más de {tablero.umbralDeDiasEstancada} días en
+          las mismas manos.
         </p>
       ) : (
         <>
           <p className="mb-3 text-base text-tinta-suave">
-            Más de {tablero.umbralDeDiasEstancada} días con la misma persona.
+            Más de {tablero.umbralDeDiasEstancada} días en las mismas manos.
           </p>
           <ul className="space-y-3">
             {filas.map((fila) => (
@@ -324,8 +328,7 @@ function Estancadas({ tablero }: { tablero: TableroDTO }) {
                     {fila.codigo}
                   </span>
                   <span className="text-base text-tinta">
-                    {fila.misioneroNombre} {fila.misioneroApellido} · hace{" "}
-                    {fila.dias} días
+                    {nombreDeTenedor(fila.tenedor)} · hace {fila.dias} días
                   </span>
                 </Link>
               </li>
@@ -398,26 +401,33 @@ function NuncaAsignadas({
   );
 }
 
-/** Story 5: people with their hands free, to match against the images above. */
+/**
+ * Story 5: whoever has their hands free, to match against the images above.
+ *
+ * Tenedores and not people, so a Matrimonio is **one** entry and neither spouse
+ * appears beside it (ADR 0010). While this counted people, an idle couple filled
+ * two lines of a card whose whole job is to say how much capacity is going
+ * unused — and both lines led to half a household.
+ */
 function SinImagen({ tablero }: { tablero: TableroDTO }) {
-  const { total, filas } = tablero.misionerosSinPeregrina;
+  const { total, filas } = tablero.tenedoresSinPeregrina;
 
   return (
-    <Tarjeta titulo="Misioneros sin imagen">
+    <Tarjeta titulo="Sin imagen a cargo">
       {total === 0 ? (
         <p className="text-base text-tinta">
-          Todos los Misioneros tienen al menos una imagen a cargo.
+          Todos tienen al menos una imagen a cargo.
         </p>
       ) : (
         <>
           <ul className="space-y-2">
             {filas.map((fila) => (
-              <li key={fila.id}>
+              <li key={`${fila.tipo}:${fila.id}`}>
                 <Link
-                  href={`/misionero/${fila.id}`}
+                  href={hrefDeTenedor(fila)}
                   className="flex min-h-12 items-center rounded-control text-lg font-semibold text-accion underline"
                 >
-                  {nombreCompleto(fila)}
+                  {nombreDeTenedor(fila)}
                 </Link>
               </li>
             ))}

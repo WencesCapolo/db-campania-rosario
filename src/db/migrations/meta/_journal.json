@@ -50,6 +50,20 @@
       "when": 1785162770597,
       "tag": "0006_indices_del_tablero",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785801868817,
+      "tag": "0007_matrimonio",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785804081128,
+      "tag": "0008_telefono_por_esposo",
+      "breakpoints": true
     }
   ]
 }

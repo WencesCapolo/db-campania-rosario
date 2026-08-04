@@ -5,11 +5,13 @@ import {
   timestamp,
   integer,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { users } from "@/db/schema/users";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 import { misionero } from "@/modules/misionero/misionero.schema";
+import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 // ↑ One-way imports: peregrina → territorio, peregrina → misionero.
 //
 // That second one reversed in issue #3. Misionero used to point at the Peregrina
@@ -127,6 +129,20 @@ export const peregrina = pgTable(
     ),
 
     /**
+     * The other half of the denormalised Tenedor — ADR 0010. Same contract as
+     * the column above in every respect: derived from the open Asignación,
+     * written only inside `AsignacionRepository`, in the same transaction.
+     *
+     * Both null is the important case and it is **legal**: it means *libre*, and
+     * it is what the tenencia filter and the free-images list are reading. The
+     * check below says "at most one" for that reason, where `asignacion` says
+     * "exactly one".
+     */
+    matrimonioActualId: text("matrimonio_actual_id").references(
+      () => matrimonio.id
+    ),
+
+    /**
      * Baja lógica — user story 16. A Peregrina permanently out of service leaves
      * the active inventory without erasing its history, because every Asignación
      * has to keep resolving to a real Código and a real name. Refused while an
@@ -189,6 +205,22 @@ export const peregrina = pgTable(
       .on(t.diocesisLocalidadId, t.estado, t.modalidad, t.tipo)
       .where(sql`${t.bajaAt} is null`),
 
+    // "Who has this one", for the couples. Mirrors the misionero one above.
+    index("peregrina_matrimonio_actual_idx").on(t.matrimonioActualId),
+
+    /**
+     * **At most** one Tenedor — not exactly one, which is the whole difference
+     * from the constraint on `asignacion`.
+     *
+     * All null is the *libre* case: an image nobody has right now. It is a normal
+     * state, it is what `findLibres` and the tenencia filter select on, and it is
+     * the state every Peregrina starts in. `= 1` here would make registering a
+     * new image impossible.
+     */
+    check(
+      "peregrina_un_solo_tenedor_actual",
+      sql`num_nonnulls(${t.misioneroActualId}, ${t.matrimonioActualId}) <= 1`
+    ),
   ]
 );
 
@@ -206,6 +238,10 @@ export const peregrinaRelations = relations(peregrina, ({ one }) => ({
   misioneroActual: one(misionero, {
     fields: [peregrina.misioneroActualId],
     references: [misionero.id],
+  }),
+  matrimonioActual: one(matrimonio, {
+    fields: [peregrina.matrimonioActualId],
+    references: [matrimonio.id],
   }),
 }));
 

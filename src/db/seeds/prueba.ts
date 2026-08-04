@@ -167,7 +167,7 @@ export async function seedPrueba(actor: CurrentUser): Promise<void> {
   for (const [imagen, persona] of enManos) {
     await AsignacionService.asignar(actor, {
       peregrinaId: peregrinas[imagen]!.id,
-      misioneroId: misioneros[persona]!.id,
+      tenedor: { tipo: "persona", id: misioneros[persona]!.id },
       nota: null,
     });
   }
@@ -176,7 +176,7 @@ export async function seedPrueba(actor: CurrentUser): Promise<void> {
   for (const imagen of [5, 11]) {
     await AsignacionService.asignar(actor, {
       peregrinaId: peregrinas[imagen]!.id,
-      misioneroId: misioneros[2]!.id,
+      tenedor: { tipo: "persona", id: misioneros[2]!.id },
       nota: null,
     });
     await AsignacionService.devolver(actor, {
@@ -188,7 +188,7 @@ export async function seedPrueba(actor: CurrentUser): Promise<void> {
   // Una que pasó de mano en mano, para que el historial tenga tres eslabones.
   await AsignacionService.entregar(actor, {
     peregrinaId: peregrinas[0]!.id,
-    misioneroId: misioneros[1]!.id,
+    tenedor: { tipo: "persona", id: misioneros[1]!.id },
     notaCierre: "Pasa a la próxima familia.",
     nota: null,
   });
