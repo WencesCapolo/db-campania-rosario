@@ -98,9 +98,22 @@ export const peregrina = pgTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
 
-    // Código compuesto: [Provincia Modalidad AutoIncNum] — e.g. "CBA JOV 0001"
-    codigo: text("codigo").notNull().unique(),
-    codigoNum: integer("codigo_num").notNull(),
+    // Código compuesto: [Provincia Modalidad AutoIncNum] — e.g. "CBA JOV 0001".
+    // Null on an image that only carries its Numeración anterior — ADR 0012.
+    // Unique still holds: Postgres never counts two nulls as equal.
+    codigo: text("codigo").unique(),
+    codigoNum: integer("codigo_num"),
+
+    /**
+     * What an image had written on it before the Campaña's format existed —
+     * typed by hand, exactly as it reads, because those were written in several
+     * ways and none of them can be parsed. ADR 0012.
+     *
+     * Not unique: it repeats between Diócesis, and nothing here checks it. Kept
+     * once the image gets a Código, so somebody holding an old list can still
+     * find it, but from then on the Código is what identifies it.
+     */
+    numeracionAnterior: text("numeracion_anterior"),
 
     tipo: peregrinaTipoEnum("tipo").notNull().default("peregrina"),
     estado: peregrinaEstadoEnum("estado").notNull().default("activa"),
@@ -220,6 +233,18 @@ export const peregrina = pgTable(
     check(
       "peregrina_un_solo_tenedor_actual",
       sql`num_nonnulls(${t.misioneroActualId}, ${t.matrimonioActualId}) <= 1`
+    ),
+
+    // An image with nothing written on it cannot be told apart from any other —
+    // ADR 0012. And a Código always comes with the número it was minted from,
+    // or `nextCodigoNum` would skip it and mint the same Código twice.
+    check(
+      "peregrina_tiene_identificacion",
+      sql`num_nonnulls(${t.codigo}, ${t.numeracionAnterior}) >= 1`
+    ),
+    check(
+      "peregrina_codigo_con_numero",
+      sql`(${t.codigo} is null) = (${t.codigoNum} is null)`
     ),
   ]
 );

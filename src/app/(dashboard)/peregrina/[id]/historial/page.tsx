@@ -68,11 +68,11 @@ export default async function HistorialPage({
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
       <div className="space-y-2">
         <Volver href={`/peregrina/${peregrina.id}`}>
-          Volver a {peregrina.codigo}
+          Volver a {peregrina.identificacion}
         </Volver>
 
         <h1 className="font-mono text-3xl font-bold text-tinta">
-          {peregrina.codigo}
+          {peregrina.identificacion}
         </h1>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -114,7 +114,7 @@ export default async function HistorialPage({
 
             <RegistrarDevolucion
               peregrinaId={peregrina.id}
-              codigo={peregrina.codigo}
+              identificacion={peregrina.identificacion}
               tenedor={nombreDeTenedor(abierta.tenedor)}
             />
           </div>

@@ -21,7 +21,7 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 | Authorization | Actor first parameter on every service method; scope derived, never optional — ADR 0001 |
 | Territory | Provincia → Diócesis/Localidad as reference tables. Región is a property **of the Diócesis** (7 pastorales, fixed): the Campaña's regions cross provincial borders, and two Provincias span two each — ADR 0005 |
 | Modalidad | The Campaña's **sixteen** apostolates, as three-letter codes. `INF` and `ADU` removed outright — ADR 0005. Distinct from Tipo (`peregrina` / `auxiliar`) |
-| Código | System-generated `[Provincia Modalidad Número]`, sequential per provincia + modalidad. Never hand-typed |
+| Código | System-generated `[Provincia Modalidad Número]`, sequential per provincia + modalidad. Never hand-typed. Images labelled before the format carry a typed Numeración anterior until they get one (ADR 0012) |
 | Estado | Activa / En reparación / Extraviada. Legacy `inactiva` retained, not offered for new entry |
 | History | Asignación as a period; one open row per Peregrina, enforced in the service and by a partial unique index — ADR 0004 |
 | Tenedor | A Peregrina is in the charge of one Misionero **or** one Matrimonio. Polymorphic pointer with a check constraint, not a supertype table; a married person never holds alone; the listado and the figures are a union — ADR 0010 |

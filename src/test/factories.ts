@@ -10,6 +10,7 @@ import {
 import type { Region } from "@/modules/territorio/territorio.schema";
 import { peregrina } from "@/modules/peregrina/peregrina.schema";
 import type { Modalidad, PeregrinaTipo } from "@/modules/peregrina/peregrina.schema";
+import { identificacionDe } from "@/modules/peregrina/peregrina.types";
 import { misionero } from "@/modules/misionero/misionero.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { asegurarActorDeSistema } from "@/lib/authorization/actor-de-sistema";
@@ -218,13 +219,19 @@ export async function crearPeregrinaDirecta(opts: {
   createdById: string;
   modalidad?: Modalidad;
   tipo?: PeregrinaTipo;
-}): Promise<{ id: string; codigo: string }> {
+  /** Sin Código: la imagen se registra por lo que ya tenía escrito. */
+  numeracionAnterior?: string;
+}): Promise<{ id: string; identificacion: string }> {
   const n = siguiente();
+  const codigo = opts.numeracionAnterior
+    ? null
+    : `TST ${opts.modalidad ?? "JOV"} ${String(n).padStart(4, "0")}`;
   const [row] = await db
     .insert(peregrina)
     .values({
-      codigo: `TST ${opts.modalidad ?? "JOV"} ${String(n).padStart(4, "0")}`,
-      codigoNum: n,
+      codigo,
+      codigoNum: codigo ? n : null,
+      numeracionAnterior: opts.numeracionAnterior ?? null,
       tipo: opts.tipo ?? "peregrina",
       estado: "activa",
       modalidad: opts.modalidad ?? "JOV",
@@ -233,7 +240,7 @@ export async function crearPeregrinaDirecta(opts: {
     })
     .returning();
   if (!row) throw new Error("No se pudo crear la Peregrina de prueba");
-  return { id: row.id, codigo: row.codigo };
+  return { id: row.id, identificacion: identificacionDe(row) };
 }
 
 export async function crearMisioneroDirecto(opts: {

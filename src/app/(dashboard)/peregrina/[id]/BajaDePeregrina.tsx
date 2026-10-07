@@ -11,7 +11,7 @@ import {
  *
  * There is no delete, and the confirmation says so plainly rather than
  * threatening something that will not happen: the record stays, because every
- * Asignación in the history names this Código and a chain that stops resolving
+ * Asignación in the history names this image and a chain that stops resolving
  * to a real image is worse than an unused row.
  *
  * The guard that refuses a baja while an Asignación is open lives in
@@ -22,11 +22,11 @@ import {
 
 export default function BajaDePeregrina({
   id,
-  codigo,
+  identificacion,
   deBaja,
 }: {
   id: string;
-  codigo: string;
+  identificacion: string;
   deBaja: boolean;
 }) {
   if (deBaja) {
@@ -35,7 +35,7 @@ export default function BajaDePeregrina({
         tono="secundario"
         etiqueta="Volver a dar de alta"
         titulo="¿Volver a poner esta imagen en el inventario?"
-        sujeto={codigo}
+        sujeto={identificacion}
         consecuencia="Vuelve a aparecer en los listados y se le puede volver a entregar a un Misionero."
         etiquetaDeConfirmacion="Sí, dar de alta"
         accion={() => reactivarPeregrinaAction(id)}
@@ -47,7 +47,7 @@ export default function BajaDePeregrina({
     <ConfirmarAccion
       etiqueta="Dar de baja"
       titulo="¿Dar de baja esta imagen?"
-      sujeto={codigo}
+      sujeto={identificacion}
       consecuencia="Deja de aparecer en los listados y no se le puede entregar a nadie. No se borra: su historial sigue completo y se puede volver a dar de alta."
       etiquetaDeConfirmacion="Sí, dar de baja"
       accion={() => darDeBajaPeregrinaAction(id)}

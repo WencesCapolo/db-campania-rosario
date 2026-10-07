@@ -103,7 +103,7 @@ export default function FiltrosDeInventario({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendiente, empezar] = useTransition();
-  const [borrador, setBorrador] = useState(filtros.codigo ?? "");
+  const [borrador, setBorrador] = useState(filtros.identificacion ?? "");
   const [borradorMisionero, setBorradorMisionero] = useState(
     filtros.misionero ?? "",
   );
@@ -153,7 +153,7 @@ export default function FiltrosDeInventario({
       onSubmit={(e) => {
         e.preventDefault();
         aplicar({
-          codigo: borrador.trim(),
+          identificacion: borrador.trim(),
           misionero: borradorMisionero.trim(),
         });
       }}
@@ -162,6 +162,7 @@ export default function FiltrosDeInventario({
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo
             etiqueta="Buscar por Código"
+            ayuda="O por la numeración anterior, si la imagen tiene una."
             type="search"
             inputMode="search"
             placeholder="CBA JOV 0001"
@@ -300,7 +301,9 @@ function describir(
 ): string[] {
   const partes: string[] = [];
 
-  if (filtros.codigo) partes.push(`Código «${filtros.codigo}»`);
+  if (filtros.identificacion) {
+    partes.push(`Código o numeración «${filtros.identificacion}»`);
+  }
   if (filtros.misionero) partes.push(`la tiene «${filtros.misionero}»`);
   if (filtros.estado) partes.push(ESTADO_LABELS[filtros.estado]);
   if (filtros.modalidad) partes.push(MODALIDAD_LABELS[filtros.modalidad]);

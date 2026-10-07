@@ -103,7 +103,16 @@ export type { TenedorResueltoDTO, PersonaDeTenedorDTO } from "@/lib/tenedor";
 
 export interface PeregrinaDTO {
   id: string;
-  codigo: string;
+  /**
+   * What identifies the image: its Código if it has one, its Numeración anterior
+   * if not — ADR 0012. Every screen and every message shows this one, so none of
+   * them decides the precedence on its own.
+   */
+  identificacion: string;
+  /** Null while the image only carries what was written on it before. */
+  codigo: string | null;
+  /** Kept after the image gets a Código, so an old list still finds it. */
+  numeracionAnterior: string | null;
   tipo: PeregrinaTipo;
   estado: PeregrinaEstado;
   modalidad: Modalidad;
@@ -118,11 +127,47 @@ export interface PeregrinaDTO {
   updatedAt: Date;
 }
 
+/**
+ * The Identificación of an image, from its two columns — the TypeScript twin of
+ * `IDENTIFICACION` in the repository, for a row already in hand.
+ *
+ * Throws rather than falling back to an empty string: the check
+ * `peregrina_tiene_identificacion` makes the case unreachable, and a blank where
+ * an image's name should be is worse than an error somebody reports.
+ */
+export function identificacionDe(p: {
+  codigo: string | null;
+  numeracionAnterior: string | null;
+}): string {
+  const identificacion = p.codigo ?? p.numeracionAnterior;
+  if (identificacion === null) {
+    throw new Error("Una Peregrina sin Código ni Numeración anterior.");
+  }
+  return identificacion;
+}
+
 // ── Inputs ────────────────────────────────────────────────────────────────────
 // Three territory fields became one choice. Provincia and Región follow from
 // the Diócesis/Localidad, so a contradictory combination is unrepresentable.
 
+/**
+ * Lo que una imagen ya tenía escrito, tal como se lee — ADR 0012. Sin formato,
+ * porque se escribieron de varias formas y ninguna se puede interpretar.
+ */
+export const numeracionAnteriorSchema = z
+  .string()
+  .trim()
+  .min(1, "Escribí la numeración que tiene la imagen.")
+  .max(40, "La numeración puede tener hasta 40 caracteres.");
+
+/**
+ * The alta. Without `numeracionAnterior` the system generates the Código, as it
+ * always has; with it, the image is registered by what it already carries and
+ * no Código is generated — no número is spent on an image that does not have it
+ * written on it.
+ */
 export const createPeregrinaSchema = z.object({
+  numeracionAnterior: numeracionAnteriorSchema.optional(),
   tipo: z.enum(peregrinaTipoEnum.enumValues, {
     message: "Elegí un Tipo válido.",
   }),
@@ -151,7 +196,7 @@ export type UpdatePeregrinaInput = z.infer<typeof updatePeregrinaSchema>;
 // in step: both parse the same schema out of the same address.
 //
 // It lives in peregrina because peregrina owns four of the six dimensions —
-// Estado, Modalidad, Tipo and Código. Territory is a foreign key and a Región,
+// Estado, Modalidad, Tipo and Identificación. Territory is a foreign key and a Región,
 // both of which this module already reads.
 
 /**
@@ -187,7 +232,8 @@ export const TENENCIA_LABELS: Record<Tenencia, string> = {
  * figures with another's name, which is worse than a refusal.
  */
 export const filtrosDeInventarioSchema = filtrosTerritorialesSchema.extend({
-  codigo: z.string().trim().min(1).max(40).optional(),
+  /** The Código or the Numeración anterior — either one finds the image. */
+  identificacion: z.string().trim().min(1).max(40).optional(),
   /**
    * El nombre de quien la tiene ahora — no un id.
    *
@@ -211,7 +257,7 @@ export const SIN_FILTROS: FiltrosDeInventario = {};
 
 /** The address's names for the filters — one list, so no screen invents a key. */
 export const CLAVES_DE_FILTRO = [
-  "codigo",
+  "identificacion",
   "misionero",
   "estado",
   "modalidad",
@@ -259,7 +305,10 @@ export function filtrosDesdeParams(
   };
 
   return limpiar({
-    codigo: uno("codigo", filtrosDeInventarioSchema.shape.codigo),
+    identificacion: uno(
+      "identificacion",
+      filtrosDeInventarioSchema.shape.identificacion,
+    ),
     misionero: uno("misionero", filtrosDeInventarioSchema.shape.misionero),
     estado: uno("estado", filtrosDeInventarioSchema.shape.estado),
     modalidad: uno("modalidad", filtrosDeInventarioSchema.shape.modalidad),

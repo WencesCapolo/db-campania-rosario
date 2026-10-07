@@ -133,7 +133,7 @@ export default async function MatrimonioPage({
                   anchoCompleto
                   href={`/peregrina/${a.peregrina.id}`}
                 >
-                  <span className="font-mono">{a.peregrina.codigo}</span>
+                  <span className="font-mono">{a.peregrina.identificacion}</span>
                   <span className="font-normal">
                     desde el {fecha(a.abiertaAt)} · {dias(a.diasEnCargo)}
                   </span>
@@ -159,7 +159,7 @@ export default async function MatrimonioPage({
                     href={`/peregrina/${a.peregrina.id}`}
                     className="font-mono font-bold text-accion underline"
                   >
-                    {a.peregrina.codigo}
+                    {a.peregrina.identificacion}
                   </Link>{" "}
                   — {fecha(a.abiertaAt)} a{" "}
                   {/* `cerradas` sale de filtrar por `abierta`, pero `cerradaAt`

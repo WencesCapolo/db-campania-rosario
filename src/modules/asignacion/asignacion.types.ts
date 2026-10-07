@@ -32,10 +32,10 @@ export interface RegistroDTO {
  */
 export type { TenedorResueltoDTO, PersonaDeTenedorDTO } from "@/lib/tenedor";
 
-/** The Peregrina side, resolved to its Código. */
+/** The Peregrina side, resolved to its Identificación. */
 export interface PeregrinaDeAsignacionDTO {
   id: string;
-  codigo: string;
+  identificacion: string;
   deBaja: boolean;
 }
 
@@ -60,8 +60,8 @@ export interface PeregrinaDeAsignacionDTO {
  */
 export interface TenenciaDeTenedorDTO {
   tenedor: Tenedor;
-  /** Las que el Actor podría haber leído igual, ordenadas por Código. */
-  peregrinas: { id: string; codigo: string }[];
+  /** Las que el Actor podría haber leído igual, ordenadas por Identificación. */
+  peregrinas: { id: string; identificacion: string }[];
   /** Cuántas tiene abiertas fuera del alcance del Actor. */
   ajenas: number;
 }

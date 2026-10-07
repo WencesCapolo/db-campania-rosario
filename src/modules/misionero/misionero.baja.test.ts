@@ -27,7 +27,7 @@ let territorio: TerritorioDePrueba;
 let referente: CurrentUser;
 let asesor: CurrentUser;
 
-let peregrina: { id: string; codigo: string };
+let peregrina: { id: string; identificacion: string };
 let ana: { id: string };
 
 beforeEach(async () => {
@@ -64,7 +64,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     await expect(intento).rejects.toThrow(ConflictoError);
     // La imagen está físicamente con esa persona. Saber cuál es la diferencia
     // entre un rechazo y una instrucción.
-    await expect(intento).rejects.toThrow(new RegExp(peregrina.codigo));
+    await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
     await expect(intento).rejects.toThrow(/Ana Álvarez/);
 
     // Y sigue activa: el rechazo no dejó nada a medias.
@@ -87,8 +87,8 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     }
 
     const intento = MisioneroService.darDeBaja(referente, ana.id);
-    await expect(intento).rejects.toThrow(new RegExp(peregrina.codigo));
-    await expect(intento).rejects.toThrow(new RegExp(otra.codigo));
+    await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
+    await expect(intento).rejects.toThrow(new RegExp(otra.identificacion));
   });
 
   it("se puede una vez registrada la devolución", async () => {
@@ -152,7 +152,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
 
     await expect(intento).rejects.toThrow(ConflictoError);
     await expect(intento).rejects.toThrow(/de otro territorio/);
-    await expect(intento).rejects.not.toThrow(new RegExp(peregrina.codigo));
+    await expect(intento).rejects.not.toThrow(new RegExp(peregrina.identificacion));
   });
 });
 
@@ -207,7 +207,7 @@ describe("un Misionero dado de baja", () => {
       ana.id
     );
     expect(historial).toHaveLength(1);
-    expect(historial[0].peregrina.codigo).toBe(peregrina.codigo);
+    expect(historial[0].peregrina.identificacion).toBe(peregrina.identificacion);
   });
 
   it("no puede recibir una Peregrina nueva", async () => {

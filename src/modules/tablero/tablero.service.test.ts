@@ -473,13 +473,13 @@ describe("los filtros", () => {
     expect(asignadas.totalPeregrinas).toBe(3);
   });
 
-  it("filtra por Código, sin distinguir mayúsculas", async () => {
+  it("filtra por Identificación, sin distinguir mayúsculas", async () => {
     const dto = await PeregrinaService.getById(
       referente,
       peregrinas.asignadaVieja,
     );
     const tablero = await TableroService.resumen(referente, {
-      codigo: dto.codigo.toLowerCase(),
+      identificacion: dto.identificacion.toLowerCase(),
     });
 
     expect(tablero.totalPeregrinas).toBe(1);

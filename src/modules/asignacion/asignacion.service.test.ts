@@ -30,7 +30,7 @@ let territorio: TerritorioDePrueba;
 let referente: CurrentUser;
 let otroReferente: CurrentUser;
 
-let peregrina: { id: string; codigo: string };
+let peregrina: { id: string; identificacion: string };
 let ana: { id: string };
 let beto: { id: string };
 let carla: { id: string };
@@ -415,8 +415,8 @@ describe("lo que queda registrado", () => {
       ana.id
     );
     expect(historial).toHaveLength(2);
-    expect(new Set(historial.map((a) => a.peregrina.codigo))).toEqual(
-      new Set([peregrina.codigo, otra.codigo])
+    expect(new Set(historial.map((a) => a.peregrina.identificacion))).toEqual(
+      new Set([peregrina.identificacion, otra.identificacion])
     );
   });
 

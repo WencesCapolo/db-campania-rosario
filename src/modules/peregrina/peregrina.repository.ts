@@ -257,10 +257,7 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
       ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
       : undefined,
     filtros.region ? eq(diocesisLocalidad.region, filtros.region) : undefined,
-    // ilike, not like: somebody typing "cba jov" means "CBA JOV".
-    filtros.codigo
-      ? ilike(peregrina.codigo, `%${filtros.codigo.replace(/\s+/g, " ")}%`)
-      : undefined,
+    condicionDeIdentificacion(filtros.identificacion),
     filtros.tenencia === "libre"
       ? SIN_TENEDOR
       : filtros.tenencia === "asignada"
@@ -268,6 +265,22 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
         : undefined,
     condicionDeTenedor(filtros.misionero),
   ];
+}
+
+/**
+ * Por lo que tiene escrito — el Código o la Numeración anterior.
+ *
+ * Las dos columnas y no `IDENTIFICACION`: una imagen vieja que ya recibió su
+ * Código se sigue encontrando por lo que dice la lista en papel de alguien.
+ * `ilike`, not `like`: somebody typing "cba jov" means "CBA JOV".
+ */
+function condicionDeIdentificacion(termino: string | undefined): SQL | undefined {
+  if (!termino) return undefined;
+  const patron = `%${termino.replace(/\s+/g, " ")}%`;
+  return or(
+    ilike(peregrina.codigo, patron),
+    ilike(peregrina.numeracionAnterior, patron),
+  );
 }
 
 /**
@@ -285,6 +298,24 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
 function condicionDeTenedor(termino: string | undefined): SQL | undefined {
   return coincideAlgunNombre(termino, misionero, esposoA, esposoB);
 }
+
+/**
+ * Lo que identifica a una imagen: su Código si tiene uno, y si no, su Numeración
+ * anterior — ADR 0012. Una expresión y no una columna, para que no haya un
+ * tercer valor que mantener al día cuando una imagen vieja recibe su Código.
+ *
+ * Exportada porque toda lectura que muestra una imagen la necesita, en este
+ * módulo y en los que vienen después en la cadena. Un `coalesce` escrito a mano
+ * en otro repositorio es un lugar donde alguien pone los dos al revés.
+ */
+export const IDENTIFICACION = sql<string>`coalesce(${peregrina.codigo}, ${peregrina.numeracionAnterior})`;
+
+/**
+ * El orden de toda lista de imágenes. Desempata por id porque la Numeración
+ * anterior se repite entre Diócesis, y un `order by` que empata es cómo un
+ * `offset` se saltea filas en silencio (ADR 0008).
+ */
+const POR_IDENTIFICACION = [asc(IDENTIFICACION), asc(peregrina.id)] as const;
 
 /** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
 const TOTAL = sql<number>`cast(count(*) as int)`;
@@ -452,7 +483,7 @@ export class PeregrinaRepository {
     return leerVarias(
       conTerritorio()
         .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
-        .orderBy(asc(peregrina.codigo)),
+        .orderBy(...POR_IDENTIFICACION),
     );
   }
 
@@ -481,7 +512,7 @@ export class PeregrinaRepository {
     return leerVarias(
       conTerritorio()
         .where(conAlcance(alcance, {}, SIN_TENEDOR))
-        .orderBy(asc(peregrina.codigo)),
+        .orderBy(...POR_IDENTIFICACION),
     );
   }
 
@@ -535,6 +566,7 @@ export class PeregrinaRepository {
         | "id"
         | "codigo"
         | "codigoNum"
+        | "numeracionAnterior"
         | "createdById"
         | "createdAt"
         | "misioneroActualId"
@@ -552,6 +584,26 @@ export class PeregrinaRepository {
     const actualizada = await PeregrinaRepository.findByIdSinAlcance(row.id);
     if (!actualizada) throw new Error(`Peregrina not found: ${row.id}`);
     return actualizada;
+  }
+
+  /**
+   * Da su Código a una imagen que sólo tenía Numeración anterior — ADR 0012.
+   *
+   * `undefined` means it already had one, which the predicate makes a fact
+   * rather than a race: two people pressing the button at once get one Código,
+   * not two numbers burned on the same image. The Numeración anterior stays.
+   */
+  static async ponerCodigo(
+    id: string,
+    codigo: string,
+    codigoNum: number,
+  ): Promise<PeregrinaRow | undefined> {
+    const [row] = await db
+      .update(peregrina)
+      .set({ codigo, codigoNum, updatedAt: new Date() })
+      .where(and(eq(peregrina.id, id), isNull(peregrina.codigo)))
+      .returning();
+    return row;
   }
 
   /**
@@ -707,9 +759,9 @@ export class PeregrinaRepository {
    *
    * `paginacion` cuts the rows in the database rather than in the page. Absent
    * means every matching row, which is what a picker and the tests want; the
-   * screen always passes one. The order is the Código, which is unique, so a row
-   * cannot sit on two pages or fall between them — an `order by` that ties is how
-   * an offset silently skips records.
+   * screen always passes one. The order is the Identificación with the id behind
+   * it, so a row cannot sit on two pages or fall between them — an `order by`
+   * that ties is how an offset silently skips records.
    */
   static async findFiltradas(
     alcance: Alcance,
@@ -719,7 +771,7 @@ export class PeregrinaRepository {
   ): Promise<PeregrinaConTerritorio[]> {
     const consulta = conTerritorio()
       .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
-      .orderBy(asc(peregrina.codigo));
+      .orderBy(...POR_IDENTIFICACION);
 
     return leerVarias(
       paginacion

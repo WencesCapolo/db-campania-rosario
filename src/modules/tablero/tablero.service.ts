@@ -7,6 +7,7 @@ import {
 } from "@/lib/authorization/alcance";
 import { PeregrinaRepository } from "@/modules/peregrina/peregrina.repository";
 import type { PeregrinaConTerritorio } from "@/modules/peregrina/peregrina.repository";
+import { identificacionDe } from "@/modules/peregrina/peregrina.types";
 import type { FiltrosDeInventario } from "@/modules/peregrina/peregrina.types";
 import { MisioneroRepository } from "@/modules/misionero/misionero.repository";
 import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
@@ -116,7 +117,7 @@ export class TableroService {
       estancadas: recortar(
         estancadas.map((fila) => ({
           peregrinaId: fila.peregrinaId,
-          codigo: fila.codigo,
+          identificacion: fila.identificacion,
           // El Tenedor entero y no dos campos sueltos: las manos pueden ser dos,
           // y la tarjeta dice a quién llamar (ADR 0010).
           tenedor: fila.tenedor,
@@ -161,7 +162,7 @@ export class TableroService {
   private static async nuncaAsignadas(
     alcance: Alcance,
     filtros: FiltrosDeInventario
-  ): Promise<Muestra<{ id: string; codigo: string }> | null> {
+  ): Promise<Muestra<{ id: string; identificacion: string }> | null> {
     if (filtros.tenencia === "asignada") return null;
 
     const rows = await AsignacionRepository.findPeregrinasNuncaAsignadas(
@@ -187,7 +188,7 @@ function recortar<T>(filas: T[]): Muestra<T> {
 function aFilaExtraviada(row: PeregrinaConTerritorio): FilaExtraviada {
   return {
     id: row.peregrina.id,
-    codigo: row.peregrina.codigo,
+    identificacion: identificacionDe(row.peregrina),
     // `tenedorActual` ya viene resuelto y es una respuesta, no dos: un
     // Matrimonio se lee como un Tenedor y no como el cónyuge que se tipeó
     // primero — que era la mitad de la respuesta que el PRD vino a arreglar.

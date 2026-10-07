@@ -48,9 +48,9 @@ let asesor: CurrentUser;
 let diocesano: CurrentUser;
 let referente: CurrentUser;
 
-let propia: { id: string; codigo: string };
-let vecina: { id: string; codigo: string };
-let ajena: { id: string; codigo: string };
+let propia: { id: string; identificacion: string };
+let vecina: { id: string; identificacion: string };
+let ajena: { id: string; identificacion: string };
 
 let misioneroPropio: { id: string };
 let misioneroVecino: { id: string };
@@ -148,7 +148,7 @@ describe.each([
       propia.id
     );
     expect(historial).toHaveLength(1);
-    expect(historial[0].peregrina.codigo).toBe(propia.codigo);
+    expect(historial[0].peregrina.identificacion).toBe(propia.identificacion);
   });
 
   it("NO lee el historial de la Diócesis vecina, aun estando en su Provincia", async () => {
@@ -292,7 +292,7 @@ describe.each([
     const propio = tenencias.find(
       (t) => t.tenedor.id === misioneroPropio.id
     );
-    expect(propio?.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
+    expect(propio?.peregrinas.map((p) => p.identificacion)).toEqual([propia.identificacion]);
 
     const vecino = tenencias.find((t) => t.tenedor.id === misioneroVecino.id);
     expect(vecino).toEqual({
@@ -300,7 +300,7 @@ describe.each([
       peregrinas: [],
       ajenas: 0,
     });
-    expect(JSON.stringify(tenencias)).not.toContain(vecina.codigo);
+    expect(JSON.stringify(tenencias)).not.toContain(vecina.identificacion);
   });
 
   it("una imagen de otro territorio en manos de alguien suyo se cuenta y no se nombra", async () => {
@@ -323,9 +323,9 @@ describe.each([
       [comoTenedor(misioneroPropio)]
     );
 
-    expect(tenencia.peregrinas.map((p) => p.codigo)).toEqual([propia.codigo]);
+    expect(tenencia.peregrinas.map((p) => p.identificacion)).toEqual([propia.identificacion]);
     expect(tenencia.ajenas).toBe(1);
-    expect(JSON.stringify(tenencia)).not.toContain(deZapala.codigo);
+    expect(JSON.stringify(tenencia)).not.toContain(deZapala.identificacion);
   });
 });
 
@@ -344,8 +344,8 @@ describe("las tenencias de una página de Tenedores, para un rol nacional", () =
     ]);
 
     expect(
-      tenencias.map((t) => t.peregrinas.map((p) => p.codigo)).flat()
-    ).toEqual(expect.arrayContaining([propia.codigo, vecina.codigo]));
+      tenencias.map((t) => t.peregrinas.map((p) => p.identificacion)).flat()
+    ).toEqual(expect.arrayContaining([propia.identificacion, vecina.identificacion]));
     expect(tenencias.every((t) => t.ajenas === 0)).toBe(true);
   });
 

@@ -66,7 +66,7 @@ export async function getTenenciaActualAction(
 }
 
 export async function getPeregrinasNuncaAsignadasAction(): Promise<
-  { id: string; codigo: string }[]
+  { id: string; identificacion: string }[]
 > {
   const actor = await getCurrentUser();
   return AsignacionService.listarNuncaAsignadas(actor);

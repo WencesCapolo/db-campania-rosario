@@ -17,6 +17,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { asignacion } from "./asignacion.schema";
 import type { AsignacionRow, NewAsignacionRow } from "./asignacion.schema";
 import { peregrina } from "@/modules/peregrina/peregrina.schema";
+import { IDENTIFICACION } from "@/modules/peregrina/peregrina.repository";
 import { misionero } from "@/modules/misionero/misionero.schema";
 import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 // Un predicado del roster, importado y no reescrito — la misma razón por la que
@@ -46,7 +47,7 @@ import type {
  */
 export interface AsignacionCompleta {
   asignacion: AsignacionRow;
-  peregrinaCodigo: string;
+  peregrinaIdentificacion: string;
   peregrinaBajaAt: Date | null;
   /** The Peregrina's territory — what this Asignación is scoped through. */
   peregrinaDiocesisLocalidadId: string;
@@ -82,7 +83,7 @@ export interface TenedorConTerritorio {
 export interface TenenciaDeTenedor {
   tenedor: Tenedor;
   peregrinaId: string;
-  peregrinaCodigo: string;
+  peregrinaIdentificacion: string;
   peregrinaDiocesisLocalidadId: string;
 }
 
@@ -96,7 +97,7 @@ export interface TenenciaDeTenedor {
  */
 export interface PeregrinaEstancada {
   peregrinaId: string;
-  codigo: string;
+  identificacion: string;
   abiertaAt: Date;
   dias: number;
   tenedor: TenedorResueltoDTO;
@@ -135,7 +136,7 @@ function completa() {
   return db
     .select({
       asignacion,
-      peregrinaCodigo: peregrina.codigo,
+      peregrinaIdentificacion: IDENTIFICACION,
       peregrinaBajaAt: peregrina.bajaAt,
       peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
       misioneroId: misionero.id,
@@ -291,7 +292,7 @@ function tenedorDeColumnasResueltas(
 function aCompleta(fila: FilaCompleta): AsignacionCompleta {
   return {
     asignacion: fila.asignacion,
-    peregrinaCodigo: fila.peregrinaCodigo,
+    peregrinaIdentificacion: fila.peregrinaIdentificacion,
     peregrinaBajaAt: fila.peregrinaBajaAt,
     peregrinaDiocesisLocalidadId: fila.peregrinaDiocesisLocalidadId,
     tenedor: tenedorDeColumnasResueltas(fila, fila.asignacion.id),
@@ -808,7 +809,7 @@ export class AsignacionRepository {
     return leerVarias(
       completa()
         .where(and(tenidaPor(misioneroId), abierta))
-        .orderBy(asc(peregrina.codigo))
+        .orderBy(asc(IDENTIFICACION))
     );
   }
 
@@ -826,7 +827,7 @@ export class AsignacionRepository {
     return leerVarias(
       completa()
         .where(and(eq(asignacion.matrimonioId, matrimonioId), abierta))
-        .orderBy(asc(peregrina.codigo))
+        .orderBy(asc(IDENTIFICACION))
     );
   }
 
@@ -913,7 +914,7 @@ export class AsignacionRepository {
         misioneroId: asignacion.misioneroId,
         matrimonioId: asignacion.matrimonioId,
         peregrinaId: peregrina.id,
-        peregrinaCodigo: peregrina.codigo,
+        peregrinaIdentificacion: IDENTIFICACION,
         peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
       })
       .from(asignacion)
@@ -924,7 +925,7 @@ export class AsignacionRepository {
       .leftJoin(matrimonio, eq(matrimonio.id, asignacion.matrimonioId))
       .leftJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
       .where(and(abierta, or(...pedidos), territorial))
-      .orderBy(asc(peregrina.codigo));
+      .orderBy(asc(IDENTIFICACION));
 
     return filas.map((fila) => {
       const tenedor = tenedorDeColumnas(fila);
@@ -937,7 +938,7 @@ export class AsignacionRepository {
       return {
         tenedor,
         peregrinaId: fila.peregrinaId,
-        peregrinaCodigo: fila.peregrinaCodigo,
+        peregrinaIdentificacion: fila.peregrinaIdentificacion,
         peregrinaDiocesisLocalidadId: fila.peregrinaDiocesisLocalidadId,
       };
     });
@@ -953,9 +954,9 @@ export class AsignacionRepository {
    */
   static async findPeregrinasNuncaAsignadas(
     alcance: Alcance
-  ): Promise<{ id: string; codigo: string }[]> {
+  ): Promise<{ id: string; identificacion: string }[]> {
     return db
-      .select({ id: peregrina.id, codigo: peregrina.codigo })
+      .select({ id: peregrina.id, identificacion: IDENTIFICACION })
       .from(peregrina)
       .leftJoin(asignacion, eq(asignacion.peregrinaId, peregrina.id))
       .where(
@@ -966,7 +967,7 @@ export class AsignacionRepository {
           isNull(peregrina.bajaAt)
         )
       )
-      .orderBy(asc(peregrina.codigo));
+      .orderBy(asc(IDENTIFICACION));
   }
 
   /**
@@ -1034,7 +1035,7 @@ export class AsignacionRepository {
     const filas = await db
       .select({
         peregrinaId: peregrina.id,
-        codigo: peregrina.codigo,
+        identificacion: IDENTIFICACION,
         abiertaAt: asignacion.abiertaAt,
         dias: antiguedad,
         misioneroId: misionero.id,
@@ -1083,7 +1084,7 @@ export class AsignacionRepository {
 
     return filas.map((fila) => ({
       peregrinaId: fila.peregrinaId,
-      codigo: fila.codigo,
+      identificacion: fila.identificacion,
       abiertaAt: fila.abiertaAt,
       dias: fila.dias,
       tenedor: tenedorDeColumnasResueltas(fila, fila.peregrinaId),

@@ -261,7 +261,7 @@ export default async function PeregrinaListaPage({
                           href={`/peregrina/${p.id}`}
                           className="font-mono text-lg font-bold whitespace-nowrap text-azul"
                         >
-                          {p.codigo}
+                          {p.identificacion}
                         </Link>
                         {p.deBaja && (
                           <span className="mt-1 block text-sm text-tinta-suave">

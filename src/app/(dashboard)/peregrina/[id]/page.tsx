@@ -13,6 +13,7 @@ import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreDeTenedor } from "@/lib/formato";
 import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
 import BajaDePeregrina from "./BajaDePeregrina";
+import GenerarCodigo from "./GenerarCodigo";
 
 /**
  * Una Peregrina, en una pantalla.
@@ -48,8 +49,18 @@ export default async function PeregrinaPage({
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
       <header className="space-y-3">
         <h1 className="font-mono text-3xl font-bold text-tinta">
-          {peregrina.codigo}
+          {peregrina.identificacion}
         </h1>
+
+        {/* Una imagen vieja que ya tiene su Código: la numeración que llevaba
+            antes se sigue mostrando, porque es la que figura en las listas en
+            papel de quien la está buscando. ADR 0012. */}
+        {peregrina.codigo && peregrina.numeracionAnterior && (
+          <p className="text-base text-tinta-suave">
+            Numeración anterior:{" "}
+            <span className="font-mono">{peregrina.numeracionAnterior}</span>
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <EstadoDePeregrina estado={peregrina.estado} />
@@ -155,10 +166,32 @@ export default async function PeregrinaPage({
         )}
       </Tarjeta>
 
+      {peregrina.codigo === null && peregrina.numeracionAnterior && (
+        <Tarjeta titulo="Todavía no tiene Código">
+          <div className="space-y-4">
+            <p className="text-base leading-relaxed">
+              Esta imagen está registrada con la numeración que ya tenía
+              escrita. Cuando se le escriba un Código nuevo, generalo acá
+              primero.
+            </p>
+            {peregrina.deBaja ? (
+              <p className="text-base text-tinta-suave">
+                Para generarle un Código, primero hay que volver a darla de alta.
+              </p>
+            ) : (
+              <GenerarCodigo
+                id={peregrina.id}
+                numeracionAnterior={peregrina.numeracionAnterior}
+              />
+            )}
+          </div>
+        </Tarjeta>
+      )}
+
       <Tarjeta titulo="Administrar">
         <BajaDePeregrina
           id={peregrina.id}
-          codigo={peregrina.codigo}
+          identificacion={peregrina.identificacion}
           deBaja={peregrina.deBaja}
         />
       </Tarjeta>

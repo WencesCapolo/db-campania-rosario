@@ -39,7 +39,7 @@ describe("generación del Código", () => {
           modalidad: "JOV",
           diocesisLocalidadId: diocesis.id,
         });
-        codigos.push(creada.codigo);
+        codigos.push(creada.identificacion);
       }
     }
 
@@ -183,5 +183,117 @@ describe("el territorio de una Peregrina", () => {
       { region: "CUYO", total: 1 },
       { region: "R. PAT", total: 1 },
     ]);
+  });
+});
+
+describe("la Numeración anterior — ADR 0012", () => {
+  async function registrarVieja(numeracionAnterior: string) {
+    return PeregrinaService.create(actor, {
+      numeracionAnterior,
+      tipo: "peregrina",
+      modalidad: "JOV",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+  }
+
+  it("registra la imagen por lo que ya tiene escrito, sin generarle un Código", async () => {
+    const vieja = await registrarVieja("Peregrina 7 - Villa María");
+
+    expect(vieja.codigo).toBeNull();
+    expect(vieja.numeracionAnterior).toBe("Peregrina 7 - Villa María");
+    expect(vieja.identificacion).toBe("Peregrina 7 - Villa María");
+  });
+
+  it("no gasta un número: la siguiente nueva sigue siendo la 0001", async () => {
+    await registrarVieja("7");
+
+    const nueva = await PeregrinaService.create(actor, {
+      tipo: "peregrina",
+      modalidad: "JOV",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+
+    expect(nueva.codigo).toBe("CBA JOV 0001");
+  });
+
+  it("se puede repetir: dos imágenes con la misma numeración anterior", async () => {
+    const una = await registrarVieja("12");
+    const otra = await registrarVieja("12");
+
+    expect(una.id).not.toBe(otra.id);
+  });
+
+  it("generarle el Código lo toma de la secuencia y conserva la numeración anterior", async () => {
+    await PeregrinaService.create(actor, {
+      tipo: "peregrina",
+      modalidad: "JOV",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+    const vieja = await registrarVieja("7");
+
+    const conCodigo = await PeregrinaService.generarCodigo(actor, vieja.id);
+
+    expect(conCodigo.codigo).toBe("CBA JOV 0002");
+    expect(conCodigo.identificacion).toBe("CBA JOV 0002");
+    expect(conCodigo.numeracionAnterior).toBe("7");
+  });
+
+  it("toma la Provincia y la Modalidad de ahora, no las del alta", async () => {
+    const vieja = await registrarVieja("7");
+    await PeregrinaService.update(actor, vieja.id, {
+      modalidad: "FAM",
+      diocesisLocalidadId: territorio.zapala.id,
+    });
+
+    const conCodigo = await PeregrinaService.generarCodigo(actor, vieja.id);
+
+    expect(conCodigo.codigo).toBe("NEU FAM 0001");
+  });
+
+  it("no se regenera: una imagen con Código no recibe otro", async () => {
+    const vieja = await registrarVieja("7");
+    await PeregrinaService.generarCodigo(actor, vieja.id);
+
+    await expect(
+      PeregrinaService.generarCodigo(actor, vieja.id)
+    ).rejects.toThrow(/ya tiene el Código CBA JOV 0001/);
+  });
+
+  it("no se le genera Código a una imagen dada de baja", async () => {
+    const vieja = await registrarVieja("7");
+    await PeregrinaService.darDeBaja(actor, vieja.id);
+
+    await expect(
+      PeregrinaService.generarCodigo(actor, vieja.id)
+    ).rejects.toThrow(/dada de baja/);
+  });
+
+  it("se la sigue encontrando por la numeración anterior después de tener Código", async () => {
+    const vieja = await registrarVieja("Rosario-12");
+    await PeregrinaService.generarCodigo(actor, vieja.id);
+
+    const porAnterior = await PeregrinaService.listFiltradas(actor, {
+      identificacion: "rosario-12",
+    });
+    const porCodigo = await PeregrinaService.listFiltradas(actor, {
+      identificacion: "cba jov 0001",
+    });
+
+    expect(porAnterior.map((p) => p.id)).toEqual([vieja.id]);
+    expect(porCodigo.map((p) => p.id)).toEqual([vieja.id]);
+  });
+
+  it("las listas mezclan las dos rotulaciones en un solo orden, por Identificación", async () => {
+    const nueva = await PeregrinaService.create(actor, {
+      tipo: "peregrina",
+      modalidad: "JOV",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+    const vieja = await registrarVieja("A-1");
+
+    const lista = await PeregrinaService.listFiltradas(actor, {});
+
+    // "A-1" antes que "CBA JOV 0001": un solo orden, no las viejas al final.
+    expect(lista.map((p) => p.id)).toEqual([vieja.id, nueva.id]);
   });
 });

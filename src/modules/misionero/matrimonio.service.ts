@@ -392,11 +392,11 @@ export class MatrimonioService {
     );
 
     if (visibles.length === pendientes.length) {
-      const codigos = visibles.map((p) => p.peregrinaCodigo).join(", ");
+      const identificaciones = visibles.map((p) => p.peregrinaIdentificacion).join(", ");
       const cuantas =
         pendientes.length === 1
-          ? `la Peregrina ${codigos}`
-          : `${pendientes.length} Peregrinas a cargo: ${codigos}`;
+          ? `la Peregrina ${identificaciones}`
+          : `${pendientes.length} Peregrinas a cargo: ${identificaciones}`;
       return (
         `No se puede dar de baja al matrimonio ${nombre}: todavía tiene ${cuantas}. ` +
         "Registrá primero que fue devuelta o que pasó a otro Misionero."
@@ -405,7 +405,7 @@ export class MatrimonioService {
 
     const ajenas = pendientes.length - visibles.length;
     const detalle = visibles.length
-      ? `${visibles.map((p) => p.peregrinaCodigo).join(", ")}, y ${ajenas} de otro territorio`
+      ? `${visibles.map((p) => p.peregrinaIdentificacion).join(", ")}, y ${ajenas} de otro territorio`
       : `${ajenas} de otro territorio`;
 
     return (

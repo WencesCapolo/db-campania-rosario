@@ -105,7 +105,9 @@ function peregrina(
 ): PeregrinaDTO {
   return {
     id,
+    identificacion: codigo,
     codigo,
+    numeracionAnterior: null,
     tipo: "peregrina",
     estado: "activa",
     modalidad: "JOV",

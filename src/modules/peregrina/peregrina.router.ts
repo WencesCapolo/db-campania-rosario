@@ -165,6 +165,26 @@ export async function darDeBajaPeregrinaAction(
   return result;
 }
 
+/**
+ * Gives a Código to an image registered by its Numeración anterior — ADR 0012.
+ * Nothing to parse: the Código is generated, never typed.
+ */
+export async function generarCodigoAction(
+  id: string
+): Promise<ActionResult<PeregrinaDTO>> {
+  const actor = await getCurrentUser();
+  const result = await aResultado(() =>
+    PeregrinaService.generarCodigo(actor, id)
+  );
+
+  if (result.ok) {
+    revalidatePath("/peregrina");
+    revalidatePath(`/peregrina/${id}`);
+  }
+
+  return result;
+}
+
 export async function reactivarPeregrinaAction(
   id: string
 ): Promise<ActionResult<PeregrinaDTO>> {

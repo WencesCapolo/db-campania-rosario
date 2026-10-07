@@ -2,11 +2,12 @@ import {
   PeregrinaRepository,
   type PeregrinaConTerritorio,
 } from "./peregrina.repository";
-import type {
-  PeregrinaDTO,
-  CreatePeregrinaInput,
-  UpdatePeregrinaInput,
-  FiltrosDeInventario,
+import {
+  identificacionDe,
+  type PeregrinaDTO,
+  type CreatePeregrinaInput,
+  type UpdatePeregrinaInput,
+  type FiltrosDeInventario,
 } from "./peregrina.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
@@ -76,7 +77,9 @@ export class PeregrinaService {
 
     return {
       id: row.peregrina.id,
+      identificacion: identificacionDe(row.peregrina),
       codigo: row.peregrina.codigo,
+      numeracionAnterior: row.peregrina.numeracionAnterior,
       tipo: row.peregrina.tipo,
       estado: row.peregrina.estado,
       modalidad: row.peregrina.modalidad,
@@ -270,18 +273,19 @@ export class PeregrinaService {
     // Actor's scope, so it is refused for the same reason reading it would be.
     exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
-    const num = await PeregrinaRepository.nextCodigoNum(
-      territorio.provincia.id,
-      input.modalidad
-    );
+    // An image that already carries a Numeración anterior is registered by it,
+    // and no número is spent: a Código nobody wrote on the image identifies
+    // nothing. It gets one later, through `generarCodigo` — ADR 0012.
+    const identificacion =
+      input.numeracionAnterior !== undefined
+        ? { numeracionAnterior: input.numeracionAnterior }
+        : await PeregrinaService.codigoNuevo(
+            territorio.provincia,
+            input.modalidad
+          );
 
     const row = await PeregrinaRepository.create({
-      codigo: buildCodigo(
-        territorio.provincia.abreviatura,
-        input.modalidad,
-        num
-      ),
-      codigoNum: num,
+      ...identificacion,
       tipo: input.tipo,
       estado: "activa",
       modalidad: input.modalidad,
@@ -290,6 +294,69 @@ export class PeregrinaService {
     });
 
     return PeregrinaService.toDTO(row);
+  }
+
+  /**
+   * Gives a Código to an image that only had its Numeración anterior — ADR 0012.
+   *
+   * From the image's territory and Modalidad *now*, not when it was registered:
+   * the Código is about to be written on it, so it describes where it is. The
+   * Numeración anterior stays on the record, and from here on the Código is the
+   * image's Identificación.
+   *
+   * Refused on an image given de baja — a Código for an image out of the
+   * inventory is a número spent on nothing — and on one that already has a
+   * Código, which is never regenerated.
+   */
+  static async generarCodigo(
+    actor: CurrentUser,
+    id: string
+  ): Promise<PeregrinaDTO> {
+    const operacion = "PeregrinaService.generarCodigo";
+    const alcance = derivarAlcance(actor, operacion);
+
+    const actual = await PeregrinaService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
+    if (actual.peregrina.codigo !== null) {
+      throw new ConflictoError(
+        `Esa Peregrina ya tiene el Código ${actual.peregrina.codigo}.`
+      );
+    }
+    if (actual.peregrina.bajaAt !== null) {
+      throw new ConflictoError(
+        `La Peregrina ${identificacionDe(actual.peregrina)} está dada de baja. ` +
+          "Reactivala antes de generarle un Código."
+      );
+    }
+
+    const { codigo, codigoNum } = await PeregrinaService.codigoNuevo(
+      actual.provincia,
+      actual.peregrina.modalidad
+    );
+    const row = await PeregrinaRepository.ponerCodigo(id, codigo, codigoNum);
+    if (!row) {
+      throw new ConflictoError(
+        "Otra persona acaba de generarle un Código a esa Peregrina."
+      );
+    }
+
+    return PeregrinaService.leerUna(id);
+  }
+
+  /** The next Código for a Provincia and Modalidad, with the número it spends. */
+  private static async codigoNuevo(
+    provincia: { id: string; abreviatura: string },
+    modalidad: Modalidad
+  ): Promise<{ codigo: string; codigoNum: number }> {
+    const num = await PeregrinaRepository.nextCodigoNum(provincia.id, modalidad);
+    return {
+      codigo: buildCodigo(provincia.abreviatura, modalidad, num),
+      codigoNum: num,
+    };
   }
 
   static async update(
@@ -363,7 +430,7 @@ export class PeregrinaService {
     );
     if (abierta) {
       throw new ConflictoError(
-        `No se puede dar de baja la Peregrina ${actual.peregrina.codigo}: ` +
+        `No se puede dar de baja la Peregrina ${identificacionDe(actual.peregrina)}: ` +
           `todavía está a cargo de ${nombreDeTenedor(abierta.tenedor)}. ` +
           "Registrá primero que fue devuelta."
       );

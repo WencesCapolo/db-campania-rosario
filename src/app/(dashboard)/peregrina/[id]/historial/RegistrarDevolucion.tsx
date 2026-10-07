@@ -36,11 +36,11 @@ import Mensaje from "@/components/Mensaje";
  */
 export default function RegistrarDevolucion({
   peregrinaId,
-  codigo,
+  identificacion,
   tenedor,
 }: {
   peregrinaId: string;
-  codigo: string;
+  identificacion: string;
   /**
    * Quién la tiene, ya escrito — un Misionero o un Matrimonio, siempre un solo
    * nombre. Llega resuelto porque `nombreDeTenedor` es el único lugar que decide
@@ -69,7 +69,7 @@ export default function RegistrarDevolucion({
       {(control) => (
         <>
           <p className="mt-3 text-base leading-relaxed">
-            La Peregrina <strong className="font-mono">{codigo}</strong> deja de
+            La Peregrina <strong className="font-mono">{identificacion}</strong> deja de
             estar a cargo de <strong>{tenedor}</strong>. Su período queda en
             el historial.
           </p>

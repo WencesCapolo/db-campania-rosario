@@ -78,7 +78,7 @@ export interface ConteoPorMes {
  */
 export interface FilaExtraviada {
   id: string;
-  codigo: string;
+  identificacion: string;
   /**
    * Null only when nobody ever had it. Marking a Peregrina `extraviada`
    * deliberately leaves its Asignación open, precisely so this name survives.
@@ -89,7 +89,7 @@ export interface FilaExtraviada {
 /** An image that has not changed hands in a long time — story 8. */
 export interface FilaEstancada {
   peregrinaId: string;
-  codigo: string;
+  identificacion: string;
   /** One answer to «¿quién la tiene?», whether that is one person or a couple. */
   tenedor: TenedorResueltoDTO;
   dias: number;
@@ -97,7 +97,7 @@ export interface FilaEstancada {
 
 export interface FilaPeregrinaBreve {
   id: string;
-  codigo: string;
+  identificacion: string;
 }
 
 /*

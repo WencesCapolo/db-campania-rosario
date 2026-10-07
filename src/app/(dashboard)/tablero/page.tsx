@@ -280,7 +280,7 @@ function Extraviadas({ tablero }: { tablero: TableroDTO }) {
                   className="flex min-h-12 flex-col justify-center rounded-control"
                 >
                   <span className="font-mono text-lg font-bold text-accion underline">
-                    {fila.codigo}
+                    {fila.identificacion}
                   </span>
                   {/* Un Matrimonio es **un** Tenedor y da un nombre, no dos:
                       la tarjeta dice a quién llamar, y «Ana Álvarez» cuando la
@@ -325,7 +325,7 @@ function Estancadas({ tablero }: { tablero: TableroDTO }) {
                   className="flex min-h-12 flex-col justify-center rounded-control"
                 >
                   <span className="font-mono text-lg font-bold text-accion underline">
-                    {fila.codigo}
+                    {fila.identificacion}
                   </span>
                   <span className="text-base text-tinta">
                     {nombreDeTenedor(fila.tenedor)} · hace {fila.dias} días
@@ -385,7 +385,7 @@ function NuncaAsignadas({
                   href={`/peregrina/${fila.id}`}
                   className="flex min-h-12 items-center rounded-control font-mono text-lg font-bold text-accion underline"
                 >
-                  {fila.codigo}
+                  {fila.identificacion}
                 </Link>
               </li>
             ))}

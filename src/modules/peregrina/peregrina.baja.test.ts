@@ -28,7 +28,7 @@ let territorio: TerritorioDePrueba;
 let referente: CurrentUser;
 let asesor: CurrentUser;
 
-let peregrina: { id: string; codigo: string };
+let peregrina: { id: string; identificacion: string };
 let ana: { id: string };
 
 beforeEach(async () => {
@@ -120,7 +120,7 @@ describe("una Peregrina dada de baja", () => {
   it("sigue leyéndose por id, y su historial entero con ella", async () => {
     const dto = await PeregrinaService.getById(referente, peregrina.id);
     expect(dto.deBaja).toBe(true);
-    expect(dto.codigo).toBe(peregrina.codigo);
+    expect(dto.identificacion).toBe(peregrina.identificacion);
 
     const historial = await AsignacionService.historialDePeregrina(
       referente,
@@ -164,7 +164,7 @@ describe("una Peregrina dada de baja", () => {
       modalidad: "JOV",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
-    expect(nueva.codigo).not.toBe(peregrina.codigo);
+    expect(nueva.identificacion).not.toBe(peregrina.identificacion);
   });
 
   it("deja de contar como uso del territorio, así que la Diócesis se puede retirar", async () => {

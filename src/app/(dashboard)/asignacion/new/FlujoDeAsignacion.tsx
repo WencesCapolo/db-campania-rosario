@@ -206,8 +206,8 @@ export default function FlujoDeAsignacion({
             opciones={peregrinas.map((p) => ({
               valor: p.id,
               etiqueta: p.tenenciaActual
-                ? `${p.codigo} — la tiene ${nombreDeTenedor(p.tenenciaActual)}`
-                : `${p.codigo} — sin entregar`,
+                ? `${p.identificacion} — la tiene ${nombreDeTenedor(p.tenenciaActual)}`
+                : `${p.identificacion} — sin entregar`,
             }))}
             onChange={(e) => setPeregrinaId(e.target.value)}
           />
@@ -234,7 +234,7 @@ export default function FlujoDeAsignacion({
           <Mensaje tono={tenencia ? "aviso" : "neutro"}>
             <p>
               La Peregrina{" "}
-              <strong className="font-mono">{peregrina.codigo}</strong> queda a
+              <strong className="font-mono">{peregrina.identificacion}</strong> queda a
               cargo de <strong>{nombreDeTenedor(elegido)}</strong>
               {elegido.tipo === "matrimonio" ? ", que son un Matrimonio" : ""}.
             </p>

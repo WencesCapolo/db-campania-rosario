@@ -554,7 +554,7 @@ function Tenencia({ tenencia }: { tenencia?: TenenciaDeTenedorDTO }) {
           href={`/peregrina/${p.id}`}
           className="font-mono font-bold whitespace-nowrap text-azul"
         >
-          {p.codigo}
+          {p.identificacion}
         </Link>
       ))}
 

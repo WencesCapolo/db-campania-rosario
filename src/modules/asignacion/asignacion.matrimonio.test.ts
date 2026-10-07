@@ -34,8 +34,8 @@ import { derivarAlcance } from "@/lib/authorization/alcance";
 let territorio: TerritorioDePrueba;
 let referente: CurrentUser;
 
-let peregrina: { id: string; codigo: string };
-let otraPeregrina: { id: string; codigo: string };
+let peregrina: { id: string; identificacion: string };
+let otraPeregrina: { id: string; identificacion: string };
 let ana: { id: string };
 let juan: { id: string };
 let soltera: { id: string };
@@ -180,8 +180,8 @@ describe("las imágenes de un Matrimonio se ven en cada lectura", () => {
         referente,
         persona.id
       );
-      expect(historial.map((a) => a.peregrina.codigo)).toEqual([
-        peregrina.codigo,
+      expect(historial.map((a) => a.peregrina.identificacion)).toEqual([
+        peregrina.identificacion,
       ]);
     }
   });
@@ -283,7 +283,7 @@ describe("las imágenes de un Matrimonio se ven en cada lectura", () => {
     ]);
 
     const suya = tenencias.find((t) => t.tenedor.id === parejaId);
-    expect(suya?.peregrinas.map((p) => p.codigo)).toEqual([peregrina.codigo]);
+    expect(suya?.peregrinas.map((p) => p.identificacion)).toEqual([peregrina.identificacion]);
     expect(suya?.ajenas).toBe(0);
 
     expect(
@@ -319,7 +319,7 @@ describe("las imágenes de un Matrimonio se ven en cada lectura", () => {
       0
     );
 
-    expect(estancadas.map((e) => e.codigo)).toEqual([peregrina.codigo]);
+    expect(estancadas.map((e) => e.identificacion)).toEqual([peregrina.identificacion]);
     expect(nombreDeTenedor(estancadas[0]!.tenedor)).toBe(
       "Ana Álvarez y Juan Benítez"
     );
@@ -333,12 +333,12 @@ describe("las imágenes de un Matrimonio se ven en cada lectura", () => {
     for (const persona of [ana, juan]) {
       const abiertas =
         await AsignacionRepository.findAbiertasDeMisioneroSinAlcance(persona.id);
-      expect(abiertas.map((a) => a.peregrinaCodigo)).toEqual([peregrina.codigo]);
+      expect(abiertas.map((a) => a.peregrinaIdentificacion)).toEqual([peregrina.identificacion]);
     }
 
     const delPar =
       await AsignacionRepository.findAbiertasDeMatrimonioSinAlcance(parejaId);
-    expect(delPar.map((a) => a.peregrinaCodigo)).toEqual([peregrina.codigo]);
+    expect(delPar.map((a) => a.peregrinaIdentificacion)).toEqual([peregrina.identificacion]);
   });
 
   it("la baja de la Peregrina se rechaza y nombra a la pareja", async () => {

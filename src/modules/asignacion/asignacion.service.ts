@@ -17,6 +17,7 @@ import type { TenedorResueltoDTO } from "@/lib/tenedor";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { PeregrinaRepository } from "@/modules/peregrina/peregrina.repository";
 import type { PeregrinaConTerritorio } from "@/modules/peregrina/peregrina.repository";
+import { identificacionDe } from "@/modules/peregrina/peregrina.types";
 import { MatrimonioRepository } from "@/modules/misionero/matrimonio.repository";
 // ↑ Un repositorio de otro módulo, río arriba, para una guarda entre entidades:
 //   exactamente la forma que ADR 0004 permite y la única que no arma un ciclo.
@@ -82,7 +83,7 @@ export class AsignacionService {
       id: a.id,
       peregrina: {
         id: a.peregrinaId,
-        codigo: row.peregrinaCodigo,
+        identificacion: row.peregrinaIdentificacion,
         deBaja: row.peregrinaBajaAt !== null,
       },
       tenedor: row.tenedor,
@@ -233,7 +234,7 @@ export class AsignacionService {
   private static exigirPeregrinaActiva(row: PeregrinaConTerritorio): void {
     if (row.peregrina.bajaAt !== null) {
       throw new ValidacionError(
-        `La Peregrina ${row.peregrina.codigo} está dada de baja, así que no se ` +
+        `La Peregrina ${identificacionDe(row.peregrina)} está dada de baja, así que no se ` +
           "puede asignar. Reactivala primero."
       );
     }
@@ -388,7 +389,7 @@ export class AsignacionService {
       if (dentroDelAlcance(alcance, fila.peregrinaDiocesisLocalidadId)) {
         tenencia.peregrinas.push({
           id: fila.peregrinaId,
-          codigo: fila.peregrinaCodigo,
+          identificacion: fila.peregrinaIdentificacion,
         });
       } else {
         tenencia.ajenas += 1;
@@ -401,7 +402,7 @@ export class AsignacionService {
   /** Peregrinas nobody has ever had charge of — user story 19. */
   static async listarNuncaAsignadas(
     actor: CurrentUser
-  ): Promise<{ id: string; codigo: string }[]> {
+  ): Promise<{ id: string; identificacion: string }[]> {
     const alcance = derivarAlcance(
       actor,
       "AsignacionService.listarNuncaAsignadas"
@@ -514,7 +515,7 @@ export class AsignacionService {
     );
     if (abierta) {
       throw new ConflictoError(
-        `La Peregrina ${peregrina.peregrina.codigo} ya está a cargo de ` +
+        `La Peregrina ${identificacionDe(peregrina.peregrina)} ya está a cargo de ` +
           `${nombreDeTenedor(abierta.tenedor)}. ` +
           "Si pasó a otra persona, usá «Pasar a otro Misionero» en lugar de asignarla de nuevo."
       );
@@ -527,7 +528,7 @@ export class AsignacionService {
         registradaPorId: actor.id,
         notaApertura: input.nota ?? null,
       },
-      peregrina.peregrina.codigo
+      identificacionDe(peregrina.peregrina)
     );
   }
 
@@ -570,7 +571,7 @@ export class AsignacionService {
     );
     if (!actual) {
       throw new ConflictoError(
-        `La Peregrina ${peregrina.peregrina.codigo} no está a cargo de nadie, ` +
+        `La Peregrina ${identificacionDe(peregrina.peregrina)} no está a cargo de nadie, ` +
           "así que no hay a quién pasársela. Usá «Asignar» directamente."
       );
     }
@@ -582,7 +583,7 @@ export class AsignacionService {
       actual.tenedor.id === input.tenedor.id
     ) {
       throw new ValidacionError(
-        `La Peregrina ${peregrina.peregrina.codigo} ya está a cargo de ` +
+        `La Peregrina ${identificacionDe(peregrina.peregrina)} ya está a cargo de ` +
           `${nombreDeTenedor(actual.tenedor)}.`
       );
     }
@@ -608,7 +609,7 @@ export class AsignacionService {
     } catch (error) {
       throw AsignacionService.traducirConflicto(
         error,
-        peregrina.peregrina.codigo
+        identificacionDe(peregrina.peregrina)
       );
     }
 
@@ -616,7 +617,7 @@ export class AsignacionService {
       // The `cerrada_at is null` predicate found nothing to claim, which means
       // somebody else registered a move between the read above and this write.
       throw new ConflictoError(
-        `Otra persona registró un movimiento de la Peregrina ${peregrina.peregrina.codigo} ` +
+        `Otra persona registró un movimiento de la Peregrina ${identificacionDe(peregrina.peregrina)} ` +
           "justo antes. Volvé a mirar quién la tiene y probá de nuevo."
       );
     }
@@ -661,7 +662,7 @@ export class AsignacionService {
 
     if (!cerrada) {
       throw new ConflictoError(
-        `La Peregrina ${peregrina.peregrina.codigo} no está a cargo de nadie, ` +
+        `La Peregrina ${identificacionDe(peregrina.peregrina)} no está a cargo de nadie, ` +
           "así que no hay nada que devolver."
       );
     }
@@ -746,7 +747,7 @@ export class AsignacionService {
       );
       return AsignacionService.toDTO(row);
     } catch (error) {
-      throw AsignacionService.traducirConflicto(error, actual.peregrinaCodigo);
+      throw AsignacionService.traducirConflicto(error, actual.peregrinaIdentificacion);
     }
   }
 
@@ -773,12 +774,12 @@ export class AsignacionService {
 
   private static async abrirTraduciendoElConflicto(
     data: Parameters<typeof AsignacionRepository.abrir>[0],
-    codigo: string
+    identificacion: string
   ): Promise<AsignacionDTO> {
     try {
       return AsignacionService.toDTO(await AsignacionRepository.abrir(data));
     } catch (error) {
-      throw AsignacionService.traducirConflicto(error, codigo);
+      throw AsignacionService.traducirConflicto(error, identificacion);
     }
   }
 
@@ -790,10 +791,10 @@ export class AsignacionService {
    * this the loser would see "algo falló al guardar", which is both true and
    * useless.
    */
-  private static traducirConflicto(error: unknown, codigo: string): unknown {
+  private static traducirConflicto(error: unknown, identificacion: string): unknown {
     if (esSegundaAsignacionAbierta(error)) {
       return new ConflictoError(
-        `Otra persona acaba de registrar quién tiene la Peregrina ${codigo}. ` +
+        `Otra persona acaba de registrar quién tiene la Peregrina ${identificacion}. ` +
           "Mirá el historial y volvé a intentarlo si hace falta."
       );
     }

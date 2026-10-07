@@ -408,7 +408,7 @@ export default function CrearMisioneroForm({
     matrimonio: boolean;
   } | null>(null);
   /** El Código de la imagen que quedó a su cargo, cuando quedó alguna. */
-  const [codigoEntregado, setCodigoEntregado] = useState<string | null>(null);
+  const [identificacionEntregada, setIdentificacionEntregada] = useState<string | null>(null);
   const formulario = useRef<HTMLFormElement>(null);
 
   // Story 15: each field is checked as it is left, against the same schema the
@@ -442,9 +442,9 @@ export default function CrearMisioneroForm({
    */
   async function entregarImagen(
     tenedor: Tenedor,
-  ): Promise<{ codigo: string } | { error: string }> {
+  ): Promise<{ identificacion: string } | { error: string }> {
     let id = peregrinaId;
-    let codigo = disponibles.find((p) => p.id === peregrinaId)?.codigo ?? "";
+    let identificacion = disponibles.find((p) => p.id === peregrinaId)?.identificacion ?? "";
 
     if (entrega === "nueva") {
       // El territorio de la imagen es el de la persona que se la lleva: es donde
@@ -456,7 +456,7 @@ export default function CrearMisioneroForm({
       });
       if (!creada.ok) return { error: creada.error };
       id = creada.data.id;
-      codigo = creada.data.codigo;
+      identificacion = creada.data.identificacion;
     }
 
     // Al matrimonio, no a uno de los dos: es un Tenedor y no dos (ADR 0010).
@@ -467,13 +467,13 @@ export default function CrearMisioneroForm({
     });
     if (!asignada.ok) return { error: asignada.error };
 
-    return { codigo };
+    return { identificacion };
   }
 
   function guardar(seguirCargando: boolean) {
     setError(null);
     setGuardado(null);
-    setCodigoEntregado(null);
+    setIdentificacionEntregada(null);
 
     if (!diocesisLocalidadId) {
       setError("Elegí una Diócesis/Localidad.");
@@ -569,7 +569,7 @@ export default function CrearMisioneroForm({
           return;
         }
 
-        entregado = imagen.codigo;
+        entregado = imagen.identificacion;
       }
 
       if (!seguirCargando) {
@@ -590,7 +590,7 @@ export default function CrearMisioneroForm({
         nombre: persona,
         matrimonio: tenedor.tipo === "matrimonio",
       });
-      setCodigoEntregado(entregado);
+      setIdentificacionEntregada(entregado);
       // The messages belonged to the person just saved; the next one starts clean.
       validacionPersona.limpiar();
       validacionMatrimonio.limpiar();
@@ -630,10 +630,10 @@ export default function CrearMisioneroForm({
           <p>
             <strong>{guardado.nombre}</strong>{" "}
             {guardado.matrimonio ? "quedaron cargados" : "quedó cargado"}
-            {codigoEntregado ? (
+            {identificacionEntregada ? (
               <>
                 , con la imagen{" "}
-                <strong className="font-mono">{codigoEntregado}</strong> a su
+                <strong className="font-mono">{identificacionEntregada}</strong> a su
                 cargo
               </>
             ) : null}
@@ -854,7 +854,7 @@ export default function CrearMisioneroForm({
               value={peregrinaId}
               opciones={disponibles.map((p) => ({
                 valor: p.id,
-                etiqueta: `${p.codigo} — ${MODALIDAD_LABELS[p.modalidad]}, ${p.diocesisLocalidad.nombre}`,
+                etiqueta: `${p.identificacion} — ${MODALIDAD_LABELS[p.modalidad]}, ${p.diocesisLocalidad.nombre}`,
               }))}
               onChange={(e) => setPeregrinaId(e.target.value)}
             />

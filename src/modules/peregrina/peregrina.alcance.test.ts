@@ -292,6 +292,60 @@ describe.each([
   });
 });
 
+describe.each([
+  ["un Responsable Diocesano", () => diocesano],
+  ["un Referente Local", () => referente],
+])("la Numeración anterior y %s — ADR 0012", (_rol, obtenerActor) => {
+  it("buscar por numeración anterior NO alcanza a la Diócesis vecina, aunque se repita", async () => {
+    const suya = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: sistema.id,
+      numeracionAnterior: "Peregrina 3",
+    });
+    await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.rioCuarto.id,
+      createdById: sistema.id,
+      numeracionAnterior: "Peregrina 3",
+    });
+
+    const lista = await PeregrinaService.listFiltradas(obtenerActor(), {
+      identificacion: "Peregrina 3",
+    });
+
+    expect(lista.map((p) => p.id)).toEqual([suya.id]);
+  });
+
+  it("NO puede generarle el Código a una de la Diócesis vecina, y queda sin Código", async () => {
+    const deLaVecina = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.rioCuarto.id,
+      createdById: sistema.id,
+      numeracionAnterior: "7",
+    });
+
+    await expect(
+      PeregrinaService.generarCodigo(obtenerActor(), deLaVecina.id),
+    ).rejects.toThrow(NoAutorizadoError);
+
+    const intacta = await PeregrinaService.getById(asesor, deLaVecina.id);
+    expect(intacta.codigo).toBeNull();
+  });
+
+  it("puede generarle el Código a una de su propia Diócesis", async () => {
+    const suya = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: sistema.id,
+      numeracionAnterior: "7",
+    });
+
+    const conCodigo = await PeregrinaService.generarCodigo(
+      obtenerActor(),
+      suya.id,
+    );
+
+    expect(conCodigo.codigo).not.toBeNull();
+  });
+});
+
 describe("escrituras de un Asesor Nacional", () => {
   it("puede modificar cualquier registro del país", async () => {
     const modificada = await PeregrinaService.update(asesor, ajena.id, {
