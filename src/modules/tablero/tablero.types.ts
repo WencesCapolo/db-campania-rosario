@@ -59,6 +59,21 @@ export interface ConteoPorDiocesis {
   total: number;
 }
 
+export interface ConteoPorProvincia {
+  provinciaId: string;
+  nombre: string;
+  total: number;
+}
+
+/**
+ * Cinco años por fila: `desde` 2010 es 2010–2014. Null es una imagen en manos
+ * de alguien que no tiene el año cargado.
+ */
+export interface ConteoPorQuinquenio {
+  desde: number | null;
+  total: number;
+}
+
 export interface ConteoPorMes {
   /** `YYYY-MM`. Sortable as a string, which is why it is not two numbers. */
   mes: string;
@@ -134,6 +149,13 @@ export interface TableroDTO {
   porRegion: ConteoPorRegion[] | null;
   /** Nacional only: the Diócesis side by side, biggest first. */
   porDiocesis: ConteoPorDiocesis[] | null;
+  /** Nacional only, for the same reason: a diocesano's is one row. */
+  porProvincia: ConteoPorProvincia[] | null;
+  /**
+   * Las imágenes que alguien tiene, por el Año de consagración de quien la
+   * tiene. Las libres no están: son `sinTenencia`.
+   */
+  porConsagracion: ConteoPorQuinquenio[];
   /** Nacional only — story 12, derived from `created_at`. */
   crecimiento: ConteoPorMes[] | null;
 

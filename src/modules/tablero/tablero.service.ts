@@ -70,6 +70,8 @@ export class TableroService {
       porTipo,
       porRegion,
       porDiocesis,
+      porProvincia,
+      porConsagracion,
       crecimiento,
       extraviadas,
       nuncaAsignadas,
@@ -86,6 +88,8 @@ export class TableroService {
       nacional
         ? PeregrinaRepository.contarPorDiocesisLocalidad(alcance, filtros)
         : null,
+      nacional ? PeregrinaRepository.contarPorProvincia(alcance, filtros) : null,
+      PeregrinaRepository.contarPorQuinquenioDeConsagracion(alcance, filtros),
       nacional ? PeregrinaRepository.contarPorMes(alcance, filtros) : null,
       TableroService.extraviadas(alcance, filtros),
       TableroService.nuncaAsignadas(alcance, filtros),
@@ -107,6 +111,8 @@ export class TableroService {
       porTipo,
       porRegion,
       porDiocesis,
+      porProvincia,
+      porConsagracion,
       crecimiento,
       extraviadas,
       nuncaAsignadas,

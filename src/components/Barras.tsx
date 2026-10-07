@@ -41,6 +41,8 @@ export default function Barras({
   barras,
   unidad,
   vacio = "Todavía no hay nada que contar acá.",
+  visibles,
+  nota,
 }: {
   /** Rendered as the heading of the group, so the rows have something to be. */
   titulo: string;
@@ -48,51 +50,89 @@ export default function Barras({
   /** Singular noun for one, e.g. "imagen". Plural gets an "es"/"s" from below. */
   unidad?: { singular: string; plural: string };
   vacio?: string;
+  /**
+   * Cuántas filas se ven de entrada. El resto queda detrás de un `<details>`
+   * que dice cuántas son en total: una lista cortada sin decirlo se lee como la
+   * respuesta entera. Sin JavaScript, y la barra más larga sigue siendo la de
+   * todas, así que abrirlo no cambia la escala de lo que ya se veía.
+   */
+  visibles?: number;
+  /** Una línea debajo del título, para decir qué se está contando. */
+  nota?: string;
 }) {
   const maximo = Math.max(...barras.map((b) => b.valor), 1);
+  const primeras = visibles ? barras.slice(0, visibles) : barras;
+  const resto = visibles ? barras.slice(visibles) : [];
 
   return (
     <section className="rounded-tarjeta border-2 border-borde bg-papel">
       <header className="border-b-2 border-borde px-5 py-4">
         <h2 className="text-xl font-bold text-tinta">{titulo}</h2>
+        {nota && <p className="mt-1 text-base text-tinta-suave">{nota}</p>}
       </header>
 
       <div className="px-5 py-4">
         {barras.length === 0 ? (
           <p className="text-base text-tinta-suave">{vacio}</p>
         ) : (
-          <ul className="space-y-4">
-            {barras.map((barra) => (
-              <li key={barra.etiqueta} className="space-y-1">
-                <Fila barra={barra} unidad={unidad} />
-
-                {/*
-                  Proportional to the largest row and not to the total: what these
-                  charts are for is comparing categories with each other, and a
-                  share-of-total bar makes the two smallest rows indistinguishable
-                  from nothing when one category dominates — which one always does,
-                  because most images are `activa`.
-                */}
-                <svg
-                  aria-hidden
-                  viewBox="0 0 100 10"
-                  preserveAspectRatio="none"
-                  className="h-4 w-full overflow-hidden rounded-control border-2 border-borde bg-fondo"
-                >
-                  <rect
-                    x="0"
-                    y="0"
-                    height="10"
-                    width={(barra.valor / maximo) * 100}
-                    className="fill-accion"
-                  />
-                </svg>
-              </li>
-            ))}
-          </ul>
+          <>
+            <Lista barras={primeras} maximo={maximo} unidad={unidad} />
+            {resto.length > 0 && (
+              <details className="mt-4">
+                <summary className="flex min-h-12 cursor-pointer items-center rounded-control border-2 border-borde-fuerte px-4 text-base font-semibold text-tinta">
+                  Ver el resto ({resto.length} más)
+                </summary>
+                <div className="mt-4">
+                  <Lista barras={resto} maximo={maximo} unidad={unidad} />
+                </div>
+              </details>
+            )}
+          </>
         )}
       </div>
     </section>
+  );
+}
+
+function Lista({
+  barras,
+  maximo,
+  unidad,
+}: {
+  barras: Barra[];
+  maximo: number;
+  unidad?: { singular: string; plural: string };
+}) {
+  return (
+    <ul className="space-y-4">
+      {barras.map((barra) => (
+        <li key={barra.etiqueta} className="space-y-1">
+          <Fila barra={barra} unidad={unidad} />
+
+          {/*
+            Proportional to the largest row and not to the total: what these
+            charts are for is comparing categories with each other, and a
+            share-of-total bar makes the two smallest rows indistinguishable
+            from nothing when one category dominates — which one always does,
+            because most images are `activa`.
+          */}
+          <svg
+            aria-hidden
+            viewBox="0 0 100 10"
+            preserveAspectRatio="none"
+            className="h-4 w-full overflow-hidden rounded-control border-2 border-borde bg-fondo"
+          >
+            <rect
+              x="0"
+              y="0"
+              height="10"
+              width={(barra.valor / maximo) * 100}
+              className="fill-accion"
+            />
+          </svg>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -321,7 +321,10 @@ const POR_IDENTIFICACION = [asc(IDENTIFICACION), asc(peregrina.id)] as const;
 const TOTAL = sql<number>`cast(count(*) as int)`;
 
 /** What an aggregate may group by: a column, or an expression over one. */
-type CamposAgregados = Record<string, PgColumn | SQL<string> | SQL<number>>;
+type CamposAgregados = Record<
+  string,
+  PgColumn | SQL<string> | SQL<number> | SQL<number | null>
+>;
 
 /**
  * The aggregate `from`, with the territory and the tenencia actual joined in.
@@ -709,6 +712,49 @@ export class PeregrinaRepository {
       .where(condiciones(alcance, filtros, opts))
       .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre)
       .orderBy(desc(TOTAL));
+  }
+
+  /**
+   * The Provincia breakdown, biggest first.
+   *
+   * Grouped through the Diócesis because that is the only place a Peregrina's
+   * Provincia lives (ADR 0005) — so the join is here and not in `agregando()`,
+   * which every other figure shares and none of them needs it for.
+   */
+  static async contarPorProvincia(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+  ): Promise<{ provinciaId: string; nombre: string; total: number }[]> {
+    return agregando({ provinciaId: provincia.id, nombre: provincia.nombre })
+      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
+      .where(condiciones(alcance, filtros))
+      .groupBy(provincia.id, provincia.nombre)
+      .orderBy(desc(TOTAL), asc(provincia.nombre));
+  }
+
+  /**
+   * Las imágenes que alguien tiene, por el quinquenio en que se consagró quien
+   * la tiene.
+   *
+   * El Año de consagración es del Misionero y no de la imagen, así que sólo
+   * cuentan las que hoy están en manos de alguien: las libres no tienen año y ya
+   * tienen su propia cifra. Un Matrimonio son dos años; el hogar cuenta **una
+   * vez**, por el más antiguo de los dos — `least` ignora el null, así que basta
+   * con que un cónyuge lo tenga cargado (ADR 0010).
+   *
+   * `desde` null es una imagen en manos de alguien sin año cargado. Se devuelve
+   * como fila y no se descarta: es la respuesta a «¿cuántos datos faltan?».
+   */
+  static async contarPorQuinquenioDeConsagracion(
+    alcance: Alcance,
+    filtros: FiltrosDeInventario,
+  ): Promise<{ desde: number | null; total: number }[]> {
+    const anio = sql`coalesce(${misionero.anioConsagracion}, least(${esposoA.anioConsagracion}, ${esposoB.anioConsagracion}))`;
+    const desde = sql<number | null>`(${anio} / 5) * 5`;
+    return agregando({ desde })
+      .where(and(condiciones(alcance, filtros), CON_TENEDOR))
+      .groupBy(desde)
+      .orderBy(sql`${desde} asc nulls last`);
   }
 
   /**

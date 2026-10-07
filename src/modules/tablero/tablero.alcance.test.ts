@@ -152,6 +152,52 @@ describe.each([
   });
 });
 
+describe("el año de consagración", () => {
+  /*
+   * Una imagen en manos de alguien en cada una de las tres Diócesis, todas del
+   * mismo quinquenio: si la cifra del diocesano dice más de una, está contando
+   * las manos de otro territorio.
+   */
+  beforeEach(async () => {
+    for (const diocesis of [
+      territorio.villaMaria,
+      territorio.rioCuarto,
+      territorio.zapala,
+    ]) {
+      const imagen = await crearPeregrinaDirecta({
+        diocesisLocalidadId: diocesis.id,
+        createdById: sistema.id,
+      });
+      const consagrado = await crearMisioneroDirecto({
+        diocesisLocalidadId: diocesis.id,
+        createdById: sistema.id,
+        anioConsagracion: 2001,
+      });
+      await AsignacionService.asignar(sistema, {
+        peregrinaId: imagen.id,
+        tenedor: { tipo: "persona", id: consagrado.id },
+        nota: null,
+      });
+    }
+  });
+
+  it("cuenta las manos del país entero para un Asesor Nacional", async () => {
+    const { porConsagracion } = await TableroService.resumen(asesor);
+
+    expect(porConsagracion).toEqual([{ desde: 2000, total: 3 }]);
+  });
+
+  it.each([
+    ["un Responsable Diocesano", () => diocesano],
+    ["un Referente Local", () => referente],
+  ])("no cuenta las manos de otra Diócesis para %s", async (_rol, actor) => {
+    const tablero = await TableroService.resumen(actor());
+
+    expect(tablero.porConsagracion).toEqual([{ desde: 2000, total: 1 }]);
+    expect(tablero.porProvincia).toBeNull();
+  });
+});
+
 describe("un rol territorial sin territorio", () => {
   it("no ve un tablero vacío: se lo rechaza", async () => {
     // Falla cerrado. Un tablero de ceros diría «tu Campaña está vacía», que es

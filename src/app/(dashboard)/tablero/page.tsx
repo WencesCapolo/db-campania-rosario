@@ -16,6 +16,7 @@ import {
 // lados: el formulario que los escribe y la forma que valida lo que escribió.
 import FiltrosDeInventario from "@/modules/peregrina/FiltrosDeInventario";
 import type { TableroDTO } from "@/modules/tablero/tablero.types";
+import type { PeregrinaEstado } from "@/modules/peregrina/peregrina.schema";
 import Barras from "@/components/Barras";
 import Tarjeta from "@/components/Tarjeta";
 import { BotonEnlace } from "@/components/Boton";
@@ -108,25 +109,61 @@ async function Cifras({ filtros }: { filtros: Filtros }) {
       <Totales tablero={tablero} filtros={filtros} />
 
       <div className="grid gap-5 sm:grid-cols-2">
+        <ActivasYExtraviadas tablero={tablero} filtros={filtros} />
+
         <Barras
-          titulo="Por Estado"
+          titulo="Por año de consagración"
+          nota="Las imágenes que hoy tiene alguien, según el año en que se consagró quien la tiene."
           unidad={UNIDAD}
-          barras={tablero.porEstado.map((fila) => ({
-            etiqueta: ESTADO_LABELS[fila.estado],
+          barras={tablero.porConsagracion.map((fila) => ({
+            etiqueta:
+              fila.desde === null
+                ? "Sin año cargado"
+                : `${fila.desde} a ${fila.desde + 4}`,
             valor: fila.total,
-            href: enlace({ estado: fila.estado }),
           }))}
+          vacio="Ninguna imagen está hoy en manos de alguien."
         />
 
         <Barras
           titulo="Por Modalidad"
           unidad={UNIDAD}
-          barras={tablero.porModalidad.map((fila) => ({
-            etiqueta: MODALIDAD_LABELS[fila.modalidad],
-            valor: fila.total,
-            href: enlace({ modalidad: fila.modalidad }),
-          }))}
+          visibles={FILAS_DE_ENTRADA}
+          barras={[...tablero.porModalidad]
+            .sort((a, b) => b.total - a.total)
+            .map((fila) => ({
+              etiqueta: MODALIDAD_LABELS[fila.modalidad],
+              valor: fila.total,
+              href: enlace({ modalidad: fila.modalidad }),
+            }))}
         />
+
+        {tablero.porProvincia && (
+          <Barras
+            titulo="Por Provincia"
+            nota="La Provincia sale de la Diócesis de cada imagen."
+            unidad={UNIDAD}
+            barras={tablero.porProvincia.map((fila) => ({
+              etiqueta: fila.nombre,
+              valor: fila.total,
+            }))}
+          />
+        )}
+
+        {tablero.porDiocesis && (
+          <div className="sm:col-span-2">
+            <Barras
+              titulo="Por Diócesis/Localidad"
+              unidad={UNIDAD}
+              visibles={FILAS_DE_ENTRADA}
+              barras={tablero.porDiocesis.map((fila) => ({
+                etiqueta: fila.nombre,
+                valor: fila.total,
+                href: enlace({ diocesisLocalidadId: fila.diocesisLocalidadId }),
+              }))}
+            />
+          </div>
+        )}
 
         <Barras
           titulo="Peregrinas y auxiliares"
@@ -146,18 +183,6 @@ async function Cifras({ filtros }: { filtros: Filtros }) {
               etiqueta: fila.region,
               valor: fila.total,
               href: enlace({ region: fila.region }),
-            }))}
-          />
-        )}
-
-        {tablero.porDiocesis && (
-          <Barras
-            titulo="Diócesis y localidades"
-            unidad={UNIDAD}
-            barras={tablero.porDiocesis.map((fila) => ({
-              etiqueta: fila.nombre,
-              valor: fila.total,
-              href: enlace({ diocesisLocalidadId: fila.diocesisLocalidadId }),
             }))}
           />
         )}
@@ -186,6 +211,140 @@ async function Cifras({ filtros }: { filtros: Filtros }) {
 }
 
 const UNIDAD = { singular: "imagen", plural: "imágenes" };
+
+/** Ocho filas y el resto detrás de «Ver el resto»: una tarjeta, no una pantalla. */
+const FILAS_DE_ENTRADA = 8;
+
+/**
+ * Activas y extraviadas, las dos cifras que alguien viene a mirar del Estado.
+ *
+ * Dos números grandes con glifo y palabra, porque el color solo no lo lee uno de
+ * cada doce hombres; la barra de abajo es la proporción y está `aria-hidden`
+ * porque las cifras ya la dicen. En reparación e inactivas no son ni una cosa ni
+ * la otra, y se nombran debajo en lugar de desaparecer: las cuatro suman el
+ * total.
+ */
+function ActivasYExtraviadas({
+  tablero,
+  filtros,
+}: {
+  tablero: TableroDTO;
+  filtros: Filtros;
+}) {
+  const de = (estado: PeregrinaEstado) =>
+    tablero.porEstado.find((fila) => fila.estado === estado)?.total ?? 0;
+  const total = tablero.porEstado.reduce((suma, fila) => suma + fila.total, 0);
+  const activas = de("activa");
+  const extraviadas = de("extraviada");
+  const otras = (["en_reparacion", "inactiva"] as const).filter(
+    (estado) => de(estado) > 0,
+  );
+
+  if (total === 0) {
+    return (
+      <Tarjeta titulo="Activas y extraviadas">
+        <p className="text-base text-tinta-suave">
+          Ninguna imagen coincide con los filtros.
+        </p>
+      </Tarjeta>
+    );
+  }
+
+  return (
+    <Tarjeta titulo="Activas y extraviadas">
+      <p className="mb-4 text-base text-tinta-suave">
+        El estado de la imagen, no de quién la tiene.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <CifraDeEstado
+          glifo="●"
+          etiqueta="Activas"
+          valor={activas}
+          total={total}
+          href={aListado(filtros, { estado: "activa" })}
+          clases="border-exito-tinta bg-exito-fondo text-exito-tinta"
+        />
+        <CifraDeEstado
+          glifo="✕"
+          etiqueta="Extraviadas"
+          valor={extraviadas}
+          total={total}
+          href={aListado(filtros, { estado: "extraviada" })}
+          clases="border-alerta-tinta bg-alerta-fondo text-alerta-tinta"
+        />
+      </div>
+
+      <svg
+        aria-hidden
+        viewBox={`0 0 ${total} 10`}
+        preserveAspectRatio="none"
+        className="mt-4 h-5 w-full overflow-hidden rounded-control border-2 border-borde-fuerte bg-fondo"
+      >
+        <rect
+          x="0"
+          y="0"
+          height="10"
+          width={activas}
+          className="fill-exito-tinta"
+        />
+        <rect
+          x={total - extraviadas}
+          y="0"
+          height="10"
+          width={extraviadas}
+          className="fill-alerta-tinta"
+        />
+      </svg>
+
+      {otras.length > 0 && (
+        <p className="mt-3 text-base text-tinta">
+          Y{" "}
+          {otras.map((estado, i) => (
+            <span key={estado}>
+              {i > 0 && " y "}
+              <Link
+                href={aListado(filtros, { estado })}
+                className="font-semibold text-accion underline"
+              >
+                {de(estado)} {ESTADO_LABELS[estado].toLowerCase()}
+              </Link>
+            </span>
+          ))}
+          , que no son ni una cosa ni la otra.
+        </p>
+      )}
+    </Tarjeta>
+  );
+}
+
+function CifraDeEstado({
+  glifo,
+  etiqueta,
+  valor,
+  total,
+  href,
+  clases,
+}: {
+  glifo: string;
+  etiqueta: string;
+  valor: number;
+  total: number;
+  href: string;
+  clases: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex min-h-24 flex-col justify-center rounded-control border-2 px-4 py-3 no-underline ${clases}`}
+    >
+      <span className="text-base font-semibold underline">
+        <span aria-hidden>{glifo}</span> {etiqueta}
+      </span>
+      <span className="text-4xl font-bold tabular-nums">{valor}</span>
+      <span className="text-base">{Math.round((valor * 100) / total)} %</span>
+    </Link>
+  );
+}
 
 /**
  * The three numbers somebody came for — stories 1, 3 and 4.

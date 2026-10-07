@@ -61,6 +61,7 @@ beforeEach(async () => {
     diocesisLocalidadId: territorio.villaMaria.id,
     createdById: referente.id,
     apellido: "Álvarez",
+    anioConsagracion: 2012,
   });
   const m2 = await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
@@ -191,6 +192,17 @@ describe("las cifras de un rol territorial", () => {
     ]);
   });
 
+  it("desglosa las imágenes que alguien tiene por año de consagración", async () => {
+    const { porConsagracion } = await TableroService.resumen(referente);
+
+    // Álvarez se consagró en 2012 y tiene dos; Benítez no tiene año cargado y
+    // tiene una. La libre y la que está en reparación sin nadie no cuentan.
+    expect(porConsagracion).toEqual([
+      { desde: 2010, total: 2 },
+      { desde: null, total: 1 },
+    ]);
+  });
+
   it("no recibe el desglose nacional: sería una fila con su propio nombre", async () => {
     const tablero = await TableroService.resumen(referente);
 
@@ -228,6 +240,15 @@ describe("las cifras de un Asesor Nacional", () => {
       total: 4,
     });
     expect(porDiocesis).toHaveLength(3);
+  });
+
+  it("desglosa por Provincia, la más grande primero", async () => {
+    const { porProvincia } = await TableroService.resumen(asesor);
+
+    expect(porProvincia).toEqual([
+      { provinciaId: territorio.cordoba.id, nombre: "Córdoba", total: 5 },
+      { provinciaId: territorio.neuquen.id, nombre: "Neuquén", total: 1 },
+    ]);
   });
 
   it("muestra el crecimiento por mes de alta — historia 12", async () => {
@@ -341,6 +362,37 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
       asignacionId: periodo.id,
       abiertaAt: haceDias(400),
     });
+  });
+
+  it("un hogar cuenta una vez por año de consagración, el más antiguo", async () => {
+    const consagrados = await MatrimonioService.create(referente, {
+      nombreA: "Elena",
+      apellidoA: "Duarte",
+      anioConsagracionA: 2003,
+      nombreB: "Pablo",
+      apellidoB: "Duarte",
+      anioConsagracionB: 1997,
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
+    const imagen = await crearPeregrinaDirecta({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: referente.id,
+      modalidad: "MAT",
+    });
+    await AsignacionService.asignar(referente, {
+      peregrinaId: imagen.id,
+      tenedor: { tipo: "matrimonio", id: consagrados.id },
+      nota: null,
+    });
+
+    const { porConsagracion } = await TableroService.resumen(referente);
+
+    // La pareja de arriba no tiene años cargados y suma a la fila sin año.
+    expect(porConsagracion).toEqual([
+      { desde: 1995, total: 1 },
+      { desde: 2010, total: 2 },
+      { desde: null, total: 2 },
+    ]);
   });
 
   it("la cifra cuenta hogares y coincide con la lista que enlaza", async () => {
