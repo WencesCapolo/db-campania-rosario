@@ -59,9 +59,34 @@ export default async function TerritorioPage() {
         </p>
       </header>
 
-      <Tarjeta titulo="Agregar una Diócesis o Localidad">
-        <CrearDiocesis provincias={activas} />
-      </Tarjeta>
+      {/* Plegada, porque se usa de vez en cuando y la lista es lo que se viene a
+          mirar. Abierta mientras no hay ninguna: entonces agregar la primera es
+          lo único que se puede hacer acá. */}
+      <details
+        open={diocesis.length === 0}
+        className="group rounded-tarjeta border-2 border-borde bg-papel"
+      >
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 rounded-tarjeta px-5 py-4 hover:bg-fondo [&::-webkit-details-marker]:hidden">
+          <h2 className="text-xl font-bold text-tinta">
+            Agregar una Diócesis o Localidad
+          </h2>
+          {/* La palabra y el borde, además de la flecha — como en el alta de
+              Peregrinas. Cambia con `group-open`, sin estado en el cliente. */}
+          <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-control border-2 border-borde-fuerte px-3 font-semibold text-tinta">
+            <span className="group-open:hidden">Abrir</span>
+            <span className="hidden group-open:inline">Cerrar</span>
+            <span
+              aria-hidden
+              className="transition-transform group-open:rotate-180"
+            >
+              ▾
+            </span>
+          </span>
+        </summary>
+        <div className="border-t-2 border-borde px-5 py-4">
+          <CrearDiocesis provincias={activas} />
+        </div>
+      </details>
 
       <Tarjeta titulo="Diócesis y Localidades">
         {diocesis.length === 0 ? (
