@@ -36,6 +36,10 @@ import type { Role } from "@/modules/user/user.schema";
  * pressed, so backing out of a half-made change costs nothing, and `alCerrar`
  * resets both fields to what the Usuario actually is — otherwise reopening the
  * dialog shows the abandoned edit as though it had been saved.
+ *
+ * The trigger lives in a row of the Usuarios table, beside «Quitar acceso», and
+ * both must fit on one line — so it reads «Cambiar», and its accessible name
+ * carries the rest, beginning with the same word a voice command would say.
  */
 export default function EditarUsuario({
   id,
@@ -77,8 +81,13 @@ export default function EditarUsuario({
         setDiocesisLocalidadId(diocesisLocalidadIdActual);
       }}
       disparador={(control) => (
-        <Boton tono="secundario" onClick={control.abrir}>
-          Cambiar el rol o el territorio
+        <Boton
+          tono="secundario"
+          compacto
+          aria-label={`Cambiar el rol o el territorio de ${email || "este usuario sin identidad"}`}
+          onClick={control.abrir}
+        >
+          Cambiar
         </Boton>
       )}
     >

@@ -34,11 +34,25 @@ const TONOS: Record<TonoDeBoton, string> = {
 
 const BASE =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-control " +
-  "border-2 px-5 text-base font-semibold no-underline " +
+  "border-2 text-base font-semibold no-underline " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 
-function clases(tono: TonoDeBoton, anchoCompleto?: boolean): string {
-  return [BASE, TONOS[tono], anchoCompleto ? "w-full" : ""]
+// Compacto gives up side padding and nothing else: the height, the type size and
+// the border are the floor, and a button in a table row is still a thumb's target.
+// It never wraps, because a two-line button in a row reads as two buttons.
+const RELLENO = { normal: "px-5", compacto: "px-3 whitespace-nowrap" };
+
+function clases(
+  tono: TonoDeBoton,
+  anchoCompleto?: boolean,
+  compacto?: boolean,
+): string {
+  return [
+    BASE,
+    TONOS[tono],
+    RELLENO[compacto ? "compacto" : "normal"],
+    anchoCompleto ? "w-full" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -47,20 +61,22 @@ interface Comun {
   tono?: TonoDeBoton;
   /** Fills its container. For a phone, where buttons in a column read better. */
   anchoCompleto?: boolean;
+  /** Less side padding, one line. For a row of a table, where two must fit. */
+  compacto?: boolean;
 }
 
 export default function Boton({
   tono = "principal",
   anchoCompleto,
+  compacto,
   children,
   ...resto
-}: Comun &
-  Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
+}: Comun & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className">) {
   return (
     <button
       {...resto}
       type={resto.type ?? "button"}
-      className={clases(tono, anchoCompleto)}
+      className={clases(tono, anchoCompleto, compacto)}
     >
       {children}
     </button>
@@ -70,11 +86,12 @@ export default function Boton({
 export function BotonEnlace({
   tono = "principal",
   anchoCompleto,
+  compacto,
   children,
   ...resto
 }: Comun & Omit<React.ComponentProps<typeof Link>, "className">) {
   return (
-    <Link {...resto} className={clases(tono, anchoCompleto)}>
+    <Link {...resto} className={clases(tono, anchoCompleto, compacto)}>
       {children}
     </Link>
   );

@@ -41,6 +41,8 @@ export default function ConfirmarAccion({
   consecuencia,
   etiquetaDeConfirmacion,
   tono = "peligro",
+  compacto,
+  etiquetaAccesible,
   accion,
 }: {
   /** The trigger's text — the verb, e.g. "Dar de baja". */
@@ -53,6 +55,14 @@ export default function ConfirmarAccion({
   consecuencia: string;
   etiquetaDeConfirmacion?: string;
   tono?: TonoDeBoton;
+  /** The trigger as `Boton compacto` — for a row of a table. */
+  compacto?: boolean;
+  /**
+   * The trigger's accessible name, when `etiqueta` is short enough to need its
+   * subject. It must begin with `etiqueta`, so a voice command reading the
+   * visible words still finds the button.
+   */
+  etiquetaAccesible?: string;
   accion: () => Promise<ActionResult<unknown>>;
 }) {
   const router = useRouter();
@@ -64,7 +74,12 @@ export default function ConfirmarAccion({
       titulo={titulo}
       alCerrar={() => setError(null)}
       disparador={(control) => (
-        <Boton tono={tono} onClick={control.abrir}>
+        <Boton
+          tono={tono}
+          compacto={compacto}
+          aria-label={etiquetaAccesible}
+          onClick={control.abrir}
+        >
           {etiqueta}
         </Boton>
       )}
@@ -102,9 +117,7 @@ export default function ConfirmarAccion({
                 })
               }
             >
-              {pendiente
-                ? "Guardando…"
-                : (etiquetaDeConfirmacion ?? etiqueta)}
+              {pendiente ? "Guardando…" : (etiquetaDeConfirmacion ?? etiqueta)}
             </Boton>
 
             {/* `cancelar`, not `cerrar`: pressing this means the same thing as

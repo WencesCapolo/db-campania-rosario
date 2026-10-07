@@ -44,7 +44,9 @@ export default function BajaDeUsuario({
     return (
       <ConfirmarAccion
         tono="secundario"
-        etiqueta="Devolver el acceso"
+        compacto
+        etiqueta="Devolver acceso"
+        etiquetaAccesible={`Devolver acceso a ${acceso}`}
         titulo="¿Devolverle el acceso?"
         sujeto={`El acceso de ${acceso}`}
         consecuencia="Vuelve a poder entrar, con el mismo rol y el mismo territorio que tenía."
@@ -56,7 +58,9 @@ export default function BajaDeUsuario({
 
   return (
     <ConfirmarAccion
-      etiqueta="Quitar el acceso"
+      compacto
+      etiqueta="Quitar acceso"
+      etiquetaAccesible={`Quitar acceso a ${acceso}`}
       titulo="¿Quitarle el acceso?"
       sujeto={`El acceso de ${acceso}`}
       consecuencia="Deja de poder entrar desde el próximo intento. No se borra nada: todo lo que cargó sigue figurando, y el acceso se puede devolver."

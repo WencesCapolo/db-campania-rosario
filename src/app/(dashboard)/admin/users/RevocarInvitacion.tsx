@@ -16,10 +16,10 @@ import Mensaje from "@/components/Mensaje";
  * looking control in the app without a `ConfirmarAccion` behind it, which is
  * exactly why it is worth saying why.
  *
- * What the button does carry is the email in its label, so it is never ambiguous
- * which row is about to change. That is also why the label is not truncated on a
- * narrow screen: the accessible name is the whole sentence, and a button reading
- * "Revocar la invitación de…" is a button somebody presses hoping.
+ * What the button does carry is the email in its accessible name, so it is never
+ * ambiguous which row is about to change. The visible word is only «Revocar»,
+ * because it sits in a row of the Usuarios table whose first cell is that same
+ * Buzón, beside «Copiar enlace», and both must fit on one line.
  */
 export default function RevocarInvitacion({
   id,
@@ -46,8 +46,14 @@ export default function RevocarInvitacion({
 
   return (
     <div className="space-y-3">
-      <Boton tono="peligro" onClick={revocar} disabled={pendiente}>
-        {pendiente ? "Revocando…" : `Revocar la invitación de ${email}`}
+      <Boton
+        tono="peligro"
+        compacto
+        aria-label={`Revocar la invitación de ${email}`}
+        onClick={revocar}
+        disabled={pendiente}
+      >
+        {pendiente ? "Revocando…" : "Revocar"}
       </Boton>
 
       {error && (

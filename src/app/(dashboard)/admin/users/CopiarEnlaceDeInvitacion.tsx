@@ -43,13 +43,25 @@ import { enlaceDeInvitacion } from "@/lib/auth/buzon";
  */
 const NO_CAMBIA = () => () => {};
 
-export default function CopiarEnlaceDeInvitacion({ buzon }: { buzon: string }) {
+export default function CopiarEnlaceDeInvitacion({
+  buzon,
+  compacto,
+}: {
+  buzon: string;
+  /**
+   * Sólo el botón, para una fila de la tabla de Usuarios. La aclaración de que no
+   * da acceso la dice la pantalla una vez, arriba de la tabla, y el enlace entero
+   * aparece igual si el portapapeles se niega — es de donde se copia a mano.
+   */
+  compacto?: boolean;
+}) {
   const origen = useSyncExternalStore(
     NO_CAMBIA,
     () => window.location.origin,
     () => null,
   );
   const [copiado, setCopiado] = useState(false);
+  const [sinPortapapeles, setSinPortapapeles] = useState(false);
 
   const enlace = enlaceDeInvitacion(origen, buzon);
 
@@ -62,14 +74,31 @@ export default function CopiarEnlaceDeInvitacion({ buzon }: { buzon: string }) {
       // pantalla, entero y seleccionable, que es de dónde se copiaba antes de que
       // existiera el botón.
       setCopiado(false);
+      setSinPortapapeles(true);
     }
+  }
+
+  if (compacto) {
+    return (
+      <div className="space-y-2">
+        <Boton tono="secundario" compacto onClick={copiar} aria-live="polite">
+          {copiado ? "Copiado ✓" : "Copiar enlace"}
+        </Boton>
+
+        {sinPortapapeles && (
+          <code className="block rounded-control border-2 border-borde bg-fondo p-3 text-base break-all text-tinta">
+            {enlace}
+          </code>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-2">
       <p className="text-base text-tinta-suave">
-        Enlace de invitación — mandáselo por donde le hablás. No da acceso por sí
-        solo.
+        Enlace de invitación — mandáselo por donde le hablás. No da acceso por
+        sí solo.
       </p>
 
       {/* El enlace a la vista y entero. `break-all` porque un correo largo en un
