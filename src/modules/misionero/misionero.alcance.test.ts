@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { TableroService } from "@/modules/tablero/tablero.service";
 import { MisioneroService } from "./misionero.service";
 import {
   crearActor,
@@ -128,12 +127,6 @@ describe.each([
     const buscado = await MisioneroService.search(obtenerActor(), "Carla");
 
     expect([...listado, ...buscado].map((m) => m.id)).not.toContain(ajeno.id);
-  });
-
-  it("el tablero cuenta sólo su territorio", async () => {
-    const tablero = await TableroService.resumen(obtenerActor());
-
-    expect(tablero.totalMisioneros).toBe(1);
   });
 });
 

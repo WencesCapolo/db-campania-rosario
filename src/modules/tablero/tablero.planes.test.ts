@@ -266,6 +266,9 @@ describe("los planes del tablero, con volumen", () => {
     const libres = await explicar(() =>
       PeregrinaRepository.contarSinTenencia(alcance, {})
     );
+    const porConsagracion = await explicar(() =>
+      PeregrinaRepository.contarPorQuinquenioDeConsagracion(alcance, {})
+    );
     const personas = await explicar(() =>
       MisioneroRepository.contarTotal(alcance, {})
     );
@@ -285,6 +288,7 @@ describe("los planes del tablero, con volumen", () => {
       totalFiltrado,
       listado,
       libres,
+      porConsagracion,
     ]) {
       expect.soft(plan).not.toContain("Seq Scan on peregrina");
     }
@@ -389,11 +393,11 @@ describe("los planes del tablero, con volumen", () => {
   });
 
   it("el desglose nacional recorre la tabla, y está bien que lo haga", async () => {
-    // Contar el país entero agrupando por Región *es* leer la tabla entera. Un
+    // Contar el país entero agrupando por Provincia *es* leer la tabla entera. Un
     // índice acá sería más lento, y exigirlo convertiría este archivo en una
     // regla de estilo en lugar de una medición.
     const plan = await explicar(() =>
-      PeregrinaRepository.contarPorRegion(alcanceNacional, {})
+      PeregrinaRepository.contarPorProvincia(alcanceNacional, {})
     );
 
     expect(plan).toContain("Aggregate");

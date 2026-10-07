@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { TableroService } from "./tablero.service";
-import { umbralDeDiasEstancada } from "./tablero.types";
 import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
 import { MatrimonioService } from "@/modules/misionero/matrimonio.service";
@@ -29,7 +28,6 @@ import type { CurrentUser } from "@/modules/user/user.types";
 let territorio: TerritorioDePrueba;
 let referente: CurrentUser;
 let asesor: CurrentUser;
-let misioneros: { m1: string; m2: string; libre: string };
 let peregrinas: {
   asignadaVieja: string;
   libreNunca: string;
@@ -68,12 +66,12 @@ beforeEach(async () => {
     createdById: referente.id,
     apellido: "Benítez",
   });
-  const libre = await crearMisioneroDirecto({
+  // Cabrera no tiene ninguna imagen: el filtro por quién la tiene da cero.
+  await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
     createdById: referente.id,
     apellido: "Cabrera",
   });
-  misioneros = { m1: m1.id, m2: m2.id, libre: libre.id };
 
   const asignadaVieja = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
@@ -161,7 +159,6 @@ describe("las cifras de un rol territorial", () => {
 
     expect(tablero.vista).toBe("diocesana");
     expect(tablero.totalPeregrinas).toBe(4);
-    expect(tablero.totalMisioneros).toBe(3);
   });
 
   it("desglosa por Estado — historia 2", async () => {
@@ -183,15 +180,6 @@ describe("las cifras de un rol territorial", () => {
     ]);
   });
 
-  it("desglosa por Tipo — historia 16", async () => {
-    const { porTipo } = await TableroService.resumen(referente);
-
-    expect(ordenar(porTipo, "tipo")).toEqual([
-      { tipo: "auxiliar", total: 1 },
-      { tipo: "peregrina", total: 3 },
-    ]);
-  });
-
   it("desglosa las imágenes que alguien tiene por año de consagración", async () => {
     const { porConsagracion } = await TableroService.resumen(referente);
 
@@ -206,9 +194,8 @@ describe("las cifras de un rol territorial", () => {
   it("no recibe el desglose nacional: sería una fila con su propio nombre", async () => {
     const tablero = await TableroService.resumen(referente);
 
-    expect(tablero.porRegion).toBeNull();
+    expect(tablero.porProvincia).toBeNull();
     expect(tablero.porDiocesis).toBeNull();
-    expect(tablero.crecimiento).toBeNull();
   });
 });
 
@@ -220,23 +207,13 @@ describe("las cifras de un Asesor Nacional", () => {
     expect(tablero.totalPeregrinas).toBe(6);
   });
 
-  it("desglosa por Región recorriendo el territorio — historias 10 y 11", async () => {
-    const { porRegion } = await TableroService.resumen(asesor);
-
-    expect(ordenar(porRegion ?? [], "region")).toEqual([
-      // Villa María es CENTRO y Río Cuarto es CUYO, y las dos son Córdoba.
-      { region: "CENTRO", total: 4 },
-      { region: "CUYO", total: 1 },
-      { region: "R. PAT", total: 1 },
-    ]);
-  });
-
   it("compara Diócesis, la más grande primero", async () => {
     const { porDiocesis } = await TableroService.resumen(asesor);
 
     expect(porDiocesis?.[0]).toEqual({
       diocesisLocalidadId: territorio.villaMaria.id,
       nombre: "Villa María",
+      provincia: "Córdoba",
       total: 4,
     });
     expect(porDiocesis).toHaveLength(3);
@@ -250,13 +227,6 @@ describe("las cifras de un Asesor Nacional", () => {
       { provinciaId: territorio.neuquen.id, nombre: "Neuquén", total: 1 },
     ]);
   });
-
-  it("muestra el crecimiento por mes de alta — historia 12", async () => {
-    const { crecimiento } = await TableroService.resumen(asesor);
-    const mesActual = new Date().toISOString().slice(0, 7);
-
-    expect(crecimiento).toEqual([{ mes: mesActual, total: 6 }]);
-  });
 });
 
 describe("las cifras derivadas", () => {
@@ -268,78 +238,16 @@ describe("las cifras derivadas", () => {
     expect(tablero.sinTenencia).toBe(1);
   });
 
-  it("«nunca asignada» no es lo mismo que «libre ahora»", async () => {
-    await AsignacionService.devolver(referente, {
-      peregrinaId: peregrinas.auxiliarReciente,
-      notaCierre: null,
-    });
-
-    const tablero = await TableroService.resumen(referente);
-
-    // Dos libres, pero una de ellas ya estuvo en manos de alguien.
-    expect(tablero.sinTenencia).toBe(2);
-    expect(tablero.nuncaAsignadas?.total).toBe(1);
-    expect(tablero.nuncaAsignadas?.filas.map((f) => f.id)).toEqual([
-      peregrinas.libreNunca,
-    ]);
-  });
-
-  it("lista las Extraviadas con su último Misionero — historia 9", async () => {
-    const { extraviadas } = await TableroService.resumen(referente);
-
-    expect(extraviadas?.total).toBe(1);
-    expect(extraviadas?.filas[0]?.id).toBe(peregrinas.extraviada);
-    expect(extraviadas?.filas[0]?.ultimoTenedor).toMatchObject({
-      tipo: "persona",
-      id: misioneros.m1,
-      persona: { apellido: "Álvarez" },
-    });
-  });
-
-  it("lista los Misioneros sin ninguna imagen — historia 5", async () => {
-    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
-
-    expect(tenedoresSinPeregrina.total).toBe(1);
-    expect(tenedoresSinPeregrina.filas[0]?.id).toBe(misioneros.libre);
-  });
-
-  it("un Misionero con dos imágenes no aparece como libre", async () => {
-    await AsignacionService.asignar(referente, {
-      peregrinaId: peregrinas.libreNunca,
-      tenedor: { tipo: "persona", id: misioneros.libre },
-      nota: null,
-    });
-
-    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
-
-    expect(tenedoresSinPeregrina.total).toBe(0);
-  });
-
-  it("lista las que no cambiaron de manos hace mucho — historia 8", async () => {
-    const { estancadas, umbralDeDiasEstancada: umbral } =
-      await TableroService.resumen(referente);
-
-    expect(umbral).toBe(180);
-    expect(estancadas.total).toBe(1);
-    expect(estancadas.filas[0]).toMatchObject({
-      peregrinaId: peregrinas.asignadaVieja,
-      tenedor: { tipo: "persona", persona: { apellido: "Álvarez" } },
-    });
-    expect(estancadas.filas[0]?.dias).toBeGreaterThanOrEqual(399);
-  });
 });
 
 describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
   /*
-   * La mitad silenciosa de la lectura polimórfica: una tarjeta que sólo mira
-   * `misionero_id` no falla, devuelve menos filas. La casa desaparece de la
-   * tarjeta que existe para encontrarla.
+   * La mitad silenciosa de la lectura polimórfica: una cifra que sólo mira
+   * `misionero_id` no falla, cuenta menos. La casa desaparece de la cifra que
+   * existe para contarla.
    */
-  let pareja: { id: string };
-  let delMatrimonio: { id: string };
-
   beforeEach(async () => {
-    pareja = await MatrimonioService.create(referente, {
+    const pareja = await MatrimonioService.create(referente, {
       nombreA: "Rosa",
       apellidoA: "Benegas",
       nombreB: "Luis",
@@ -347,20 +255,16 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    delMatrimonio = await crearPeregrinaDirecta({
+    const delMatrimonio = await crearPeregrinaDirecta({
       diocesisLocalidadId: territorio.villaMaria.id,
       createdById: referente.id,
       modalidad: "MAT",
     });
 
-    const periodo = await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(referente, {
       peregrinaId: delMatrimonio.id,
       tenedor: { tipo: "matrimonio", id: pareja.id },
       nota: null,
-    });
-    await AsignacionService.corregir(referente, {
-      asignacionId: periodo.id,
-      abiertaAt: haceDias(400),
     });
   });
 
@@ -395,97 +299,6 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
     ]);
   });
 
-  it("la cifra cuenta hogares y coincide con la lista que enlaza", async () => {
-    const { totalMisioneros } = await TableroService.resumen(referente);
-
-    // Tres individuales sueltos y un hogar. Cinco sería el número plausible y
-    // equivocado: los dos cónyuges contados por separado, mientras `/misionero`
-    // muestra cuatro filas.
-    expect(totalMisioneros).toBe(4);
-  });
-
-  it("un hogar con las manos libres es una fila y no dos", async () => {
-    await MatrimonioService.create(referente, {
-      nombreA: "Delia",
-      apellidoA: "Duarte",
-      nombreB: "Elías",
-      apellidoB: "Duarte",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const { tenedoresSinPeregrina } = await TableroService.resumen(referente);
-
-    // Cabrera y el hogar Duarte. Tres sería contar a los Duarte por separado —
-    // y los Benegas-Cardozo, que tienen una imagen, no tienen las manos libres
-    // por más que ninguno de los dos cónyuges la tenga a nombre propio.
-    expect(tenedoresSinPeregrina.total).toBe(2);
-    expect(tenedoresSinPeregrina.filas.map((f) => f.tipo).sort()).toEqual([
-      "matrimonio",
-      "persona",
-    ]);
-  });
-
-  it("la tarjeta de estancadas nombra al hogar entero", async () => {
-    const { estancadas } = await TableroService.resumen(referente);
-
-    const fila = estancadas.filas.find(
-      (f) => f.peregrinaId === delMatrimonio.id
-    );
-    expect(fila?.tenedor).toMatchObject({
-      tipo: "matrimonio",
-      id: pareja.id,
-      matrimonio: {
-        misioneroA: { apellido: "Benegas" },
-        misioneroB: { apellido: "Cardozo" },
-      },
-    });
-  });
-
-  it("la tarjeta de Extraviadas también", async () => {
-    await PeregrinaService.update(referente, delMatrimonio.id, {
-      estado: "extraviada",
-    });
-
-    const { extraviadas } = await TableroService.resumen(referente);
-    const fila = extraviadas?.filas.find((f) => f.id === delMatrimonio.id);
-
-    expect(fila?.ultimoTenedor).toMatchObject({
-      tipo: "matrimonio",
-      id: pareja.id,
-    });
-  });
-});
-
-describe("el umbral de «estancada», en sus bordes", () => {
-  it("incluye lo que lo alcanza y excluye lo que no", async () => {
-    const dentro = await AsignacionService.listarEstancadas(referente, 400);
-    const justoAfuera = await AsignacionService.listarEstancadas(
-      referente,
-      401,
-    );
-
-    expect(dentro.map((f) => f.peregrinaId)).toEqual([
-      peregrinas.asignadaVieja,
-    ]);
-    expect(justoAfuera).toEqual([]);
-  });
-
-  it("con un umbral bajo aparece también la recién asignada", async () => {
-    const todas = await AsignacionService.listarEstancadas(referente, 0);
-
-    expect(todas).toHaveLength(3);
-  });
-
-  it("es configurable, porque la Campaña todavía no eligió el número", async () => {
-    vi.stubEnv("TABLERO_DIAS_ESTANCADA", "30");
-    expect(umbralDeDiasEstancada()).toBe(30);
-
-    // Un valor sin sentido no apaga la tarjeta: vuelve al de siempre.
-    vi.stubEnv("TABLERO_DIAS_ESTANCADA", "seis meses");
-    expect(umbralDeDiasEstancada()).toBe(180);
-
-    vi.unstubAllEnvs();
-  });
 });
 
 describe("los filtros", () => {
@@ -508,9 +321,6 @@ describe("los filtros", () => {
     expect(tablero.totalPeregrinas).toBe(0);
     expect(tablero.porEstado).toEqual([]);
     expect(tablero.porModalidad).toEqual([]);
-    // Y el resto del tablero sigue siendo un tablero: las cifras que no dependen
-    // de imágenes no se van a cero porque el filtro no dejó ninguna.
-    expect(tablero.totalMisioneros).toBe(3);
   });
 
   it("filtra por tenencia", async () => {
@@ -585,30 +395,6 @@ describe("los filtros", () => {
     expect(porRegion.totalPeregrinas).toBe(1);
   });
 
-  it("las tarjetas que contradirían el filtro se apagan en lugar de ignorarlo", async () => {
-    const tablero = await TableroService.resumen(referente, {
-      estado: "activa",
-    });
-
-    // Pedir «activas» y ver una tarjeta de Extraviadas al lado es la confusión
-    // que la historia 18 existe para evitar.
-    expect(tablero.extraviadas).toBeNull();
-
-    const conExtraviadas = await TableroService.resumen(referente, {
-      estado: "extraviada",
-    });
-    expect(conExtraviadas.extraviadas?.total).toBe(1);
-  });
-
-  it("los filtros de imagen no se aplican a las personas", async () => {
-    const tablero = await TableroService.resumen(referente, {
-      modalidad: "FAM",
-    });
-
-    // Un Misionero no tiene Modalidad. Contar 1 acá sería inventar una relación
-    // que la Campaña no registra.
-    expect(tablero.totalMisioneros).toBe(3);
-  });
 });
 
 /** Ordena por una clave para que la expectativa no dependa del plan de la query. */

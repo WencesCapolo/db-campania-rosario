@@ -92,17 +92,16 @@ describe("lecturas de los roles nacionales", () => {
   });
 
   it("un Asesor Nacional cuenta el país entero en el tablero", async () => {
-    const { porRegion } = await TableroService.resumen(asesor);
+    const { porDiocesis } = await TableroService.resumen(asesor);
 
     expect(
-      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region)),
+      [...(porDiocesis ?? [])]
+        .map(({ nombre, total }) => ({ nombre, total }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre)),
     ).toEqual([
-      // Three Regiones from two Provincias: Villa María is CENTRO and Río
-      // Cuarto is CUYO, though both are in Córdoba. Grouping through the
-      // Provincia would collapse these two into one row of 2.
-      { region: "CENTRO", total: 1 },
-      { region: "CUYO", total: 1 },
-      { region: "R. PAT", total: 1 },
+      { nombre: "Río Cuarto", total: 1 },
+      { nombre: "Villa María", total: 1 },
+      { nombre: "Zapala", total: 1 },
     ]);
   });
 });
@@ -211,9 +210,10 @@ describe.each([
 
     expect(tablero.totalPeregrinas).toBe(1);
     expect(tablero.porEstado).toEqual([{ estado: "activa", total: 1 }]);
-    // Un rol territorial no recibe el desglose por Región: sería una sola fila
-    // con su propio nombre, que no es un desglose.
-    expect(tablero.porRegion).toBeNull();
+    // Un rol territorial no recibe el desglose por territorio: sería una sola
+    // fila con su propio nombre, que no es un desglose.
+    expect(tablero.porProvincia).toBeNull();
+    expect(tablero.porDiocesis).toBeNull();
   });
 });
 

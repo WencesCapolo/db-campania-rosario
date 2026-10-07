@@ -18,7 +18,6 @@ import type {
   PeregrinaRow,
   NewPeregrinaRow,
   PeregrinaEstado,
-  PeregrinaTipo,
   Modalidad,
 } from "./peregrina.schema";
 import type { FiltrosDeInventario } from "./peregrina.types";
@@ -678,40 +677,28 @@ export class PeregrinaRepository {
       .groupBy(peregrina.modalidad);
   }
 
-  static async contarPorTipo(
-    alcance: Alcance,
-    filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
-  ): Promise<{ tipo: PeregrinaTipo; total: number }[]> {
-    return agregando({ tipo: peregrina.tipo })
-      .where(condiciones(alcance, filtros, opts))
-      .groupBy(peregrina.tipo);
-  }
-
-  /** The national breakdown — story 10, and the comparison story 11 asks for. */
-  static async contarPorRegion(
-    alcance: Alcance,
-    filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
-  ): Promise<{ region: Region; total: number }[]> {
-    return agregando({ region: diocesisLocalidad.region })
-      .where(condiciones(alcance, filtros, opts))
-      .groupBy(diocesisLocalidad.region);
-  }
-
-  /** A Diócesis-level breakdown, for a Región that needs opening up. */
+  /** The Diócesis side by side, biggest first, each with its Provincia. */
   static async contarPorDiocesisLocalidad(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
     opts: OpcionesDeLectura = {},
-  ): Promise<{ diocesisLocalidadId: string; nombre: string; total: number }[]> {
+  ): Promise<
+    {
+      diocesisLocalidadId: string;
+      nombre: string;
+      provincia: string;
+      total: number;
+    }[]
+  > {
     return agregando({
       diocesisLocalidadId: diocesisLocalidad.id,
       nombre: diocesisLocalidad.nombre,
+      provincia: provincia.nombre,
     })
+      .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
       .where(condiciones(alcance, filtros, opts))
-      .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre)
-      .orderBy(desc(TOTAL));
+      .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre, provincia.nombre)
+      .orderBy(desc(TOTAL), asc(diocesisLocalidad.nombre));
   }
 
   /**
@@ -773,26 +760,6 @@ export class PeregrinaRepository {
       ...filtros,
       tenencia: "libre",
     });
-  }
-
-  /**
-   * Registrations per month, oldest first — story 12.
-   *
-   * From `created_at`, not from stored periodic totals: a snapshot table would
-   * have to be written by something, and there is nothing to write it. The cost
-   * is that growth is growth *of the current inventory* — an image given de baja
-   * leaves the series it was in, which is the honest reading of "how many
-   * Peregrinas do we have" and worth saying out loud on the screen.
-   */
-  static async contarPorMes(
-    alcance: Alcance,
-    filtros: FiltrosDeInventario,
-  ): Promise<{ mes: string; total: number }[]> {
-    const mes = sql<string>`to_char(date_trunc('month', ${peregrina.createdAt}), 'YYYY-MM')`;
-    return agregando({ mes })
-      .where(condiciones(alcance, filtros))
-      .groupBy(mes)
-      .orderBy(asc(mes));
   }
 
   /**

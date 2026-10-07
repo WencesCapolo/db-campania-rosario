@@ -1022,8 +1022,7 @@ export class AsignacionRepository {
    *
    * The threshold is a parameter and not a constant here, because what counts as
    * stalled is a judgement the Campaña has not made yet — see the open question
-   * in the production plan. The default lives in `tablero.types`, where a person
-   * can find and change it.
+   * in the production plan.
    */
   static async findPeregrinasEstancadas(
     alcance: Alcance,

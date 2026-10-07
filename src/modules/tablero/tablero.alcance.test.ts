@@ -71,7 +71,6 @@ describe.each([
     const tablero = await TableroService.resumen(obtenerActor());
 
     expect(tablero.totalPeregrinas).toBe(3);
-    expect(tablero.totalMisioneros).toBe(3);
     expect(tablero.vista).toBe("nacional");
   });
 });
@@ -84,15 +83,15 @@ describe.each([
     const tablero = await TableroService.resumen(obtenerActor());
 
     expect(tablero.totalPeregrinas).toBe(1);
-    expect(tablero.totalMisioneros).toBe(1);
     expect(tablero.vista).toBe("diocesana");
   });
 
-  it("las listas del tablero tampoco incluyen registros ajenos", async () => {
+  it("los desgloses tampoco incluyen imágenes ajenas", async () => {
     const tablero = await TableroService.resumen(obtenerActor());
 
-    expect(tablero.nuncaAsignadas?.total).toBe(1);
-    expect(tablero.tenedoresSinPeregrina.total).toBe(1);
+    expect(tablero.sinTenencia).toBe(1);
+    expect(tablero.porEstado).toEqual([{ estado: "activa", total: 1 }]);
+    expect(tablero.porModalidad.map((fila) => fila.total)).toEqual([1]);
   });
 
   it("pedir otra Diócesis por la URL se rechaza, no se ignora", async () => {

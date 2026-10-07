@@ -458,7 +458,7 @@ export class AsignacionService {
    *
    * The threshold is the caller's, because nobody in the Campaña has drawn the
    * line yet: `diasEnCargo` has always returned the interval and left the verdict
-   * to the screen. The tablero's default lives in `tablero.types`.
+   * to the screen.
    */
   static async listarEstancadas(
     actor: CurrentUser,

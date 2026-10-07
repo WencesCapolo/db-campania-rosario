@@ -158,7 +158,7 @@ describe("el territorio de una Peregrina", () => {
     ).rejects.toThrow(/dada de baja/);
   });
 
-  it("agrupa el tablero por Región recorriendo el territorio", async () => {
+  it("agrupa el tablero por Provincia a través de la Diócesis", async () => {
     for (const diocesis of [
       territorio.villaMaria,
       territorio.rioCuarto,
@@ -171,17 +171,13 @@ describe("el territorio de una Peregrina", () => {
       });
     }
 
-    const { porRegion } = await TableroService.resumen(actor);
+    const { porProvincia } = await TableroService.resumen(actor);
 
-    expect(
-      [...(porRegion ?? [])].sort((a, b) => a.region.localeCompare(b.region))
-    ).toEqual([
-      // Three Regiones from two Provincias: Villa María is CENTRO and Río
-      // Cuarto is CUYO, though both are in Córdoba. Grouping through the
-      // Provincia would collapse these two into one row of 2.
-      { region: "CENTRO", total: 1 },
-      { region: "CUYO", total: 1 },
-      { region: "R. PAT", total: 1 },
+    // Villa María y Río Cuarto son Córdoba; Zapala es Neuquén. La imagen no
+    // guarda su Provincia: sale de la Diócesis (ADR 0005).
+    expect(porProvincia?.map(({ nombre, total }) => ({ nombre, total }))).toEqual([
+      { nombre: "Córdoba", total: 2 },
+      { nombre: "Neuquén", total: 1 },
     ]);
   });
 });

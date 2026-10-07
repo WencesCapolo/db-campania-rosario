@@ -92,7 +92,7 @@ Both are plain Tailwind and meant to be **restyled, not rebuilt**. What issue 4 
 
 ## Open questions
 
-- What is the threshold for a Peregrina having "not changed hands recently"? Still unanswered, and now it has a **default of 180 days** rather than no answer: `umbralDeDiasEstancada()` in `tablero.types`, overridable with `TABLERO_DIAS_ESTANCADA` so the Campaña's answer is an environment variable and not a deployment. The card names the number on screen, so nobody has to guess what "hace mucho" meant.
+- What is the threshold for a Peregrina having "not changed hands recently"? Still unanswered. The tablero no longer shows estancadas (it shows distribuciones only, since 2026-10-07), so nothing on screen depends on the answer yet; `AsignacionService.listarEstancadas` takes the threshold as a parameter for whichever screen asks it next.
 - When a Peregrina and the Misionero holding it are in different Diócesis, whose territory should the assignment flow offer? Issue 3 checks both ends and refuses the mismatch for a scoped Actor, which is the safe reading, but nobody has said whether an inter-diocesan hand-off is a real thing the Campaña does.
 
 ### What issue 3 left for issue 4 — closed

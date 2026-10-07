@@ -114,7 +114,6 @@ describe("una Peregrina dada de baja", () => {
     expect(tablero.totalPeregrinas).toBe(0);
     expect(tablero.porEstado).toEqual([]);
     expect(tablero.sinTenencia).toBe(0);
-    expect(tablero.nuncaAsignadas?.total).toBe(0);
   });
 
   it("sigue leyéndose por id, y su historial entero con ella", async () => {
