@@ -104,7 +104,9 @@ export default async function MisioneroPage({
                   anchoCompleto
                   href={`/peregrina/${a.peregrina.id}`}
                 >
-                  <span className="font-mono">{a.peregrina.identificacion}</span>
+                  <span className="font-mono">
+                    {a.peregrina.identificacion}
+                  </span>
                   <span className="font-normal">
                     desde el {fecha(a.abiertaAt)} · {dias(a.diasEnCargo)}
                   </span>

@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
-import Eleccion from "@/components/Eleccion";
 import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
 
 /**
@@ -15,7 +14,7 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * purpose — those belong to an image, and a "Misioneros de Modalidad Jóvenes"
  * filter would be inventing a relationship the Campaña does not record.
  *
- * El select de tenencia tiene las dos respuestas y no una. «Sólo los que no tienen
+ * El filtro de tenencia tiene las dos respuestas y no una. «Sólo los que no tienen
  * ninguna» es capacidad libre — a quién se le puede entregar algo. «Sólo los que
  * tienen alguna» es la pregunta del otro lado, la que aparece cuando falta una
  * imagen o cuando hay que pedir devoluciones, y con una sola opción había que
@@ -36,13 +35,20 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  *
  * Los dos controles quedan a la vista, y ahí se aparta del listado de Peregrinas,
  * que pliega los suyos. Ahí son seis selects que empujan las filas afuera de un
- * teléfono; acá es uno, y un botón «Mostrar filtros» que esconde un solo select
- * agrega un toque para ahorrar un renglón.
+ * teléfono; acá son un campo y tres botones, y un «Mostrar filtros» que los esconde
+ * agrega un toque para ahorrar un renglón. Van adentro del marco de la tabla,
+ * entre el título y las filas, así que el marco propio que tenían se fue.
  */
 
-const TENENCIA = [
-  { valor: "con", etiqueta: "Sólo los que tienen alguna imagen" },
-  { valor: "sin", etiqueta: "Sólo los que no tienen ninguna" },
+/**
+ * Tres botones y no un select. Son tres respuestas cortas y excluyentes, y a la
+ * vista se eligen de un toque y se ve cuál está puesta sin abrir nada; el elegido
+ * lo dice con `aria-pressed`, un glifo y el relleno, no sólo con el color.
+ */
+const TENENCIA: { valor: "" | "con" | "sin"; etiqueta: string }[] = [
+  { valor: "", etiqueta: "Todos" },
+  { valor: "con", etiqueta: "Con imagen" },
+  { valor: "sin", etiqueta: "Sin imagen" },
 ];
 
 export default function FiltrosDeMisionero({
@@ -72,49 +78,76 @@ export default function FiltrosDeMisionero({
   }
 
   return (
-    <form
-      className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        aplicar({ q: borrador.trim() });
-      }}
-    >
-      <Campo
-        etiqueta="Buscar por nombre, apellido o territorio"
-        ayuda="En un matrimonio alcanza con el apellido de cualquiera de los dos."
-        type="search"
-        inputMode="search"
-        placeholder="Gómez"
-        value={borrador}
-        onChange={(e) => setBorrador(e.target.value)}
-      />
+    <div className="space-y-4">
+      {/* El buscador en un renglón desde `sm`: el campo se estira y el botón
+          queda al ras de la caja, no de la ayuda. */}
+      <form
+        role="search"
+        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          aplicar({ q: borrador.trim() });
+        }}
+      >
+        <div className="sm:flex-1">
+          <Campo
+            etiqueta="Buscar por nombre, apellido o territorio"
+            ayuda="En un matrimonio alcanza con el apellido de cualquiera de los dos."
+            type="search"
+            inputMode="search"
+            placeholder="Gómez"
+            value={borrador}
+            onChange={(e) => setBorrador(e.target.value)}
+          />
+        </div>
 
-      <Eleccion
-        etiqueta="¿Tiene alguna imagen?"
-        opciones={TENENCIA}
-        vacia="Todos"
-        value={tenencia ?? ""}
-        onChange={(e) => aplicar({ imagen: e.target.value })}
-      />
-
-      <div className="flex flex-col gap-3 sm:flex-row">
         <Boton type="submit" disabled={pendiente}>
           {pendiente ? "Buscando…" : "Buscar"}
         </Boton>
+      </form>
 
-        {(q || tenencia) && (
-          <Boton
-            tono="secundario"
-            disabled={pendiente}
-            onClick={() => {
-              setBorrador("");
-              aplicar({ q: "", imagen: "" });
-            }}
-          >
-            Limpiar filtros
-          </Boton>
-        )}
-      </div>
-    </form>
+      <fieldset className="space-y-2">
+        <legend className="text-base font-semibold text-tinta">
+          ¿Tiene alguna imagen?
+        </legend>
+
+        <div className="flex flex-wrap gap-2">
+          {TENENCIA.map(({ valor, etiqueta }) => {
+            const elegido = (tenencia ?? "") === valor;
+            return (
+              <button
+                key={etiqueta}
+                type="button"
+                aria-pressed={elegido}
+                disabled={pendiente}
+                onClick={() => aplicar({ imagen: valor })}
+                className={
+                  "inline-flex min-h-12 items-center gap-2 rounded-control border-2 border-borde-fuerte px-4 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60 " +
+                  (elegido
+                    ? "bg-azul text-white"
+                    : "bg-papel text-tinta hover:bg-fondo")
+                }
+              >
+                {elegido && <span aria-hidden>✓</span>}
+                {etiqueta}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {(q || tenencia) && (
+        <Boton
+          tono="secundario"
+          disabled={pendiente}
+          onClick={() => {
+            setBorrador("");
+            aplicar({ q: "", imagen: "" });
+          }}
+        >
+          Limpiar filtros
+        </Boton>
+      )}
+    </div>
   );
 }

@@ -408,7 +408,9 @@ export default function CrearMisioneroForm({
     matrimonio: boolean;
   } | null>(null);
   /** El Código de la imagen que quedó a su cargo, cuando quedó alguna. */
-  const [identificacionEntregada, setIdentificacionEntregada] = useState<string | null>(null);
+  const [identificacionEntregada, setIdentificacionEntregada] = useState<
+    string | null
+  >(null);
   const formulario = useRef<HTMLFormElement>(null);
 
   // Story 15: each field is checked as it is left, against the same schema the
@@ -444,7 +446,8 @@ export default function CrearMisioneroForm({
     tenedor: Tenedor,
   ): Promise<{ identificacion: string } | { error: string }> {
     let id = peregrinaId;
-    let identificacion = disponibles.find((p) => p.id === peregrinaId)?.identificacion ?? "";
+    let identificacion =
+      disponibles.find((p) => p.id === peregrinaId)?.identificacion ?? "";
 
     if (entrega === "nueva") {
       // El territorio de la imagen es el de la persona que se la lleva: es donde
@@ -633,8 +636,8 @@ export default function CrearMisioneroForm({
             {identificacionEntregada ? (
               <>
                 , con la imagen{" "}
-                <strong className="font-mono">{identificacionEntregada}</strong> a su
-                cargo
+                <strong className="font-mono">{identificacionEntregada}</strong>{" "}
+                a su cargo
               </>
             ) : null}
             . Podés seguir con la siguiente persona.

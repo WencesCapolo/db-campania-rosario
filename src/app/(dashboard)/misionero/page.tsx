@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
   getMisionerosFiltradosAction,
@@ -33,9 +32,11 @@ import {
 import { nombreDeTenedorEnLista } from "@/lib/formato";
 import FiltrosDeMisionero from "./FiltrosDeMisionero";
 import CrearMisioneroForm from "./CrearMisioneroForm";
+import AltaPlegable from "./AltaPlegable";
 
 /**
- * Misioneros — una pantalla, tres bloques: el alta, los filtros, la tabla.
+ * Misioneros — una pantalla, dos marcos: el alta, plegada detrás de un botón del
+ * encabezado, y la tabla, con el buscador adentro.
  *
  * Es el mismo cambio que hizo el listado de Peregrinas, por las mismas razones:
  *
@@ -46,6 +47,10 @@ import CrearMisioneroForm from "./CrearMisioneroForm";
  *    `router.refresh()` hace aparecer la fila abajo. `/misionero/new` sigue
  *    existiendo porque el flujo de Asignación manda ahí cuando la persona no está
  *    cargada todavía.
+ *  - **Pero cerrada.** La pantalla se abre más para buscar que para cargar, y el
+ *    alta abierta empujaba la tabla dos pantallas abajo en un teléfono. Se abre
+ *    con el botón del encabezado — ver `AltaPlegable` —, que ocupa el lugar que
+ *    tenía la foto.
  *  - **Es una tabla y no tarjetas.** Se resigna lo que la tarjeta compraba: un
  *    blanco enorme por persona y una maqueta que nunca tenía que reacomodarse. Se
  *    compensa con lo que se puede — el nombre es lo primero de la fila y es el
@@ -240,7 +245,9 @@ export default async function MisioneroPage({
     : null;
 
   const clavesConTenencia = porTenencia
-    ? new Set(porTenencia.map((t) => valorDeTenedor({ tipo: t.tipo, id: t.id })))
+    ? new Set(
+        porTenencia.map((t) => valorDeTenedor({ tipo: t.tipo, id: t.id })),
+      )
     : null;
 
   const pagina =
@@ -288,61 +295,29 @@ export default async function MisioneroPage({
         <div className="overflow-hidden rounded-marco border-2 border-borde-suave bg-papel">
           {/* El encabezado va adentro del marco, como en Inicio: el bloque tiene
               un borde en total en lugar de un título con canto propio arriba de
-              una tarjeta.
+              una tarjeta. En un teléfono es una columna centrada; desde `sm` un
+              renglón, con el título a la izquierda y el botón del alta a la
+              derecha. El filete dorado sigue al texto. */}
+          <AltaPlegable
+            bajada="Una persona de la Campaña, o un matrimonio: no entra al sistema ni tiene contraseña, es quien puede tener una imagen a cargo. Se carga acá mismo y aparece en la tabla de abajo."
+            encabezado={
+              <div>
+                <p className="text-xs font-semibold tracking-[0.22em] text-oro-tinta uppercase sm:text-sm">
+                  Campaña del Rosario
+                </p>
 
-              En un teléfono es una columna centrada y la imagen va arriba; desde
-              `sm` es un renglón con el texto a la izquierda y la imagen a la
-              derecha. El filete dorado sigue al texto: centrado cuando el texto
-              está centrado, al ras de la izquierda cuando no. */}
-          <header className="flex flex-col items-center gap-6 border-b-2 border-borde-suave bg-lienzo px-5 pt-8 pb-6 text-center sm:flex-row sm:justify-between sm:px-6 sm:text-left">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.22em] text-oro-tinta uppercase sm:text-sm">
-                Campaña del Rosario
-              </p>
+                <h1 className="mt-3 font-stretch-condensed text-4xl leading-tight font-bold text-azul sm:text-5xl">
+                  Misioneros
+                </h1>
 
-              <h1 className="mt-3 font-stretch-condensed text-4xl leading-tight font-bold text-azul sm:text-5xl">
-                Misioneros
-              </h1>
-
-              {/* Decoración: #ac954f da 2.9:1 y no lleva nada encima. */}
-              <hr className="mx-auto mt-6 w-16 border-t-4 border-oro sm:mx-0" />
-            </div>
-
-            {/*
-             * `alt=""` y `aria-hidden` porque es la identidad de la pantalla y no un
-             * dato: el título ya dice de qué se trata, y describir la foto no le
-             * agrega nada a quien navega con lector de pantalla antes de llegar al
-             * formulario.
-             *
-             * `w-auto` y no un cuadrado: la foto es apaisada, y forzarla a
-             * `h-28 w-28` la aplastaría.
-             */}
-            <Image
-              src="/Papa-Leon-XIV-con-la-Cruz-de-la-Unidad.webp"
-              alt=""
-              width={1000}
-              height={900}
-              priority
-              aria-hidden
-              className="h-24 w-auto shrink-0 sm:h-28"
-            />
-          </header>
-
-          <section className="px-5 py-6 sm:px-6">
-            <h2 className="font-stretch-condensed text-2xl leading-tight font-bold text-azul">
-              Cargar un Misionero
-            </h2>
-            <p className="mt-1 mb-5 text-base leading-relaxed text-tinta-suave">
-              Una persona de la Campaña, o un matrimonio: no entra al sistema ni
-              tiene contraseña, es quien puede tener una imagen a cargo. Se
-              carga acá mismo y aparece en la tabla de abajo.
-            </p>
-
+                {/* Decoración: #ac954f da 2.9:1 y no lleva nada encima. */}
+                <hr className="mx-auto mt-6 w-16 border-t-4 border-oro sm:mx-0" />
+              </div>
+            }
+          >
             <CrearMisioneroForm enListado disponibles={disponibles} />
-          </section>
+          </AltaPlegable>
         </div>
-
-        <FiltrosDeMisionero q={q} tenencia={tenencia} />
 
         <div className="overflow-hidden rounded-marco border-2 border-borde-suave bg-papel">
           <div className="border-b-2 border-borde-suave bg-lienzo px-5 py-4 sm:px-6">
@@ -359,6 +334,12 @@ export default async function MisioneroPage({
                 : `${pagina.total} personas y matrimonios`}
               {filtrado ? " con esos filtros" : " en tu territorio"}
             </p>
+          </div>
+
+          {/* El buscador va adentro del marco de la tabla, entre el título y las
+              filas: lo que filtra queda pegado a lo filtrado. */}
+          <div className="border-b-2 border-borde-suave px-5 py-4 sm:px-6">
+            <FiltrosDeMisionero q={q} tenencia={tenencia} />
           </div>
 
           {filas.length === 0 ? (
@@ -443,7 +424,9 @@ export default async function MisioneroPage({
                         </th>
 
                         <td className={CELDA}>
-                          <Tenencia tenencia={tenenciaDe.get(claveDeFila(fila))} />
+                          <Tenencia
+                            tenencia={tenenciaDe.get(claveDeFila(fila))}
+                          />
                         </td>
 
                         <td className={`${CELDA} text-tinta`}>
