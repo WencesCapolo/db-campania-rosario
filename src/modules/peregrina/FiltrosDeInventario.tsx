@@ -34,11 +34,15 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * "Apply" is two actions for one decision. The Código box does not: it is typed,
  * and navigating per keystroke would fight the keyboard.
  *
- * `plegable` hides the six selects behind a button and leaves the Código box out
- * in the open. On the listado that is the honest weighting — somebody arrives
- * holding an image and types its Código; filtering by Modalidad is the rarer
- * errand, and six selects above the rows push them off a phone. It defaults to
- * false because on the tablero the filters *are* the screen.
+ * `enLaTabla` is the listado's version, and it differs in two ways. It has no
+ * frame of its own: it sits inside the "Las imágenes" frame, in the strip under
+ * the title, so what filters is attached to what is filtered. And it hides the
+ * six selects behind a link and leaves the two searches out in the open, on one
+ * line with their button. On the listado that is the honest weighting — somebody
+ * arrives holding an image and types its Código; filtering by Modalidad is the
+ * rarer errand, and six selects above the rows push them off a phone. The
+ * tablero keeps the framed, always-open version, because there the filters
+ * *are* the screen.
  *
  * Two things deliberately stay outside the fold: the line that says which filters
  * are on, and "Limpiar filtros". A filtered view that looks unfiltered is exactly
@@ -85,7 +89,7 @@ export default function FiltrosDeInventario({
   destino,
   territorios,
   conBusqueda = true,
-  plegable = false,
+  enLaTabla = false,
 }: {
   filtros: FiltrosDeInventario;
   /** Where the filters apply — `/peregrina`, `/tablero`. */
@@ -97,8 +101,11 @@ export default function FiltrosDeInventario({
    * Off on the tablero: a count of one is not a figure.
    */
   conBusqueda?: boolean;
-  /** Puts the six selects behind a button. The Código box stays visible. */
-  plegable?: boolean;
+  /**
+   * The listado's layout: no frame, the searches on one line, the six selects
+   * behind a link, and the active filters as chips that each remove themselves.
+   */
+  enLaTabla?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -108,11 +115,12 @@ export default function FiltrosDeInventario({
     filtros.misionero ?? "",
   );
 
-  // Arranca abierto cuando la dirección ya trae filtros: quien llega a una vista
-  // filtrada — desde el tablero, o por un link pegado en un mensaje — tiene que ver
-  // los controles que la explican, no un botón que los esconde.
+  // Arranca abierto cuando la dirección ya trae un filtro de los plegados: quien
+  // llega a una vista filtrada — desde el tablero, o por un link pegado en un
+  // mensaje — tiene que ver el control que la explica, no un link que lo esconde.
+  // Las dos búsquedas no cuentan: esas están siempre a la vista.
   const [abiertos, setAbiertos] = useState(
-    () => !plegable || hayFiltros(filtros),
+    () => !enLaTabla || hayFiltrosPlegados(filtros),
   );
   // `useId` y no una constante: `aria-controls` tiene que apuntar a un id único, y
   // dos instancias en una misma pantalla lo dejarían apuntando a la otra.
@@ -137,26 +145,195 @@ export default function FiltrosDeInventario({
     setBorradorMisionero("");
     const params = new URLSearchParams(searchParams.toString());
     for (const clave of CLAVES_DE_FILTRO) params.delete(clave);
-    // `q` belongs to the Misionero list and is not one of the inventory filters,
-    // but "Limpiar" means all of them to the person pressing it.
     params.delete("q");
     params.delete(CLAVE_DE_PAGINA);
     const query = params.toString();
     empezar(() => router.push(query ? `${destino}?${query}` : destino));
   }
 
+  /** One chip's ✕. A typed search also empties its box, or it would come back. */
+  function quitar(clave: ClaveDeFiltro) {
+    if (clave === "identificacion") setBorrador("");
+    if (clave === "misionero") setBorradorMisionero("");
+    aplicar({ [clave]: "" });
+  }
+
   const activos = describir(filtros, territorios ?? []);
+  const conTerritorio = Boolean(territorios && territorios.length > 1);
+
+  const enviar = (e: React.FormEvent) => {
+    e.preventDefault();
+    aplicar({
+      identificacion: borrador.trim(),
+      misionero: borradorMisionero.trim(),
+    });
+  };
+
+  const selects = (
+    <>
+      <Eleccion
+        etiqueta="Estado"
+        opciones={OPCIONES_DE_ESTADO}
+        vacia="Todos"
+        value={filtros.estado ?? ""}
+        onChange={(e) => aplicar({ estado: e.target.value })}
+      />
+      <Eleccion
+        etiqueta="Modalidad"
+        opciones={OPCIONES_DE_MODALIDAD}
+        vacia="Todas"
+        value={filtros.modalidad ?? ""}
+        onChange={(e) => aplicar({ modalidad: e.target.value })}
+      />
+      <Eleccion
+        etiqueta="Tipo"
+        opciones={OPCIONES_DE_TIPO}
+        vacia="Peregrinas y auxiliares"
+        value={filtros.tipo ?? ""}
+        onChange={(e) => aplicar({ tipo: e.target.value })}
+      />
+      <Eleccion
+        etiqueta="¿Quién la tiene?"
+        opciones={OPCIONES_DE_TENENCIA}
+        vacia="No importa"
+        value={filtros.tenencia ?? ""}
+        onChange={(e) => aplicar({ tenencia: e.target.value })}
+      />
+
+      {conTerritorio && territorios && (
+        <>
+          <Eleccion
+            etiqueta="Diócesis/Localidad"
+            opciones={territorios.map((t) => ({
+              valor: t.id,
+              etiqueta: t.nombre,
+            }))}
+            vacia="Todo el país"
+            value={filtros.diocesisLocalidadId ?? ""}
+            onChange={(e) => aplicar({ diocesisLocalidadId: e.target.value })}
+          />
+          <Eleccion
+            etiqueta="Región"
+            opciones={OPCIONES_DE_REGION}
+            vacia="Todas"
+            value={filtros.region ?? ""}
+            onChange={(e) => aplicar({ region: e.target.value })}
+          />
+        </>
+      )}
+    </>
+  );
+
+  if (enLaTabla) {
+    return (
+      <form role="search" className="space-y-4" onSubmit={enviar}>
+        {/* Las dos búsquedas y su botón en un renglón desde `md`, con el botón
+            al ras de las cajas. Sin ayuda debajo de la etiqueta: «Código o
+            numeración anterior» ya la dice, y en un renglón una ayuda de dos
+            líneas desalinea las cajas. */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <div className="md:flex-1">
+            <Campo
+              etiqueta="Código o numeración anterior"
+              type="search"
+              inputMode="search"
+              placeholder="CBA JOV 0001"
+              value={borrador}
+              onChange={(e) => setBorrador(e.target.value)}
+            />
+          </div>
+          {/* El nombre de quien la tiene, y no un selector de Misioneros: una
+              Diócesis tiene cientos, y quien pregunta ya tiene el apellido en la
+              cabeza. Las dos cajas se envían con el mismo botón, porque son la
+              misma pregunta hecha por dos datos que suelen venir juntos. */}
+          <div className="md:flex-1">
+            <Campo
+              etiqueta="Quién la tiene"
+              type="search"
+              inputMode="search"
+              placeholder="Álvarez"
+              value={borradorMisionero}
+              onChange={(e) => setBorradorMisionero(e.target.value)}
+            />
+          </div>
+          <Boton type="submit" disabled={pendiente}>
+            {pendiente ? "Buscando…" : "Buscar"}
+          </Boton>
+        </div>
+
+        {/* Un link subrayado y no un botón con borde: abre más controles en el
+            mismo lugar, y nombra lo que esconde para que nadie tenga que abrirlo
+            para saber si lo que busca está ahí. Igual mide 54 px de alto. */}
+        <button
+          type="button"
+          aria-expanded={abiertos}
+          aria-controls={idDeLosFiltros}
+          onClick={() => setAbiertos((v) => !v)}
+          className="inline-flex min-h-12 items-center gap-2 text-left text-base font-semibold text-azul underline underline-offset-4"
+        >
+          {abiertos
+            ? "Menos filtros"
+            : `Más filtros: Estado, Modalidad, Tipo${conTerritorio ? ", territorio" : ""}`}
+          <span aria-hidden>{abiertos ? "▴" : "▾"}</span>
+        </button>
+
+        {/*
+          Se esconde con `display: none` — la utilidad `hidden` — y no con opacidad ni
+          alto cero: eso lo saca del orden de tabulación y del árbol de accesibilidad
+          de una vez, mientras el nodo sigue existiendo, que es lo que `aria-controls`
+          necesita para apuntar a algo. Un `<select>` tapado con `opacity-0` seguiría
+          siendo tabulable, y el teclado caería adentro de seis controles invisibles.
+
+          Es la clase y no el atributo `hidden`, y la razón es la desviación de esta
+          base: acá Tailwind entra sin capas, y el preflight sale *antes* que las
+          utilidades. `[hidden]` y `.grid` tienen la misma especificidad, así que gana
+          la que va después — la utilidad. El atributo no habría escondido nada.
+        */}
+        <div
+          id={idDeLosFiltros}
+          className={
+            abiertos ? "grid gap-4 sm:grid-cols-2 md:grid-cols-3" : "hidden"
+          }
+        >
+          {selects}
+        </div>
+
+        {/* Los filtros puestos, cada uno con su ✕ — historia 18, y la salida de
+            una vista filtrada sin reabrir lo que la filtró. Con uno solo, su ✕
+            ya es «limpiar»; con más, aparece el botón que los saca todos. */}
+        {activos.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+            <span className="text-base font-semibold text-tinta">
+              Filtros activos:
+            </span>
+            {activos.map(({ clave, texto }) => (
+              <button
+                key={clave}
+                type="button"
+                disabled={pendiente}
+                onClick={() => quitar(clave)}
+                aria-label={`Quitar el filtro ${texto}`}
+                className="inline-flex min-h-12 items-center gap-2 rounded-control border-2 border-azul bg-papel px-3 text-base font-semibold text-azul hover:bg-lienzo disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {texto}
+                <span aria-hidden>✕</span>
+              </button>
+            ))}
+            {activos.length > 1 && (
+              <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
+                Limpiar todos
+              </Boton>
+            )}
+          </div>
+        )}
+      </form>
+    );
+  }
 
   return (
     <form
       className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        aplicar({
-          identificacion: borrador.trim(),
-          misionero: borradorMisionero.trim(),
-        });
-      }}
+      onSubmit={enviar}
     >
       {conBusqueda && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -169,11 +346,6 @@ export default function FiltrosDeInventario({
             value={borrador}
             onChange={(e) => setBorrador(e.target.value)}
           />
-          {/* El nombre de quien la tiene, y no un selector de Misioneros: una
-              Diócesis tiene cientos, y quien pregunta ya tiene el apellido en la
-              cabeza. Las dos cajas se envían con el mismo botón, porque son la
-              misma pregunta hecha por dos datos que suelen venir juntos: alguien
-              trae una imagen y sabe de quién era. */}
           <Campo
             etiqueta="Buscar por quién la tiene"
             ayuda="Nombre o apellido del Misionero."
@@ -186,98 +358,23 @@ export default function FiltrosDeInventario({
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        {conBusqueda && (
-          <Boton type="submit" disabled={pendiente}>
-            {pendiente ? "Buscando…" : "Buscar"}
-          </Boton>
-        )}
+      {(conBusqueda || hayFiltros(filtros)) && (
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {conBusqueda && (
+            <Boton type="submit" disabled={pendiente}>
+              {pendiente ? "Buscando…" : "Buscar"}
+            </Boton>
+          )}
 
-        {plegable && (
-          <Boton
-            tono="secundario"
-            aria-expanded={abiertos}
-            aria-controls={idDeLosFiltros}
-            onClick={() => setAbiertos((v) => !v)}
-          >
-            {abiertos ? "Ocultar filtros" : "Mostrar filtros"}
-          </Boton>
-        )}
+          {hayFiltros(filtros) && (
+            <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
+              Limpiar filtros
+            </Boton>
+          )}
+        </div>
+      )}
 
-        {hayFiltros(filtros) && (
-          <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
-            Limpiar filtros
-          </Boton>
-        )}
-      </div>
-
-      {/*
-        Se esconde con `display: none` — la utilidad `hidden` — y no con opacidad ni
-        alto cero: eso lo saca del orden de tabulación y del árbol de accesibilidad
-        de una vez, mientras el nodo sigue existiendo, que es lo que `aria-controls`
-        necesita para apuntar a algo. Un `<select>` tapado con `opacity-0` seguiría
-        siendo tabulable, y el teclado caería adentro de seis controles invisibles.
-
-        Es la clase y no el atributo `hidden`, y la razón es la desviación de esta
-        base: acá Tailwind entra sin capas, y el preflight sale *antes* que las
-        utilidades. `[hidden]` y `.grid` tienen la misma especificidad, así que gana
-        la que va después — la utilidad. El atributo no habría escondido nada.
-      */}
-      <div
-        id={idDeLosFiltros}
-        className={abiertos ? "grid gap-4 sm:grid-cols-2" : "hidden"}
-      >
-        <Eleccion
-          etiqueta="Estado"
-          opciones={OPCIONES_DE_ESTADO}
-          vacia="Todos"
-          value={filtros.estado ?? ""}
-          onChange={(e) => aplicar({ estado: e.target.value })}
-        />
-        <Eleccion
-          etiqueta="Modalidad"
-          opciones={OPCIONES_DE_MODALIDAD}
-          vacia="Todas"
-          value={filtros.modalidad ?? ""}
-          onChange={(e) => aplicar({ modalidad: e.target.value })}
-        />
-        <Eleccion
-          etiqueta="Tipo"
-          opciones={OPCIONES_DE_TIPO}
-          vacia="Peregrinas y auxiliares"
-          value={filtros.tipo ?? ""}
-          onChange={(e) => aplicar({ tipo: e.target.value })}
-        />
-        <Eleccion
-          etiqueta="¿Quién la tiene?"
-          opciones={OPCIONES_DE_TENENCIA}
-          vacia="No importa"
-          value={filtros.tenencia ?? ""}
-          onChange={(e) => aplicar({ tenencia: e.target.value })}
-        />
-
-        {territorios && territorios.length > 1 && (
-          <>
-            <Eleccion
-              etiqueta="Diócesis/Localidad"
-              opciones={territorios.map((t) => ({
-                valor: t.id,
-                etiqueta: t.nombre,
-              }))}
-              vacia="Todo el país"
-              value={filtros.diocesisLocalidadId ?? ""}
-              onChange={(e) => aplicar({ diocesisLocalidadId: e.target.value })}
-            />
-            <Eleccion
-              etiqueta="Región"
-              opciones={OPCIONES_DE_REGION}
-              vacia="Todas"
-              value={filtros.region ?? ""}
-              onChange={(e) => aplicar({ region: e.target.value })}
-            />
-          </>
-        )}
-      </div>
+      <div className="grid gap-4 sm:grid-cols-2">{selects}</div>
 
       {/*
         Which filters are on, in words — story 18. A figure that looks wrong is
@@ -287,34 +384,49 @@ export default function FiltrosDeInventario({
       {activos.length > 0 && (
         <p className="text-base text-tinta" aria-live="polite">
           <span className="font-semibold">Filtros activos:</span>{" "}
-          {activos.join(" · ")}
+          {activos.map((a) => a.texto).join(" · ")}
         </p>
       )}
     </form>
   );
 }
 
-/** The active filters as the Campaña's own words, for the summary line. */
+type ClaveDeFiltro = (typeof CLAVES_DE_FILTRO)[number];
+
+/** Whether any filter that lives behind the fold is on. */
+function hayFiltrosPlegados(filtros: FiltrosDeInventario): boolean {
+  return CLAVES_DE_FILTRO.some(
+    (c) => c !== "identificacion" && c !== "misionero" && Boolean(filtros[c]),
+  );
+}
+
+/** The active filters as the Campaña's own words, each with the key it clears. */
 function describir(
   filtros: FiltrosDeInventario,
   territorios: TerritorioParaFiltrar[],
-): string[] {
-  const partes: string[] = [];
+): { clave: ClaveDeFiltro; texto: string }[] {
+  const partes: { clave: ClaveDeFiltro; texto: string }[] = [];
+  const poner = (clave: ClaveDeFiltro, texto: string) =>
+    partes.push({ clave, texto });
 
   if (filtros.identificacion) {
-    partes.push(`Código o numeración «${filtros.identificacion}»`);
+    poner("identificacion", `Código o numeración «${filtros.identificacion}»`);
   }
-  if (filtros.misionero) partes.push(`la tiene «${filtros.misionero}»`);
-  if (filtros.estado) partes.push(ESTADO_LABELS[filtros.estado]);
-  if (filtros.modalidad) partes.push(MODALIDAD_LABELS[filtros.modalidad]);
-  if (filtros.tipo) partes.push(TIPO_LABELS[filtros.tipo]);
-  if (filtros.tenencia) partes.push(TENENCIA_LABELS[filtros.tenencia]);
-  if (filtros.region) partes.push(`Región ${filtros.region}`);
+  if (filtros.misionero) poner("misionero", `la tiene «${filtros.misionero}»`);
+  if (filtros.estado) poner("estado", ESTADO_LABELS[filtros.estado]);
+  if (filtros.modalidad)
+    poner("modalidad", MODALIDAD_LABELS[filtros.modalidad]);
+  if (filtros.tipo) poner("tipo", TIPO_LABELS[filtros.tipo]);
+  if (filtros.tenencia) poner("tenencia", TENENCIA_LABELS[filtros.tenencia]);
+  if (filtros.region) poner("region", `Región ${filtros.region}`);
   if (filtros.diocesisLocalidadId) {
     const territorio = territorios.find(
       (t) => t.id === filtros.diocesisLocalidadId,
     );
-    partes.push(territorio ? territorio.nombre : "una Diócesis/Localidad");
+    poner(
+      "diocesisLocalidadId",
+      territorio ? territorio.nombre : "una Diócesis/Localidad",
+    );
   }
 
   return partes;

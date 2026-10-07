@@ -24,7 +24,7 @@ import AltaRapida from "./AltaRapida";
 import SeccionDeAlta from "./SeccionDeAlta";
 
 /**
- * Peregrinas — una pantalla, tres bloques: el alta, los filtros, la tabla.
+ * Peregrinas — una pantalla, dos marcos: el alta, y la tabla con sus filtros.
  *
  * Antes eran dos pantallas y una lista de tarjetas. Lo que cambió y por qué:
  *
@@ -43,8 +43,11 @@ import SeccionDeAlta from "./SeccionDeAlta";
  *  - **Los filtros están plegados y el buscador no.** Quien llega con la imagen en
  *    la mano tipea su Código; filtrar por Modalidad es el mandado raro. Seis
  *    selects abiertos arriba de las filas empujan las filas afuera de un teléfono.
- *    Lo que queda a la vista con los filtros cerrados es la línea que dice cuáles
- *    están puestos y el botón que los limpia — el resto está en el componente.
+ *    Lo que queda a la vista con los filtros cerrados son los que están puestos,
+ *    cada uno con su ✕ — el resto está en el componente.
+ *  - **Y van adentro del marco de la tabla**, en la franja del título, debajo de
+ *    la cifra que cambian: lo que filtra queda pegado a lo filtrado, como en
+ *    Misioneros.
  *
  * Hay un `Volver a Inicio` arriba de todo. El logo de la barra ya va a `/dashboard`,
  * pero "el logo es el inicio" es una convención de quien navega seguido, y estos
@@ -179,13 +182,6 @@ export default async function PeregrinaListaPage({
           </SeccionDeAlta>
         </div>
 
-        <FiltrosDeInventario
-          filtros={filtros}
-          destino="/peregrina"
-          territorios={territorios}
-          plegable
-        />
-
         <div className="overflow-hidden rounded-marco border-2 border-borde-suave bg-papel">
           <div className="border-b-2 border-borde-suave bg-lienzo px-5 py-4 sm:px-6">
             <h2 className="font-stretch-condensed text-2xl leading-tight font-bold text-azul">
@@ -198,6 +194,17 @@ export default async function PeregrinaListaPage({
               {pagina.total === 1 ? "1 imagen" : `${pagina.total} imágenes`}
               {filtrado ? " con esos filtros" : " en tu territorio"}
             </p>
+
+            {/* Los filtros van en la franja del título, pegados a lo que
+                filtran y debajo de la cifra que cambian. */}
+            <div className="mt-4">
+              <FiltrosDeInventario
+                filtros={filtros}
+                destino="/peregrina"
+                territorios={territorios}
+                enLaTabla
+              />
+            </div>
           </div>
 
           {peregrinas.length === 0 ? (
