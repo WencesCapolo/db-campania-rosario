@@ -21,6 +21,7 @@ import { nombreDeTenedor } from "@/lib/formato";
 import FiltrosDeInventario from "@/modules/peregrina/FiltrosDeInventario";
 import Volver from "@/components/Volver";
 import AltaRapida from "./AltaRapida";
+import SeccionDeAlta from "./SeccionDeAlta";
 
 /**
  * Peregrinas — una pantalla, tres bloques: el alta, los filtros, la tabla.
@@ -158,16 +159,24 @@ export default async function PeregrinaListaPage({
             />
           </header>
 
-          <section className="px-5 py-6 sm:px-6">
-            <h2 className="font-stretch-condensed text-2xl leading-tight font-bold text-azul">
-              Registrar una imagen
-            </h2>
-            <p className="mt-1 mb-5 text-base leading-relaxed text-tinta-suave">
-              Se carga acá mismo y aparece en la tabla de abajo.
-            </p>
-
-            <AltaRapida />
-          </section>
+          {/* Dos altas plegables, una por rotulación — ADR 0012. `<details>`
+              nativo: teclado, foco y el anuncio de abierto/cerrado los da el
+              navegador. Las dos arrancan cerradas y se pueden abrir a la vez;
+              la bajada de cada una dice qué tiene escrito la imagen, que es lo
+              que quien la tiene en la mano sabe antes que el nombre de la
+              sección. */}
+          <SeccionDeAlta
+            titulo="Registrar una imagen nueva"
+            bajada="Todavía no tiene nada escrito: el sistema le da un Código."
+          >
+            <AltaRapida rotulacion="nueva" />
+          </SeccionDeAlta>
+          <SeccionDeAlta
+            titulo="Registrar una imagen vieja"
+            bajada="Ya tiene una numeración escrita de antes del formato de la Campaña."
+          >
+            <AltaRapida rotulacion="vieja" />
+          </SeccionDeAlta>
         </div>
 
         <FiltrosDeInventario
