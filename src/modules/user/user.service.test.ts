@@ -380,3 +380,35 @@ describe("un Usuario dado de baja sale de las listas", () => {
     expect(releida.createdById).toBe(referente.id);
   });
 });
+
+describe("un admin administra a otros admins — 2026-07-25", () => {
+  it("asciende a un Usuario existente a admin", async () => {
+    const admin = await crearActor({ rol: "admin" });
+
+    const actualizado = await UserService.actualizar(admin, asesor.id, {
+      rol: "admin",
+      diocesisLocalidadId: null,
+    });
+
+    expect(actualizado.role).toBe("admin");
+  });
+
+  it("cambia el rol de otro admin", async () => {
+    const admin = await crearActor({ rol: "admin" });
+    const otro = await crearActor({ rol: "admin" });
+
+    const actualizado = await UserService.actualizar(admin, otro.id, {
+      rol: "asesor_nacional",
+    });
+
+    expect(actualizado.role).toBe("asesor_nacional");
+  });
+
+  it("nadie se cambia el rol a sí mismo: el último admin no se puede bajar solo", async () => {
+    const admin = await crearActor({ rol: "admin" });
+
+    await expect(
+      UserService.actualizar(admin, admin.id, { rol: "asesor_nacional" })
+    ).rejects.toThrow(/tu propio rol/);
+  });
+});

@@ -77,7 +77,7 @@ export default async function HistorialPage({
 
         <div className="flex flex-wrap items-center gap-3">
           <EstadoDePeregrina estado={peregrina.estado} />
-          {peregrina.deBaja && <Insignia tono="neutro">Dada de baja</Insignia>}
+          {peregrina.deBaja && <Insignia tono="neutro">Fuera del inventario</Insignia>}
         </div>
 
         <p className="text-base text-tinta-suave">

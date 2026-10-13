@@ -1,5 +1,6 @@
 import {
   PeregrinaRepository,
+  codigoRepetidoEn,
   type PeregrinaConTerritorio,
 } from "./peregrina.repository";
 import {
@@ -80,6 +81,8 @@ export class PeregrinaService {
       identificacion: identificacionDe(row.peregrina),
       codigo: row.peregrina.codigo,
       numeracionAnterior: row.peregrina.numeracionAnterior,
+      codigoNum: row.peregrina.codigoNum,
+      fechaConsagracion: row.peregrina.fechaConsagracion,
       tipo: row.peregrina.tipo,
       estado: row.peregrina.estado,
       modalidad: row.peregrina.modalidad,
@@ -273,25 +276,38 @@ export class PeregrinaService {
     // Actor's scope, so it is refused for the same reason reading it would be.
     exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
-    // An image that already carries a Numeración anterior is registered by it,
-    // and no número is spent: a Código nobody wrote on the image identifies
-    // nothing. It gets one later, through `generarCodigo` — ADR 0012.
-    const identificacion =
-      input.numeracionAnterior !== undefined
-        ? { numeracionAnterior: input.numeracionAnterior }
-        : await PeregrinaService.codigoNuevo(
+    // Three ways in. A typed número makes the Código from it — ADR 0013. An
+    // image that already carries a Numeración anterior and no número is
+    // registered by it, and no número is spent: a Código nobody wrote on the
+    // image identifies nothing (ADR 0012). Neither: the next free número.
+    const codigo =
+      input.numero !== undefined
+        ? await PeregrinaService.codigoEscrito(
             territorio.provincia,
-            input.modalidad
-          );
+            input.modalidad,
+            input.numero
+          )
+        : input.numeracionAnterior !== undefined
+          ? {}
+          : await PeregrinaService.codigoNuevo(
+              territorio.provincia,
+              input.modalidad
+            );
 
-    const row = await PeregrinaRepository.create({
-      ...identificacion,
-      tipo: input.tipo,
-      estado: "activa",
-      modalidad: input.modalidad,
-      diocesisLocalidadId: territorio.diocesis.id,
-      createdById: actor.id,
-    });
+    const row = await PeregrinaService.conCodigoUnico(() =>
+      PeregrinaRepository.create({
+        ...codigo,
+        ...(input.numeracionAnterior !== undefined && {
+          numeracionAnterior: input.numeracionAnterior,
+        }),
+        fechaConsagracion: input.fechaConsagracion ?? null,
+        tipo: input.tipo,
+        estado: "activa",
+        modalidad: input.modalidad,
+        diocesisLocalidadId: territorio.diocesis.id,
+        createdById: actor.id,
+      })
+    );
 
     return PeregrinaService.toDTO(row);
   }
@@ -310,7 +326,8 @@ export class PeregrinaService {
    */
   static async generarCodigo(
     actor: CurrentUser,
-    id: string
+    id: string,
+    numero?: number
   ): Promise<PeregrinaDTO> {
     const operacion = "PeregrinaService.generarCodigo";
     const alcance = derivarAlcance(actor, operacion);
@@ -328,16 +345,26 @@ export class PeregrinaService {
     }
     if (actual.peregrina.bajaAt !== null) {
       throw new ConflictoError(
-        `La Peregrina ${identificacionDe(actual.peregrina)} está dada de baja. ` +
-          "Reactivala antes de generarle un Código."
+        `La Peregrina ${identificacionDe(actual.peregrina)} está marcada como ` +
+          "extraviada. Recuperala antes de generarle un Código."
       );
     }
 
-    const { codigo, codigoNum } = await PeregrinaService.codigoNuevo(
-      actual.provincia,
-      actual.peregrina.modalidad
+    // A número typed by whoever is holding the image, or the next free one.
+    const { codigo, codigoNum } =
+      numero !== undefined
+        ? await PeregrinaService.codigoEscrito(
+            actual.provincia,
+            actual.peregrina.modalidad,
+            numero
+          )
+        : await PeregrinaService.codigoNuevo(
+            actual.provincia,
+            actual.peregrina.modalidad
+          );
+    const row = await PeregrinaService.conCodigoUnico(() =>
+      PeregrinaRepository.ponerCodigo(id, codigo, codigoNum)
     );
-    const row = await PeregrinaRepository.ponerCodigo(id, codigo, codigoNum);
     if (!row) {
       throw new ConflictoError(
         "Otra persona acaba de generarle un Código a esa Peregrina."
@@ -359,6 +386,48 @@ export class PeregrinaService {
     };
   }
 
+  /**
+   * The Código a typed número makes, refused if some image already carries it
+   * — the one check ADR 0013 asks for. Not that it follows the previous one:
+   * images were numbered by hand for years, and gaps are real.
+   *
+   * Every image counts, the ones de baja included, because the unique index
+   * does and because a Código written on a lost statue is still written on it.
+   */
+  private static async codigoEscrito(
+    provincia: { abreviatura: string },
+    modalidad: Modalidad,
+    numero: number,
+    exceptoId?: string
+  ): Promise<{ codigo: string; codigoNum: number }> {
+    const codigo = buildCodigo(provincia.abreviatura, modalidad, numero);
+    if (await PeregrinaRepository.existeCodigo(codigo, exceptoId)) {
+      throw new ConflictoError(PeregrinaService.codigoRepetido(codigo));
+    }
+    return { codigo, codigoNum: numero };
+  }
+
+  private static codigoRepetido(codigo: string): string {
+    return `Ya hay una Peregrina con el Código ${codigo}. Revisá el número.`;
+  }
+
+  /**
+   * A write that sets a Código, with the unique index's refusal turned into the
+   * same sentence the check above gives. The check and the write are two
+   * statements, and two people can type the same número between them.
+   */
+  private static async conCodigoUnico<T>(escribir: () => Promise<T>): Promise<T> {
+    try {
+      return await escribir();
+    } catch (error) {
+      const codigo = codigoRepetidoEn(error);
+      if (codigo !== null) {
+        throw new ConflictoError(PeregrinaService.codigoRepetido(codigo));
+      }
+      throw error;
+    }
+  }
+
   static async update(
     actor: CurrentUser,
     id: string,
@@ -367,8 +436,14 @@ export class PeregrinaService {
     const operacion = "PeregrinaService.update";
     const alcance = derivarAlcance(actor, operacion);
 
-    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
+    const actual = await PeregrinaService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
 
+    let provincia = actual.provincia;
     if (input.diocesisLocalidadId !== undefined) {
       const territorio = await TerritorioRepository.findDiocesisLocalidadById(
         input.diocesisLocalidadId
@@ -380,29 +455,102 @@ export class PeregrinaService {
       // Both ends of a move are checked. Otherwise a Referente Local could push
       // a record into the next Diócesis and lose sight of it in the same motion.
       exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
+      provincia = territorio.provincia;
     }
 
-    // The Código is not recomposed when the territory changes. It is written on
-    // the image; the system follows reality, not the other way around.
-    const row = await PeregrinaRepository.update(id, {
+    // The Código is not recomposed when the territory or the Modalidad change.
+    // It is written on the image; the system follows reality, not the other way
+    // around. Only a número typed in the edit composes a new one, from the
+    // Provincia and Modalidad the image ends up with — ADR 0013.
+    const modalidad = input.modalidad ?? actual.peregrina.modalidad;
+    const codigo =
+      input.numero === undefined
+        ? {}
+        : input.numero === null
+          ? { codigo: null, codigoNum: null }
+          : await PeregrinaService.codigoEscrito(
+              provincia,
+              modalidad,
+              input.numero,
+              id
+            );
+
+    const numeracionAnterior =
+      input.numeracionAnterior !== undefined
+        ? input.numeracionAnterior
+        : actual.peregrina.numeracionAnterior;
+    const quedaCodigo =
+      "codigo" in codigo ? codigo.codigo : actual.peregrina.codigo;
+    if (quedaCodigo === null && numeracionAnterior === null) {
+      throw new ValidacionError(
+        "La imagen tiene que quedar con un Código o con su numeración anterior."
+      );
+    }
+
+    const row = await PeregrinaService.conCodigoUnico(() =>
+      PeregrinaRepository.update(id, {
+      ...codigo,
+      ...(input.numeracionAnterior !== undefined && {
+        numeracionAnterior: input.numeracionAnterior,
+      }),
+      ...(input.fechaConsagracion !== undefined && {
+        fechaConsagracion: input.fechaConsagracion ?? null,
+      }),
       ...(input.tipo !== undefined && { tipo: input.tipo }),
       ...(input.estado !== undefined && { estado: input.estado }),
       ...(input.modalidad !== undefined && { modalidad: input.modalidad }),
       ...(input.diocesisLocalidadId !== undefined && {
         diocesisLocalidadId: input.diocesisLocalidadId,
       }),
-    });
+      })
+    );
 
     return PeregrinaService.toDTO(row);
   }
 
   /**
-   * Takes a Peregrina out of the active inventory without erasing its history —
-   * user story 16.
+   * Destroys a Peregrina — ADR 0013. For an image registered by mistake, which
+   * is why it is refused once the image has been in anybody's charge: every
+   * Asignación has to keep resolving to a real Código, so an image with history
+   * is marked extraviada (`darDeBaja`) instead, and the refusal says so.
+   */
+  static async eliminar(actor: CurrentUser, id: string): Promise<void> {
+    const operacion = "PeregrinaService.eliminar";
+    const alcance = derivarAlcance(actor, operacion);
+
+    const actual = await PeregrinaService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
+    const nombre = identificacionDe(actual.peregrina);
+
+    const conHistorial = () =>
+      new ConflictoError(
+        `No se puede eliminar la Peregrina ${nombre}: ya estuvo a cargo de ` +
+          "alguien, y ese historial tiene que seguir nombrándola. Si no está " +
+          "más, marcala como extraviada."
+      );
+
+    // Unscoped, like the guard on the baja: a period registered from another
+    // territory is history all the same.
+    if (await AsignacionRepository.tieneHistorialSinAlcance(id)) {
+      throw conHistorial();
+    }
+    if (!(await PeregrinaRepository.eliminarSiNuncaAsignada(id))) {
+      throw conHistorial();
+    }
+  }
+
+  /**
+   * Marks a Peregrina extraviada: out of the active inventory, its history
+   * intact — user story 16, renamed by ADR 0013. The Estado becomes
+   * `extraviada` in the same write, so the record does not say two things.
    *
-   * There is no hard delete any more, and this method is why. An Asignación that
-   * cannot resolve its Código is a row of unreadable ids, so the record stays and
-   * only stops appearing in lists.
+   * An image with history is never destroyed (`eliminar` refuses it). An
+   * Asignación that cannot resolve its Código is a row of unreadable ids, so
+   * the record stays and only stops appearing in lists.
    *
    * Refused while somebody still has the image. A Peregrina that is physically in
    * a Misionero's house has not left the inventory, whatever the paperwork says,
@@ -432,13 +580,15 @@ export class PeregrinaService {
       throw new ConflictoError(
         `No se puede dar de baja la Peregrina ${identificacionDe(actual.peregrina)}: ` +
           `todavía está a cargo de ${nombreDeTenedor(abierta.tenedor)}. ` +
-          "Registrá primero que fue devuelta."
+          "Registrá primero que fue devuelta. Si se perdió estando a su " +
+          "cargo, cambiá su Estado a Extraviada: así queda dicho quién la " +
+          "tuvo por última vez."
       );
     }
 
     const row = await PeregrinaRepository.darDeBaja(id);
     if (!row) {
-      throw new ConflictoError("Esa Peregrina ya estaba dada de baja.");
+      throw new ConflictoError("Esa Peregrina ya estaba marcada como extraviada.");
     }
 
     return PeregrinaService.leerUna(id);
@@ -454,7 +604,9 @@ export class PeregrinaService {
     await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
 
     const row = await PeregrinaRepository.reactivar(id);
-    if (!row) throw new ConflictoError("Esa Peregrina no estaba dada de baja.");
+    if (!row) {
+      throw new ConflictoError("Esa Peregrina no estaba marcada como extraviada.");
+    }
 
     return PeregrinaService.leerUna(id);
   }

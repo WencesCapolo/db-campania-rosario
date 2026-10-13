@@ -11,6 +11,7 @@ import {
   isNotNull,
   ilike,
   or,
+  ne,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
@@ -566,9 +567,6 @@ export class PeregrinaRepository {
       Omit<
         PeregrinaRow,
         | "id"
-        | "codigo"
-        | "codigoNum"
-        | "numeracionAnterior"
         | "createdById"
         | "createdAt"
         | "misioneroActualId"
@@ -619,7 +617,9 @@ export class PeregrinaRepository {
   static async darDeBaja(id: string): Promise<PeregrinaRow | undefined> {
     const [row] = await db
       .update(peregrina)
-      .set({ bajaAt: new Date(), updatedAt: new Date() })
+      // Extraviada — ADR 0013. The baja is how the Campaña marks an image lost,
+      // so the Estado says the same thing the baja does.
+      .set({ bajaAt: new Date(), estado: "extraviada", updatedAt: new Date() })
       .where(and(eq(peregrina.id, id), isNull(peregrina.bajaAt)))
       .returning();
     return row;
@@ -628,10 +628,54 @@ export class PeregrinaRepository {
   static async reactivar(id: string): Promise<PeregrinaRow | undefined> {
     const [row] = await db
       .update(peregrina)
-      .set({ bajaAt: null, updatedAt: new Date() })
+      .set({ bajaAt: null, estado: "activa", updatedAt: new Date() })
       .where(and(eq(peregrina.id, id), sql`${peregrina.bajaAt} is not null`))
       .returning();
     return row;
+  }
+
+  /**
+   * Whether a Código is already written on some image, de baja or not — the
+   * unique index covers every row, so this does too. Unscoped: a Código is
+   * unique across the country, whoever can see the other image.
+   */
+  static async existeCodigo(
+    codigo: string,
+    exceptoId?: string,
+  ): Promise<boolean> {
+    const [fila] = await db
+      .select({ id: peregrina.id })
+      .from(peregrina)
+      .where(
+        and(
+          eq(peregrina.codigo, codigo),
+          exceptoId ? ne(peregrina.id, exceptoId) : undefined,
+        ),
+      )
+      .limit(1);
+    return fila !== undefined;
+  }
+
+  /**
+   * Destroys an image that was never in anybody's charge — ADR 0013.
+   *
+   * The `not exists` is the guard and not a courtesy: the check the service
+   * makes first and this delete are two statements, and an Asignación opened
+   * between them would otherwise be left pointing at nothing. The table is
+   * named in SQL rather than imported because the module chain runs
+   * peregrina → asignacion, never back. Returns whether a row was deleted.
+   */
+  static async eliminarSiNuncaAsignada(id: string): Promise<boolean> {
+    const borradas = await db
+      .delete(peregrina)
+      .where(
+        and(
+          eq(peregrina.id, id),
+          sql`not exists (select 1 from "asignacion" where "asignacion"."peregrina_id" = ${peregrina.id})`,
+        ),
+      )
+      .returning({ id: peregrina.id });
+    return borradas.length > 0;
   }
 
   // ── Agregaciones ───────────────────────────────────────────────────────────
@@ -736,7 +780,10 @@ export class PeregrinaRepository {
     alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<{ desde: number | null; total: number }[]> {
-    const anio = sql`coalesce(${misionero.anioConsagracion}, least(${esposoA.anioConsagracion}, ${esposoB.anioConsagracion}))`;
+    // The year of the Fecha de consagración (ADR 0013). `least` over two dates
+    // is the earlier one, so the year taken is still the older spouse's.
+    const fechaDe = sql`coalesce(${misionero.fechaConsagracion}, least(${esposoA.fechaConsagracion}, ${esposoB.fechaConsagracion}))`;
+    const anio = sql`cast(extract(year from ${fechaDe}) as int)`;
     const desde = sql<number | null>`(${anio} / 5) * 5`;
     return agregando({ desde })
       .where(and(condiciones(alcance, filtros), CON_TENEDOR))
@@ -792,4 +839,28 @@ export class PeregrinaRepository {
         : consulta,
     );
   }
+}
+
+const CLAVE_CODIGO = "peregrina_codigo_unique";
+
+/**
+ * The Código the unique index just refused, or null when `error` is anything
+ * else — ADR 0013. Drizzle wraps the driver's error, so the `23505`, the
+ * constraint and Postgres's `Key (codigo)=(…)` detail are down the `cause`
+ * chain; this walks it the way `esSegundaAsignacionAbierta` does. Here because
+ * the repository is the only layer that should know a constraint's name.
+ */
+export function codigoRepetidoEn(error: unknown): string | null {
+  for (let actual: unknown = error; actual instanceof Error; actual = actual.cause) {
+    const { code, constraint, detail } = actual as {
+      code?: unknown;
+      constraint?: unknown;
+      detail?: unknown;
+    };
+    if (code === "23505" && constraint === CLAVE_CODIGO) {
+      const m = typeof detail === "string" ? /=\((.*)\)/.exec(detail) : null;
+      return m?.[1] ?? "ese";
+    }
+  }
+  return null;
 }

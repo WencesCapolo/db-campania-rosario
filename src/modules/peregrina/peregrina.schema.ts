@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  date,
   index,
   check,
 } from "drizzle-orm/pg-core";
@@ -114,6 +115,13 @@ export const peregrina = pgTable(
      * find it, but from then on the Código is what identifies it.
      */
     numeracionAnterior: text("numeracion_anterior"),
+
+    /**
+     * The day the image was consecrated, when somebody knows it. Optional on
+     * every alta and editable afterwards — ADR 0013. A `date` and not a
+     * timestamp: it is a day on a calendar, and a time zone would move it.
+     */
+    fechaConsagracion: date("fecha_consagracion", { mode: "string" }),
 
     tipo: peregrinaTipoEnum("tipo").notNull().default("peregrina"),
     estado: peregrinaEstadoEnum("estado").notNull().default("activa"),

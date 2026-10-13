@@ -59,7 +59,7 @@ beforeEach(async () => {
     diocesisLocalidadId: territorio.villaMaria.id,
     createdById: referente.id,
     apellido: "Álvarez",
-    anioConsagracion: 2012,
+    fechaConsagracion: "2012-01-01",
   });
   const m2 = await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
@@ -272,10 +272,10 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
     const consagrados = await MatrimonioService.create(referente, {
       nombreA: "Elena",
       apellidoA: "Duarte",
-      anioConsagracionA: 2003,
+      fechaConsagracionA: "2003-01-01",
       nombreB: "Pablo",
       apellidoB: "Duarte",
-      anioConsagracionB: 1997,
+      fechaConsagracionB: "1997-01-01",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
     const imagen = await crearPeregrinaDirecta({

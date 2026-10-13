@@ -48,6 +48,8 @@ function guardada(
     identificacion: codigo ?? numeracionAnterior ?? "",
     codigo,
     numeracionAnterior,
+    codigoNum: codigo ? 1 : null,
+    fechaConsagracion: null,
     tipo: "peregrina",
     estado: "activa",
     modalidad: "JOV",
@@ -120,7 +122,7 @@ describe("el alta de una imagen vieja", () => {
 });
 
 describe("el alta de una imagen nueva", () => {
-  it("no pide numeración y no la manda", async () => {
+  it("no pide numeración anterior, y sin número no manda ninguno", async () => {
     createPeregrinaAction.mockResolvedValue({
       ok: true,
       data: guardada("CBA JOV 0001", null),
@@ -128,7 +130,7 @@ describe("el alta de una imagen nueva", () => {
     const pantalla = await render(<AltaRapida rotulacion="nueva" />);
 
     expect(
-      pantalla.container.querySelector("input:not([type=hidden])"),
+      pantalla.container.querySelector("input[autocomplete=off]:not([inputmode=numeric])"),
     ).toBeNull();
 
     await userEvent.selectOptions(
@@ -136,13 +138,83 @@ describe("el alta de una imagen nueva", () => {
       "dl-1",
     );
     await userEvent.click(
-      pantalla.getByRole("button", { name: "Registrar y generar el Código" }),
+      pantalla.getByRole("button", { name: "Registrar con su Código" }),
     );
 
-    expect(createPeregrinaAction.mock.calls[0]?.[0]).not.toHaveProperty(
-      "numeracionAnterior",
-    );
+    const enviado = createPeregrinaAction.mock.calls[0]?.[0];
+    expect(enviado).not.toHaveProperty("numeracionAnterior");
+    expect(enviado).not.toHaveProperty("numero");
     await expect.element(pantalla.getByText("CBA JOV 0001")).toBeVisible();
+  });
+
+  it("manda el número escrito, como número — ADR 0013", async () => {
+    createPeregrinaAction.mockResolvedValue({
+      ok: true,
+      data: guardada("CBA JOV 0042", null),
+    });
+    const pantalla = await render(<AltaRapida rotulacion="nueva" />);
+
+    await userEvent.fill(pantalla.getByLabelText("Número (opcional)"), "42");
+    await userEvent.selectOptions(
+      pantalla.getByLabelText("Diócesis/Localidad"),
+      "dl-1",
+    );
+    await userEvent.click(
+      pantalla.getByRole("button", { name: "Registrar con su Código" }),
+    );
+
+    expect(createPeregrinaAction).toHaveBeenCalledWith(
+      expect.objectContaining({ numero: 42 }),
+    );
+    // El siguiente del lote empieza sin número.
+    await expect
+      .element(pantalla.getByLabelText("Número (opcional)"))
+      .toHaveValue("");
+  });
+
+  it("avisa al salir si el número tiene letras, y no guarda", async () => {
+    const pantalla = await render(<AltaRapida rotulacion="nueva" />);
+    const campo = pantalla.getByLabelText("Número (opcional)");
+
+    await userEvent.fill(campo, "4a");
+    await userEvent.tab();
+
+    await expect
+      .element(pantalla.getByText(/tiene que ser un número entero/))
+      .toBeVisible();
+
+    await userEvent.selectOptions(
+      pantalla.getByLabelText("Diócesis/Localidad"),
+      "dl-1",
+    );
+    await userEvent.click(
+      pantalla.getByRole("button", { name: "Registrar con su Código" }),
+    );
+    expect(createPeregrinaAction).not.toHaveBeenCalled();
+  });
+
+  it("manda la Fecha de consagración cuando se la pone", async () => {
+    createPeregrinaAction.mockResolvedValue({
+      ok: true,
+      data: guardada("CBA JOV 0001", null),
+    });
+    const pantalla = await render(<AltaRapida rotulacion="nueva" />);
+
+    await userEvent.fill(
+      pantalla.getByLabelText("Fecha de consagración de la imagen (opcional)"),
+      "1998-10-18",
+    );
+    await userEvent.selectOptions(
+      pantalla.getByLabelText("Diócesis/Localidad"),
+      "dl-1",
+    );
+    await userEvent.click(
+      pantalla.getByRole("button", { name: "Registrar con su Código" }),
+    );
+
+    expect(createPeregrinaAction).toHaveBeenCalledWith(
+      expect.objectContaining({ fechaConsagracion: "1998-10-18" }),
+    );
   });
 });
 

@@ -5,7 +5,8 @@ import {
   type CentroTipo,
 } from "./misionero.schema";
 import type { MisioneroEstado } from "./misionero.schema";
-import type { MisioneroDTO } from "./misionero.types";
+import { emailOpcional, type MisioneroDTO } from "./misionero.types";
+import { fechaDeConsagracionSchema } from "@/lib/consagracion";
 
 // ── El Tenedor ────────────────────────────────────────────────────────────────
 
@@ -120,16 +121,6 @@ const telefono = z
   .max(40, "El teléfono no puede superar los 40 caracteres.")
   .nullish();
 
-const anioConsagracion = z
-  .number()
-  .int()
-  .min(1900, "El año de consagración no puede ser anterior a 1900.")
-  .refine(
-    (a) => a <= new Date().getFullYear(),
-    "El año de consagración no puede estar en el futuro."
-  )
-  .nullish();
-
 /**
  * Both spouses, in one submit.
  *
@@ -139,20 +130,22 @@ const anioConsagracion = z
  * of the rule written for the client (ADR 0008).
  *
  * The territory and the Centro appear once, because a household has one of each
- * and asking twice invites two answers that disagree. The teléfono and the Año
- * de consagración are per spouse: two people are consecrated in two different
+ * and asking twice invites two answers that disagree. The teléfono, the email and the
+ * Fecha de consagración are per spouse: two people are consecrated in two different
  * years, and a household has two numbers.
  */
 export const createMatrimonioSchema = z.object({
   nombreA: nombrePersona("nombre"),
   apellidoA: nombrePersona("apellido"),
   telefonoA: telefono,
-  anioConsagracionA: anioConsagracion,
+  emailA: emailOpcional,
+  fechaConsagracionA: fechaDeConsagracionSchema,
 
   nombreB: nombrePersona("nombre"),
   apellidoB: nombrePersona("apellido"),
   telefonoB: telefono,
-  anioConsagracionB: anioConsagracion,
+  emailB: emailOpcional,
+  fechaConsagracionB: fechaDeConsagracionSchema,
 
   diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),

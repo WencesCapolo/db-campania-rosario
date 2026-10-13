@@ -12,6 +12,7 @@ import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreDeTenedor } from "@/lib/formato";
 import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
+import { fechaDeConsagracion } from "@/lib/consagracion";
 import BajaDePeregrina from "./BajaDePeregrina";
 import GenerarCodigo from "./GenerarCodigo";
 
@@ -64,7 +65,9 @@ export default async function PeregrinaPage({
 
         <div className="flex flex-wrap items-center gap-3">
           <EstadoDePeregrina estado={peregrina.estado} />
-          {peregrina.deBaja && <Insignia tono="neutro">Dada de baja</Insignia>}
+          {peregrina.deBaja && (
+            <Insignia tono="neutro">Fuera del inventario</Insignia>
+          )}
         </div>
 
         <p className="text-base text-tinta-suave">
@@ -72,6 +75,16 @@ export default async function PeregrinaPage({
           {MODALIDAD_LABELS[peregrina.modalidad]} ·{" "}
           {peregrina.diocesisLocalidad.nombre}, {peregrina.provincia}
         </p>
+
+        {peregrina.fechaConsagracion && (
+          <p className="text-base text-tinta-suave">
+            Consagrada el {fechaDeConsagracion(peregrina.fechaConsagracion)}
+          </p>
+        )}
+
+        <BotonEnlace tono="secundario" href={`/peregrina/${peregrina.id}/editar`}>
+          Editar sus datos
+        </BotonEnlace>
       </header>
 
       <Tarjeta titulo="¿Quién la tiene ahora?">
@@ -171,12 +184,12 @@ export default async function PeregrinaPage({
           <div className="space-y-4">
             <p className="text-base leading-relaxed">
               Esta imagen está registrada con la numeración que ya tenía
-              escrita. Cuando se le escriba un Código nuevo, generalo acá
-              primero.
+              escrita. Cuando se le escriba un Código nuevo, ponéselo acá.
             </p>
             {peregrina.deBaja ? (
               <p className="text-base text-tinta-suave">
-                Para generarle un Código, primero hay que volver a darla de alta.
+                Está marcada como extraviada. Para ponerle un Código, primero
+                hay que recuperarla.
               </p>
             ) : (
               <GenerarCodigo
@@ -193,6 +206,7 @@ export default async function PeregrinaPage({
           id={peregrina.id}
           identificacion={peregrina.identificacion}
           deBaja={peregrina.deBaja}
+          conHistorial={historial.length > 0}
         />
       </Tarjeta>
     </main>

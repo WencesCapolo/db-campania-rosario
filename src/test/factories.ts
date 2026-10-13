@@ -248,14 +248,14 @@ export async function crearMisioneroDirecto(opts: {
   createdById: string;
   nombre?: string;
   apellido?: string;
-  anioConsagracion?: number;
+  fechaConsagracion?: string;
 }): Promise<{ id: string }> {
   const [row] = await db
     .insert(misionero)
     .values({
       nombre: opts.nombre ?? "María",
       apellido: opts.apellido ?? `Pérez ${siguiente()}`,
-      anioConsagracion: opts.anioConsagracion ?? null,
+      fechaConsagracion: opts.fechaConsagracion ?? null,
       estado: "activo",
       diocesisLocalidadId: opts.diocesisLocalidadId,
       createdById: opts.createdById,

@@ -83,6 +83,7 @@ function misionero(id: string, nombre: string, apellido: string): MisioneroDTO {
     nombre,
     apellido,
     telefono: null,
+    email: null,
     estado: "activo",
     diocesisLocalidad: VILLA_MARIA,
     provincia: "Córdoba",
@@ -90,7 +91,7 @@ function misionero(id: string, nombre: string, apellido: string): MisioneroDTO {
     deBaja: false,
     centroTipo: null,
     centroNombre: null,
-    anioConsagracion: null,
+    fechaConsagracion: null,
     resumenesAnuales: {},
     createdById: "u-1",
     createdAt: new Date("2026-01-01"),
@@ -108,6 +109,8 @@ function peregrina(
     identificacion: codigo,
     codigo,
     numeracionAnterior: null,
+    codigoNum: 1,
+    fechaConsagracion: null,
     tipo: "peregrina",
     estado: "activa",
     modalidad: "JOV",
@@ -180,9 +183,13 @@ describe("FlujoDeAsignacion", () => {
   it("se recorre entero con el teclado, sin tocar la pantalla", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    // Paso 1. Tab reaches the select; the OS picker is native, so choosing is
-    // typing the option's first letters — which is one of the reasons the select
-    // is native.
+    // Paso 1. Tab reaches the search box first, then the select; the OS picker
+    // is native, so choosing is typing the option's first letters — which is
+    // one of the reasons the select is native.
+    await userEvent.keyboard("{Tab}");
+    expect(document.activeElement).toBe(
+      await pantalla.getByRole("searchbox", { name: "Buscar por nombre" }).element(),
+    );
     await userEvent.keyboard("{Tab}");
     const misioneros = await pantalla
       .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
@@ -217,6 +224,42 @@ describe("FlujoDeAsignacion", () => {
 
     expect(asignarAction).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith(`/peregrina/${SIN_ENTREGAR.id}`);
+  });
+
+  it("escribir filtra la lista, sin tildes ni orden, y con uno solo lo elige", async () => {
+    const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
+    const buscar = pantalla.getByRole("searchbox", { name: "Buscar por nombre" });
+    const lista = pantalla.getByRole("combobox", {
+      name: "¿A quién pasa la imagen?",
+    });
+
+    await userEvent.fill(buscar, "perez");
+    const opciones = () =>
+      Array.from(
+        (lista.element() as HTMLSelectElement).options,
+        (o) => o.value,
+      ).filter(Boolean);
+    expect(opciones()).toEqual(["matrimonio:mat-1"]);
+    // Quedó uno: ya está elegido, y Siguiente se puede tocar.
+    await expect.element(lista).toHaveValue("matrimonio:mat-1");
+
+    // En cualquier orden, y sin la tilde de Gómez.
+    await userEvent.fill(buscar, "gomez ana");
+    expect(opciones()).toEqual(["persona:m-1"]);
+    await expect.element(lista).toHaveValue("persona:m-1");
+  });
+
+  it("cuando nadie coincide lo dice, en vez de dejar una lista vacía", async () => {
+    const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
+
+    await userEvent.fill(
+      pantalla.getByRole("searchbox", { name: "Buscar por nombre" }),
+      "zzz",
+    );
+
+    await expect
+      .element(pantalla.getByText(/Nadie se llama así/))
+      .toBeVisible();
   });
 
   it("dice en qué paso va, en voz alta", async () => {

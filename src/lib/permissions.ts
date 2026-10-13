@@ -24,6 +24,24 @@ export function creatableRoles(actorRole: Role): Role[] {
 }
 
 /**
+ * Whether the Users screen offers controls on a row of this rol.
+ *
+ * `canManageRole` is strictly-lower, and that is the rule for everyone but an
+ * admin: since 2026-07-25 an admin is a real person who may invite and manage
+ * another admin, and `UserService` already allows it. This is the screen's
+ * copy of that exception, so the button and the service agree.
+ */
+export function puedeAdministrar(actorRole: Role, targetRole: Role): boolean {
+    return actorRole === "admin" || canManageRole(actorRole, targetRole);
+}
+
+/** The rols this actor may hand out — inviting, or changing a Usuario's rol. */
+export function rolesAsignables(actorRole: Role): Role[] {
+    const menores = creatableRoles(actorRole);
+    return actorRole === "admin" ? ["admin", ...menores] : menores;
+}
+
+/**
  * Returns true if the actor can create a user with the given role.
  */
 export function canCreateUserWithRole(actorRole: Role, targetRole: Role): boolean {

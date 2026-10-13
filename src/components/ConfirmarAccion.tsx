@@ -44,6 +44,7 @@ export default function ConfirmarAccion({
   compacto,
   etiquetaAccesible,
   accion,
+  despues,
 }: {
   /** The trigger's text — the verb, e.g. "Dar de baja". */
   etiqueta: string;
@@ -64,6 +65,11 @@ export default function ConfirmarAccion({
    */
   etiquetaAccesible?: string;
   accion: () => Promise<ActionResult<unknown>>;
+  /**
+   * Where to go once it is done, for an action that leaves nothing on this
+   * screen to refresh — deleting the record the screen is about.
+   */
+  despues?: string;
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
@@ -113,7 +119,8 @@ export default function ConfirmarAccion({
                     return;
                   }
                   control.cerrar();
-                  router.refresh();
+                  if (despues) router.push(despues);
+                  else router.refresh();
                 })
               }
             >

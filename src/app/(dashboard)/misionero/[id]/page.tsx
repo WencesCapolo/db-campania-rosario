@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { getMisioneroByIdAction } from "@/modules/misionero/misionero.router";
+import {
+  getMatrimonioActivoDeMisioneroAction,
+  getMisioneroByIdAction,
+} from "@/modules/misionero/misionero.router";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
 import Tarjeta from "@/components/Tarjeta";
@@ -7,6 +10,7 @@ import Insignia from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
+import { fechaDeConsagracion } from "@/lib/consagracion";
 import BajaDeMisionero from "./BajaDeMisionero";
 
 /**
@@ -37,9 +41,10 @@ export default async function MisioneroPage({
 }) {
   const { id } = await params;
 
-  const [misionero, historial] = await Promise.all([
+  const [misionero, historial, matrimonioId] = await Promise.all([
     getMisioneroByIdAction(id),
     getHistorialDeMisioneroAction(id),
+    getMatrimonioActivoDeMisioneroAction(id),
   ]);
 
   const abiertas = historial.filter((a) => a.abierta);
@@ -63,9 +68,10 @@ export default async function MisioneroPage({
         <p className="text-base text-tinta-suave">
           {misionero.diocesisLocalidad.nombre}, {misionero.provincia}
           {misionero.telefono ? ` · ${misionero.telefono}` : ""}
+          {misionero.email ? ` · ${misionero.email}` : ""}
         </p>
 
-        {(misionero.centroNombre || misionero.anioConsagracion) && (
+        {(misionero.centroNombre || misionero.fechaConsagracion) && (
           <p className="text-base text-tinta-suave">
             {misionero.centroNombre && (
               <>
@@ -75,12 +81,25 @@ export default async function MisioneroPage({
                 {misionero.centroNombre}
               </>
             )}
-            {misionero.centroNombre && misionero.anioConsagracion ? " · " : ""}
-            {misionero.anioConsagracion && (
-              <>Consagración: {misionero.anioConsagracion}</>
+            {misionero.centroNombre && misionero.fechaConsagracion ? " · " : ""}
+            {misionero.fechaConsagracion && (
+              <>Consagración: {fechaDeConsagracion(misionero.fechaConsagracion)}</>
             )}
           </p>
         )}
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <BotonEnlace tono="secundario" href={`/misionero/${misionero.id}/editar`}>
+            Editar sus datos
+          </BotonEnlace>
+          {/* Una persona casada tiene la imagen a nombre de la pareja, y el
+              territorio y el Centro son de la casa: todo eso vive allá. */}
+          {matrimonioId && (
+            <BotonEnlace tono="secundario" href={`/matrimonio/${matrimonioId}`}>
+              Ver el matrimonio
+            </BotonEnlace>
+          )}
+        </div>
       </header>
 
       <Tarjeta titulo="¿Qué tiene ahora?">

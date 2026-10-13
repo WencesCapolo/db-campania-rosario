@@ -35,6 +35,7 @@ import {
   ValidacionError,
 } from "@/lib/errors";
 import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
+import { MatrimonioRepository } from "./matrimonio.repository";
 // ↑ A service reading another module's *repository* for a cross-entity guard.
 //   Only the repository, never the other service, so the two services stay free
 //   of a cycle — and the guard reads the Asignación table itself rather than the
@@ -103,6 +104,22 @@ export class MisioneroService {
     const alcance = derivarAlcance(actor, operacion);
     const row = await MisioneroService.exigirVisible(actor, alcance, id, operacion);
     return MisioneroService.toDTO(row);
+  }
+
+  /**
+   * The id of the active Matrimonio this Misionero belongs to, or null. The
+   * edit screen asks, because a spouse's territory and Centro are the couple's
+   * and are changed on the couple's page.
+   */
+  static async matrimonioActivo(
+    actor: CurrentUser,
+    id: string
+  ): Promise<string | null> {
+    const operacion = "MisioneroService.matrimonioActivo";
+    const alcance = derivarAlcance(actor, operacion);
+    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
+    const fila = await MatrimonioRepository.deMisionero(alcance, id);
+    return fila?.id ?? null;
   }
 
   static async search(
@@ -211,11 +228,12 @@ export class MisioneroService {
       nombre: input.nombre,
       apellido: input.apellido,
       telefono: input.telefono ?? null,
+      email: input.email ?? null,
       estado: "activo",
       diocesisLocalidadId: territorio.diocesis.id,
       centroTipo: input.centroTipo ?? null,
       centroNombre: input.centroNombre ?? null,
-      anioConsagracion: input.anioConsagracion ?? null,
+      fechaConsagracion: input.fechaConsagracion ?? null,
       resumenesAnuales: "{}",
       createdById: actor.id,
     });
@@ -233,6 +251,20 @@ export class MisioneroService {
 
     await MisioneroService.exigirVisible(actor, alcance, id, operacion);
 
+    // A spouse's territory and Centro belong to the household (ADR 0010):
+    // changing them for one of the two would split the couple across two
+    // Diócesis. Those are corrected on the Matrimonio, which moves both.
+    const tocaLaCasa =
+      input.diocesisLocalidadId !== undefined ||
+      input.centroTipo !== undefined ||
+      input.centroNombre !== undefined;
+    if (tocaLaCasa && (await MatrimonioRepository.deMisionero(alcance, id))) {
+      throw new ValidacionError(
+        "Es parte de un matrimonio: el territorio y el Centro se cambian " +
+          "desde la ficha del matrimonio, para los dos a la vez."
+      );
+    }
+
     if (input.diocesisLocalidadId !== undefined) {
       const territorio = await TerritorioRepository.findDiocesisLocalidadById(
         input.diocesisLocalidadId
@@ -248,6 +280,7 @@ export class MisioneroService {
       ...(input.nombre !== undefined && { nombre: input.nombre }),
       ...(input.apellido !== undefined && { apellido: input.apellido }),
       ...(input.telefono !== undefined && { telefono: input.telefono ?? null }),
+      ...(input.email !== undefined && { email: input.email ?? null }),
       ...(input.estado !== undefined && { estado: input.estado }),
       ...(input.diocesisLocalidadId !== undefined && {
         diocesisLocalidadId: input.diocesisLocalidadId,
@@ -256,8 +289,8 @@ export class MisioneroService {
       ...(input.centroNombre !== undefined && {
         centroNombre: input.centroNombre ?? null,
       }),
-      ...(input.anioConsagracion !== undefined && {
-        anioConsagracion: input.anioConsagracion ?? null,
+      ...(input.fechaConsagracion !== undefined && {
+        fechaConsagracion: input.fechaConsagracion ?? null,
       }),
     });
 

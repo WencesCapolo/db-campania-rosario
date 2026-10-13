@@ -44,10 +44,10 @@ async function crearAlvarezBenitez(diocesisLocalidadId: string) {
   return MatrimonioService.create(asesor, {
     nombreA: "Ana",
     apellidoA: "Álvarez",
-    anioConsagracionA: 1998,
+    fechaConsagracionA: "1998-01-01",
     nombreB: "Juan",
     apellidoB: "Benítez",
-    anioConsagracionB: 2001,
+    fechaConsagracionB: "2001-01-01",
     diocesisLocalidadId,
     telefonoA: "353-555-0100",
   });
@@ -95,8 +95,8 @@ describe("un matrimonio se entra de una vez", () => {
 
     // Each spouse keeps their own año — two people are consecrated in two
     // different years, which is why the couple could not be one row.
-    expect(pareja.misioneroA.anioConsagracion).toBe(1998);
-    expect(pareja.misioneroB.anioConsagracion).toBe(2001);
+    expect(pareja.misioneroA.fechaConsagracion).toBe("1998-01-01");
+    expect(pareja.misioneroB.fechaConsagracion).toBe("2001-01-01");
 
     // A number each, both optional. Here only the first was given, which is the
     // common case: somebody has one number written down for the household.

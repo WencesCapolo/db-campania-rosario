@@ -180,7 +180,7 @@ describe.each([
         telefono: null,
         centroTipo: null,
         centroNombre: null,
-        anioConsagracion: null,
+        fechaConsagracion: null,
         diocesisLocalidadId: territorio.rioCuarto.id,
       })
     ).rejects.toThrow(NoAutorizadoError);

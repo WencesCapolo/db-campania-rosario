@@ -170,7 +170,7 @@ describe("el año de consagración", () => {
       const consagrado = await crearMisioneroDirecto({
         diocesisLocalidadId: diocesis.id,
         createdById: sistema.id,
-        anioConsagracion: 2001,
+        fechaConsagracion: "2001-01-01",
       });
       await AsignacionService.asignar(sistema, {
         peregrinaId: imagen.id,

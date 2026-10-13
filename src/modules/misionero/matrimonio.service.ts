@@ -164,14 +164,16 @@ export class MatrimonioService {
         nombre: input.nombreA,
         apellido: input.apellidoA,
         telefono: input.telefonoA ?? null,
-        anioConsagracion: input.anioConsagracionA ?? null,
+        email: input.emailA ?? null,
+        fechaConsagracion: input.fechaConsagracionA ?? null,
       },
       esposoB: {
         ...comunes,
         nombre: input.nombreB,
         apellido: input.apellidoB,
         telefono: input.telefonoB ?? null,
-        anioConsagracion: input.anioConsagracionB ?? null,
+        email: input.emailB ?? null,
+        fechaConsagracion: input.fechaConsagracionB ?? null,
       },
       matrimonio: {
         estado: "activo",
@@ -241,8 +243,11 @@ export class MatrimonioService {
           ...(input.telefonoA !== undefined && {
             telefono: input.telefonoA ?? null,
           }),
-          ...(input.anioConsagracionA !== undefined && {
-            anioConsagracion: input.anioConsagracionA ?? null,
+          ...(input.emailA !== undefined && {
+            email: input.emailA ?? null,
+          }),
+          ...(input.fechaConsagracionA !== undefined && {
+            fechaConsagracion: input.fechaConsagracionA ?? null,
           }),
         },
       },
@@ -255,8 +260,11 @@ export class MatrimonioService {
           ...(input.telefonoB !== undefined && {
             telefono: input.telefonoB ?? null,
           }),
-          ...(input.anioConsagracionB !== undefined && {
-            anioConsagracion: input.anioConsagracionB ?? null,
+          ...(input.emailB !== undefined && {
+            email: input.emailB ?? null,
+          }),
+          ...(input.fechaConsagracionB !== undefined && {
+            fechaConsagracion: input.fechaConsagracionB ?? null,
           }),
         },
       },

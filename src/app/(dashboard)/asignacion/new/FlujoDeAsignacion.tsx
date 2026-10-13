@@ -7,6 +7,7 @@ import {
   entregarAction,
 } from "@/modules/asignacion/asignacion.router";
 import Boton, { BotonEnlace } from "@/components/Boton";
+import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
 import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
@@ -56,6 +57,22 @@ import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 
 type Paso = 1 | 2 | 3;
 
+/** Sin tildes ni mayúsculas: «alvarez» tiene que encontrar a «Álvarez». */
+const normalizar = (texto: string) =>
+  texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+/**
+ * Cada palabra de lo escrito tiene que estar en la opción, en cualquier orden:
+ * «maria alvarez» y «alvarez maria» encuentran a la misma persona.
+ */
+function coincide(etiqueta: string, busqueda: string): boolean {
+  const donde = normalizar(etiqueta);
+  return normalizar(busqueda)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((palabra) => donde.includes(palabra));
+}
+
 const PASOS = 3;
 
 export default function FlujoDeAsignacion({
@@ -71,10 +88,22 @@ export default function FlujoDeAsignacion({
 
   const [paso, setPaso] = useState<Paso>(1);
   const [valor, setValor] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [peregrinaId, setPeregrinaId] = useState("");
   const [nota, setNota] = useState("");
   const [notaCierre, setNotaCierre] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // El paso 1 filtra mientras se escribe, y el `<select>` nativo sigue siendo el
+  // control: la lista de una Diócesis son cientos de nombres, y nadie la recorre
+  // con el pulgar. Lo elegido se conserva aunque el filtro lo deje afuera, para
+  // que borrar una letra no cambie a quién se le entrega.
+  const opcionesDeTenedor = tenedores.map(opcionDeTenedorConTerritorio);
+  const filtradas = busqueda.trim()
+    ? opcionesDeTenedor.filter(
+        (o) => o.valor === valor || coincide(o.etiqueta, busqueda),
+      )
+    : opcionesDeTenedor;
 
   const elegido = tenedores.find(
     (t) => valorDeTenedor(tenedorDeDTO(t)) === valor,
@@ -168,14 +197,46 @@ export default function FlujoDeAsignacion({
             Paso 1: Elegir quién la recibe
           </h2>
 
-          <Eleccion
-            etiqueta="¿A quién pasa la imagen?"
-            ayuda="Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
-            vacia="Elegí un Misionero o un Matrimonio…"
-            value={valor}
-            opciones={tenedores.map(opcionDeTenedorConTerritorio)}
-            onChange={(e) => setValor(e.target.value)}
+          <Campo
+            etiqueta="Buscar por nombre"
+            ayuda="Escribí parte del nombre o del apellido, y la lista de abajo se achica."
+            type="search"
+            autoComplete="off"
+            value={busqueda}
+            onChange={(e) => {
+              const texto = e.target.value;
+              setBusqueda(texto);
+              // Si queda uno solo, ya está elegido: un toque menos.
+              const quedan = opcionesDeTenedor.filter((o) =>
+                coincide(o.etiqueta, texto),
+              );
+              if (texto.trim() && quedan.length === 1 && quedan[0]) {
+                setValor(quedan[0].valor);
+              }
+            }}
           />
+
+          {filtradas.length === 0 ? (
+            <Mensaje tono="aviso">
+              <p>
+                Nadie se llama así en tu territorio. Revisá lo que escribiste, o
+                cargalo desde «Cargar un Misionero».
+              </p>
+            </Mensaje>
+          ) : (
+            <Eleccion
+              etiqueta="¿A quién pasa la imagen?"
+              ayuda={
+                busqueda.trim()
+                  ? `${filtradas.length === 1 ? "Queda 1" : `Quedan ${filtradas.length}`} de ${opcionesDeTenedor.length}.`
+                  : "Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
+              }
+              vacia="Elegí un Misionero o un Matrimonio…"
+              value={valor}
+              opciones={filtradas}
+              onChange={(e) => setValor(e.target.value)}
+            />
+          )}
 
           {/* La «y» sola se pasa por alto en un teléfono, así que la clase de
               Tenedor se dice con una palabra además de con el nombre. */}

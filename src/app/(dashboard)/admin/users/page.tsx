@@ -7,7 +7,7 @@ import {
   getUsersAction,
 } from "@/modules/user/user.router";
 import { getInvitacionesPendientesAction } from "@/modules/invitacion/invitacion.router";
-import { ROLE_LABELS, canManageRole, creatableRoles } from "@/lib/permissions";
+import { ROLE_LABELS, puedeAdministrar, rolesAsignables } from "@/lib/permissions";
 import type { Role } from "@/modules/user/user.schema";
 import type { UserDTO } from "@/modules/user/user.types";
 import type { InvitacionDTO } from "@/modules/invitacion/invitacion.types";
@@ -50,8 +50,9 @@ import BajaDeUsuario from "./BajaDeUsuario";
  * the counts beside each filter are over those same rows.
  *
  * Whether a row carries controls is decided here, on the server, from the
- * hierarchy — `canManageRole` is strictly-lower, so nobody is offered a button
- * that would only refuse them. The services ask again. What is deliberately not
+ * hierarchy — `puedeAdministrar` is strictly-lower, except that an admin
+ * manages other admins — so nobody is offered a button that would only refuse
+ * them. The services ask again. What is deliberately not
  * offered is a baja on your own row: `UserService` refuses that, the rule lives
  * there and is not re-implemented here, but there is no reason to render a button
  * whose only possible outcome is that sentence.
@@ -95,7 +96,7 @@ export default async function UsuariosPage({
   const actor = await getCurrentUser();
 
   // Whoever cannot manage a single rol has no business here.
-  if (creatableRoles(actor.role).length === 0 && actor.role !== "admin") {
+  if (rolesAsignables(actor.role).length === 0) {
     notFound();
   }
 
@@ -113,7 +114,7 @@ export default async function UsuariosPage({
       : Promise.resolve([]),
   ]);
 
-  const asignables = creatableRoles(actor.role);
+  const asignables = rolesAsignables(actor.role);
 
   const todas: Fila[] = [
     ...usuarios.map((usuario) => ({ tipo: "usuario" as const, usuario })),
@@ -156,7 +157,9 @@ export default async function UsuariosPage({
     }
 
     const u = f.usuario;
-    if (!canManageRole(actor.role, u.role)) return null;
+    // Nothing on your own row: the service refuses both a baja and a change of
+    // rol on yourself, so the buttons could only ever say no.
+    if (u.id === actor.id || !puedeAdministrar(actor.role, u.role)) return null;
 
     return (
       <div className="flex flex-nowrap gap-2">
@@ -168,9 +171,7 @@ export default async function UsuariosPage({
           rolesDisponibles={asignables}
         />
 
-        {u.id !== actor.id && (
-          <BajaDeUsuario id={u.id} email={u.email} deBaja={u.deBaja} />
-        )}
+        <BajaDeUsuario id={u.id} email={u.email} deBaja={u.deBaja} />
       </div>
     );
   };

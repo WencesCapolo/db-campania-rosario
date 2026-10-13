@@ -10,6 +10,7 @@ import {
   filtrosTerritorialesSchema,
   type DiocesisLocalidadDTO,
 } from "@/modules/territorio/territorio.types";
+import { fechaDeConsagracionSchema } from "@/lib/consagracion";
 
 // ── Labels ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export interface MisioneroDTO {
   nombre: string;
   apellido: string;
   telefono: string | null;
+  email: string | null;
   estado: MisioneroEstado;
   diocesisLocalidad: DiocesisLocalidadDTO;
   provincia: string;
@@ -51,7 +53,8 @@ export interface MisioneroDTO {
   deBaja: boolean;
   centroTipo: CentroTipo | null;
   centroNombre: string | null;
-  anioConsagracion: number | null;
+  /** `AAAA-MM-DD`, or null when nobody recorded it — ADR 0013. */
+  fechaConsagracion: string | null;
   /** { [year: string]: string } */
   resumenesAnuales: Record<string, string>;
   createdById: string;
@@ -83,37 +86,38 @@ const telefono = z
   .max(40, "El teléfono no puede superar los 40 caracteres.")
   .nullish();
 
-// The Campaña has no Misioneros consecrated before this, and a year in the
-// future is a typo. Evaluated per call so the suite does not rot in January.
-const anioConsagracion = z
-  .number()
-  .int()
-  .min(1900, "El año de consagración no puede ser anterior a 1900.")
-  .refine(
-    (a) => a <= new Date().getFullYear(),
-    "El año de consagración no puede estar en el futuro."
-  )
+/**
+ * Optional, and normalised the way the Invitación's is, so "Ana@X.com " and
+ * "ana@x.com" are one address. An empty box arrives as null, never as "".
+ */
+export const emailOpcional = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email("Escribí un email válido."))
   .nullish();
 
 export const createMisioneroSchema = z.object({
   nombre: nombrePersona("nombre"),
   apellido: nombrePersona("apellido"),
   telefono,
+  email: emailOpcional,
   diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),
   centroNombre: z.string().trim().max(200).nullish(),
-  anioConsagracion,
+  fechaConsagracion: fechaDeConsagracionSchema,
 });
 
 export const updateMisioneroSchema = z.object({
   nombre: nombrePersona("nombre").optional(),
   apellido: nombrePersona("apellido").optional(),
   telefono,
+  email: emailOpcional,
   estado: z.enum(misioneroEstadoEnum.enumValues).optional(),
   diocesisLocalidadId: z.string().min(1).optional(),
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),
   centroNombre: z.string().trim().max(200).nullish(),
-  anioConsagracion,
+  fechaConsagracion: fechaDeConsagracionSchema,
   // There is deliberately no `peregrinaId` here any more. Charge used to be a
   // pointer this input overwrote, which is exactly how the previous holder
   // disappeared. It is an Asignación now — see `AsignacionService.asignar`,

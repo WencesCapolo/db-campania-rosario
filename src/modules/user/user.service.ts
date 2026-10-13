@@ -281,6 +281,12 @@ export class UserService {
     UserService.exigirPuedeAdministrarAlguien(actor, operacion);
     const alcance = derivarAlcance(actor, operacion);
 
+    // Now that an admin manages other admins, an admin could otherwise demote
+    // themselves — and the last admin doing it leaves nobody who can undo it.
+    if (targetId === actor.id) {
+      throw new ValidacionError("No podés cambiar tu propio rol ni tu territorio.");
+    }
+
     const actual = await UserService.exigirVisible(actor, alcance, targetId, operacion);
 
     UserService.exigirPuedeAdministrar(actor, actual.role, operacion);

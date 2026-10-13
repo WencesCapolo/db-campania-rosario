@@ -7,6 +7,7 @@ import {
   createPeregrinaSchema,
   updatePeregrinaSchema,
   filtrosDeInventarioSchema,
+  numeroDeCodigoSchema,
 } from "./peregrina.types";
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
 import type { PeregrinaEstado } from "./peregrina.schema";
@@ -146,10 +147,8 @@ export async function updatePeregrinaAction(
 }
 
 /**
- * Takes a Peregrina out of the active inventory — user story 16.
- *
- * There is no delete action. An Asignación that cannot resolve its Código is a
- * row of unreadable ids, so records are given de baja and never destroyed.
+ * Marks a Peregrina extraviada — out of the active inventory, its history
+ * intact (ADR 0013). The service refuses it while somebody has the image.
  */
 export async function darDeBajaPeregrinaAction(
   id: string
@@ -166,15 +165,45 @@ export async function darDeBajaPeregrinaAction(
 }
 
 /**
+ * Destroys a Peregrina that was never in anybody's charge — ADR 0013. The
+ * service refuses one with history; that one is marked extraviada instead.
+ */
+export async function eliminarPeregrinaAction(
+  id: string
+): Promise<ActionResult<null>> {
+  const actor = await getCurrentUser();
+  const result = await aResultado(async () => {
+    await PeregrinaService.eliminar(actor, id);
+    return null;
+  });
+
+  if (result.ok) revalidatePath("/peregrina");
+
+  return result;
+}
+
+/**
  * Gives a Código to an image registered by its Numeración anterior — ADR 0012.
- * Nothing to parse: the Código is generated, never typed.
+ * With a número, the Código is made from it (ADR 0013); without, the next free
+ * one is taken.
  */
 export async function generarCodigoAction(
-  id: string
+  id: string,
+  numero?: unknown
 ): Promise<ActionResult<PeregrinaDTO>> {
   const actor = await getCurrentUser();
+
+  const parsed = numeroDeCodigoSchema.optional().safeParse(numero);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Número inválido.",
+      codigo: "validacion",
+    };
+  }
+
   const result = await aResultado(() =>
-    PeregrinaService.generarCodigo(actor, id)
+    PeregrinaService.generarCodigo(actor, id, parsed.data)
   );
 
   if (result.ok) {

@@ -20,7 +20,7 @@ import {
 //
 // What is here is what the couple shares; what is on `misionero` stays there
 // because it belongs to a person. Two people are consecrated in two different
-// years, and write their own resumen anual, so `anioConsagracion` and
+// years, and write their own resumen anual, so `fechaConsagracion` and
 // `resumenesAnuales` could not have been folded up into a single row here.
 
 export const matrimonio = pgTable(

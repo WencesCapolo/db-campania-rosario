@@ -34,6 +34,14 @@ export async function getMisioneroByIdAction(id: string): Promise<MisioneroDTO> 
   return MisioneroService.getById(actor, id);
 }
 
+/** The active Matrimonio a Misionero belongs to, for the edit screen. */
+export async function getMatrimonioActivoDeMisioneroAction(
+  id: string
+): Promise<string | null> {
+  const actor = await getCurrentUser();
+  return MisioneroService.matrimonioActivo(actor, id);
+}
+
 export async function searchMisionerosAction(query: string): Promise<MisioneroDTO[]> {
   const actor = await getCurrentUser();
   return MisioneroService.search(actor, query);

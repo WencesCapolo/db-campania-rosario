@@ -170,7 +170,7 @@ export default async function PeregrinaListaPage({
               sección. */}
           <SeccionDeAlta
             titulo="Registrar una imagen nueva"
-            bajada="Todavía no tiene nada escrito: el sistema le da un Código."
+            bajada="Con el formato de la Campaña: escribí su número, o el sistema le da el siguiente."
           >
             <AltaRapida rotulacion="nueva" />
           </SeccionDeAlta>
@@ -281,7 +281,7 @@ export default async function PeregrinaListaPage({
                         </Link>
                         {p.deBaja && (
                           <span className="mt-1 block text-sm text-tinta-suave">
-                            dada de baja
+                            fuera del inventario
                           </span>
                         )}
                       </th>

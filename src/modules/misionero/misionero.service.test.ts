@@ -28,7 +28,7 @@ const juan = {
   telefono: null,
   centroTipo: null,
   centroNombre: null,
-  anioConsagracion: null,
+  fechaConsagracion: null,
 };
 
 describe("el territorio de un Misionero", () => {

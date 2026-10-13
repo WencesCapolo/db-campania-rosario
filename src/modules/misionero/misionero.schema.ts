@@ -3,7 +3,7 @@ import {
   pgEnum,
   text,
   timestamp,
-  integer,
+  date,
   index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -40,6 +40,7 @@ export const misionero = pgTable(
     nombre: text("nombre").notNull(),
     apellido: text("apellido").notNull(),
     telefono: text("telefono"),
+    email: text("email"),
 
     estado: misioneroEstadoEnum("estado").notNull().default("activo"),
 
@@ -52,8 +53,9 @@ export const misionero = pgTable(
     centroTipo: centroTipoEnum("centro_tipo"),
     centroNombre: text("centro_nombre"),
 
-    // Año de consagración
-    anioConsagracion: integer("anio_consagracion"),
+    // Fecha de consagración. Was a year until ADR 0013; the years already
+    // recorded became the first of January of that year.
+    fechaConsagracion: date("fecha_consagracion", { mode: "string" }),
 
     // Resúmenes anuales: { "2024": "texto...", "2025": "texto..." }
     // Stored as text/JSONB; parsed in service layer

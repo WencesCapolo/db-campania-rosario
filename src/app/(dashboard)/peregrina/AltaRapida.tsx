@@ -5,28 +5,19 @@ import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import Boton from "@/components/Boton";
-import Campo from "@/components/Campo";
-import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
-import type {
-  Modalidad,
-  PeregrinaTipo,
-} from "@/modules/peregrina/peregrina.schema";
-import {
-  MODALIDADES,
-  MODALIDAD_LABELS,
-  TIPO_LABELS,
-  createPeregrinaSchema,
-  type PeregrinaDTO,
-} from "@/modules/peregrina/peregrina.types";
-import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
+import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
+import CamposDePeregrinaForm, {
+  useCamposDePeregrina,
+  type Rotulacion,
+} from "@/modules/peregrina/CamposDePeregrina";
 
 /**
  * El alta, en la misma pantalla que el listado.
  *
- * Es el mismo formulario que vivía en `/peregrina/new` — Tipo, Modalidad y una
- * sola elección de territorio, sin Código, porque el Código se genera — con dos
- * cosas distintas, y las dos salen de estar acá:
+ * Es el mismo formulario que vivía en `/peregrina/new` — los campos de
+ * `CamposDePeregrina` y una sola elección de territorio — con dos cosas
+ * distintas, y las dos salen de estar acá:
  *
  *  1. **No navega.** Guarda, muestra el Código para que se pueda escribir en la
  *     imagen, y `router.refresh()` vuelve a leer el listado del servidor: la fila
@@ -37,7 +28,7 @@ import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
  *
  * Son dos instancias en la pantalla, una por rotulación — ADR 0012. La `vieja`
  * agrega arriba de todo la Numeración anterior, que se tipea tal como está en la
- * imagen, y no genera Código; la `nueva` es el alta de siempre. Es un componente
+ * imagen, y no genera Código; la `nueva` pide el número, opcional (ADR 0013). Es un componente
  * y no dos porque el resto del formulario es el mismo, y dos copias de Tipo,
  * Modalidad y territorio son dos lugares donde una se queda atrás.
  *
@@ -47,35 +38,17 @@ import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
  * una negativa.
  */
 
-// Desde el enum a través de la tabla de etiquetas, nunca a mano: son dieciséis
-// Modalidades, y una segunda copia de la lista es un segundo lugar donde falta una.
-const MODALIDADES_ELEGIBLES = MODALIDADES.map((m) => ({
-  valor: m,
-  // El código de tres letras va al lado del nombre porque es la parte que termina
-  // en el Código, y quien compara una imagen con la pantalla lee el código.
-  etiqueta: `${MODALIDAD_LABELS[m]} (${m})`,
-}));
-
-const TIPOS = (["peregrina", "auxiliar"] as const).map((t) => ({
-  valor: t,
-  etiqueta: TIPO_LABELS[t],
-}));
-
-export type Rotulacion = "nueva" | "vieja";
+export type { Rotulacion };
 
 export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
   const router = useRouter();
   const vieja = rotulacion === "vieja";
   const [pendiente, startTransition] = useTransition();
 
-  const [tipo, setTipo] = useState<PeregrinaTipo>("peregrina");
-  const [modalidad, setModalidad] = useState<Modalidad>("JOV");
+  const campos = useCamposDePeregrina();
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
     null,
   );
-
-  const [numeracionAnterior, setNumeracionAnterior] = useState("");
-  const validacion = useValidacionAlSalir(createPeregrinaSchema);
 
   const [error, setError] = useState<string | null>(null);
   const [ultimaGuardada, setUltimaGuardada] = useState<PeregrinaDTO | null>(
@@ -86,10 +59,8 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
     setError(null);
     setUltimaGuardada(null);
 
-    if (vieja) {
-      validacion.alSalir("numeracionAnterior", numeracionAnterior);
-      if (!numeracionAnterior.trim()) return;
-    }
+    const datos = campos.paraAlta(rotulacion);
+    if (!datos) return;
 
     if (!diocesisLocalidadId) {
       setError("Elegí una Diócesis/Localidad.");
@@ -98,9 +69,7 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
 
     startTransition(async () => {
       const result = await createPeregrinaAction({
-        ...(vieja && { numeracionAnterior }),
-        tipo,
-        modalidad,
+        ...datos,
         diocesisLocalidadId,
       });
 
@@ -110,9 +79,7 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
       }
 
       setUltimaGuardada(result.data);
-      // Lo único que cambia de una imagen vieja a la siguiente del lote.
-      setNumeracionAnterior("");
-      validacion.limpiar();
+      campos.siguienteDelLote();
       router.refresh();
     });
   }
@@ -151,38 +118,7 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
         </Mensaje>
       )}
 
-      {vieja && (
-        <Campo
-          etiqueta="Numeración anterior"
-          ayuda="Escribila tal como está en la imagen. Por ejemplo: «Peregrina 7», «Rosario-12», «15»."
-          autoComplete="off"
-          value={numeracionAnterior}
-          error={validacion.error("numeracionAnterior")}
-          onChange={(e) => {
-            setNumeracionAnterior(e.target.value);
-            validacion.alEscribir("numeracionAnterior");
-          }}
-          onBlur={(e) =>
-            validacion.alSalir("numeracionAnterior", e.target.value)
-          }
-        />
-      )}
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Eleccion
-          etiqueta="Tipo"
-          value={tipo}
-          opciones={TIPOS}
-          onChange={(e) => setTipo(e.target.value as PeregrinaTipo)}
-        />
-
-        <Eleccion
-          etiqueta="Modalidad"
-          value={modalidad}
-          opciones={MODALIDADES_ELEGIBLES}
-          onChange={(e) => setModalidad(e.target.value as Modalidad)}
-        />
-      </div>
+      <CamposDePeregrinaForm campos={campos} rotulacion={rotulacion} />
 
       <SelectorDeTerritorio
         value={diocesisLocalidadId}
@@ -192,7 +128,7 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
       <p className="text-base leading-relaxed text-tinta-suave">
         {vieja
           ? "No se le genera un Código ahora. Cuando se le escriba uno nuevo, se genera desde su ficha."
-          : "El Código se genera solo, a partir de la Provincia y la Modalidad. No hace falta escribirlo."}
+          : "El Código se arma con la Provincia, la Modalidad y el número."}
       </p>
 
       <Boton type="submit" disabled={pendiente}>
@@ -200,7 +136,7 @@ export default function AltaRapida({ rotulacion }: { rotulacion: Rotulacion }) {
           ? "Guardando…"
           : vieja
             ? "Registrar con su numeración"
-            : "Registrar y generar el Código"}
+            : "Registrar con su Código"}
       </Boton>
     </form>
   );

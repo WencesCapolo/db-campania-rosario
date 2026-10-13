@@ -127,7 +127,7 @@ export async function seedPrueba(actor: CurrentUser): Promise<void> {
         diocesisLocalidadId: diocesis[m.diocesis]!.id,
         centroTipo: null,
         centroNombre: null,
-        anioConsagracion: null,
+        fechaConsagracion: null,
       })
     );
   }

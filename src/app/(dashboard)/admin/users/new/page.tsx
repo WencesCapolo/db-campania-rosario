@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/get-current-user";
-import { creatableRoles } from "@/lib/permissions";
+import { rolesAsignables } from "@/lib/permissions";
 import Volver from "@/components/Volver";
 import InvitarForm from "./InvitarForm";
 
@@ -18,9 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function InvitarPage() {
   const actor = await getCurrentUser();
 
-  const disponibles = creatableRoles(actor.role);
-  const roles =
-    actor.role === "admin" ? (["admin", ...disponibles] as const) : disponibles;
+  const roles = rolesAsignables(actor.role);
 
   if (roles.length === 0) notFound();
 

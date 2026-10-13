@@ -5,28 +5,21 @@ import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import Boton from "@/components/Boton";
-import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
-import type {
-  Modalidad,
-  PeregrinaTipo,
-} from "@/modules/peregrina/peregrina.schema";
-import {
-  MODALIDADES,
-  MODALIDAD_LABELS,
-  TIPO_LABELS,
-  createPeregrinaSchema,
-  type PeregrinaDTO,
-} from "@/modules/peregrina/peregrina.types";
-import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
+import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
+import CamposDePeregrinaForm, {
+  useCamposDePeregrina,
+  type Rotulacion,
+} from "@/modules/peregrina/CamposDePeregrina";
 
 /**
  * Registrar una Peregrina.
  *
  * Territory is one choice rather than three fields, which is the point of
- * issue 1. The Código is not asked for: it is generated, and shown afterwards so
- * whoever is holding the image knows what to write on it.
+ * issue 1. Of the Código only the número is asked for, and it is optional
+ * (ADR 0013): left empty, the next free one is taken, and the Código is shown
+ * afterwards so whoever is holding the image knows what to write on it.
  *
  * The one exception is an image that already has something written on it from
  * before the Campaña's format — ADR 0012. That is one question, asked first,
@@ -47,37 +40,17 @@ import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
  * somebody adds cannot get it backwards.
  */
 
-// Built from the enum through the shared label table, never listed by hand:
-// the Campaña has sixteen Modalidades, and a second copy of that list is a
-// second place to forget one.
-const MODALIDADES_ELEGIBLES = MODALIDADES.map((m) => ({
-  valor: m,
-  // The three-letter code is shown beside the name because it is the part that
-  // ends up in the Código, and somebody checking a statue against the screen is
-  // reading the code rather than the name.
-  etiqueta: `${MODALIDAD_LABELS[m]} (${m})`,
-}));
-
 const ROTULACIONES = [
-  { valor: "nueva", etiqueta: "No, hay que generarle un Código" },
-  { valor: "anterior", etiqueta: "Sí, ya tiene una numeración escrita" },
+  { valor: "nueva", etiqueta: "No, lleva el formato de la Campaña" },
+  { valor: "vieja", etiqueta: "Sí, ya tiene una numeración escrita de antes" },
 ] as const;
-
-type Rotulacion = (typeof ROTULACIONES)[number]["valor"];
-
-const TIPOS = (["peregrina", "auxiliar"] as const).map((t) => ({
-  valor: t,
-  etiqueta: TIPO_LABELS[t],
-}));
 
 export default function CreatePeregrinaForm() {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
   const [rotulacion, setRotulacion] = useState<Rotulacion>("nueva");
-  const [numeracionAnterior, setNumeracionAnterior] = useState("");
-  const [tipo, setTipo] = useState<PeregrinaTipo>("peregrina");
-  const [modalidad, setModalidad] = useState<Modalidad>("JOV");
+  const campos = useCamposDePeregrina();
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
     null,
   );
@@ -86,11 +59,13 @@ export default function CreatePeregrinaForm() {
   const [ultimaGuardada, setUltimaGuardada] = useState<PeregrinaDTO | null>(
     null,
   );
-  const validacion = useValidacionAlSalir(createPeregrinaSchema);
 
   function guardar(seguirCargando: boolean) {
     setError(null);
     setUltimaGuardada(null);
+
+    const datos = campos.paraAlta(rotulacion);
+    if (!datos) return;
 
     if (!diocesisLocalidadId) {
       setError("Elegí una Diócesis/Localidad.");
@@ -99,9 +74,7 @@ export default function CreatePeregrinaForm() {
 
     startTransition(async () => {
       const result = await createPeregrinaAction({
-        ...(rotulacion === "anterior" && { numeracionAnterior }),
-        tipo,
-        modalidad,
+        ...datos,
         diocesisLocalidadId,
       });
 
@@ -112,11 +85,10 @@ export default function CreatePeregrinaForm() {
 
       if (seguirCargando) {
         // Keep tipo, modalidad and territory: the next image is almost always
-        // from the same batch. Only the Código changes, and it is generated —
-        // or the numeración, which is the one thing typed again.
+        // from the same batch. The número, the numeración and the fecha are the
+        // ones typed again.
         setUltimaGuardada(result.data);
-        setNumeracionAnterior("");
-        validacion.limpiar();
+        campos.siguienteDelLote();
         return;
       }
 
@@ -165,51 +137,16 @@ export default function CreatePeregrinaForm() {
         opciones={[...ROTULACIONES]}
         onChange={(e) => {
           setRotulacion(e.target.value as Rotulacion);
-          validacion.alEscribir("numeracionAnterior");
+          campos.validacion.limpiar();
         }}
       />
 
-      {rotulacion === "anterior" && (
-        <Campo
-          etiqueta="Numeración anterior"
-          ayuda="Escribila tal como está en la imagen."
-          value={numeracionAnterior}
-          error={validacion.error("numeracionAnterior")}
-          onChange={(e) => {
-            setNumeracionAnterior(e.target.value);
-            validacion.alEscribir("numeracionAnterior");
-          }}
-          onBlur={(e) =>
-            validacion.alSalir("numeracionAnterior", e.target.value)
-          }
-        />
-      )}
-
-      <Eleccion
-        etiqueta="Tipo"
-        value={tipo}
-        opciones={TIPOS}
-        onChange={(e) => setTipo(e.target.value as PeregrinaTipo)}
-      />
-
-      <Eleccion
-        etiqueta="Modalidad"
-        value={modalidad}
-        opciones={MODALIDADES_ELEGIBLES}
-        onChange={(e) => setModalidad(e.target.value as Modalidad)}
-      />
+      <CamposDePeregrinaForm campos={campos} rotulacion={rotulacion} />
 
       <SelectorDeTerritorio
         value={diocesisLocalidadId}
         onChange={setDiocesisLocalidadId}
       />
-
-      {rotulacion === "nueva" && (
-        <p className="text-base leading-relaxed text-tinta-suave">
-          El Código se genera automáticamente a partir de la Provincia y la
-          Modalidad. No hace falta escribirlo.
-        </p>
-      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Boton type="submit" disabled={pendiente}>

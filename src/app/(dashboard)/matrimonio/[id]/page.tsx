@@ -14,6 +14,7 @@ import {
   nombreDeTenedor,
   registro,
 } from "@/lib/formato";
+import { fechaDeConsagracion } from "@/lib/consagracion";
 import BajaDeMatrimonio from "./BajaDeMatrimonio";
 
 /**
@@ -97,6 +98,10 @@ export default async function MatrimonioPage({
             {matrimonio.centroNombre}
           </p>
         )}
+
+        <BotonEnlace tono="secundario" href={`/matrimonio/${matrimonio.id}/editar`}>
+          Editar sus datos
+        </BotonEnlace>
       </header>
 
       <Tarjeta titulo="Los dos Misioneros">
@@ -207,9 +212,9 @@ export default async function MatrimonioPage({
 }
 
 /**
- * Un cónyuge: su nombre, su año, y su página.
+ * Un cónyuge: su nombre, su fecha, y su página.
  *
- * El Año de consagración vive acá y no en el encabezado porque es de la persona
+ * La Fecha de consagración vive acá y no en el encabezado porque es de la persona
  * y no de la pareja — es la razón por la que un Matrimonio son dos filas de
  * `misionero` y no una sola con dos nombres.
  */
@@ -228,9 +233,9 @@ function Conyuge({ misionero }: { misionero: MisioneroDTO }) {
       )}
 
       <p className="text-base text-tinta-suave">
-        {misionero.anioConsagracion
-          ? `Consagración: ${misionero.anioConsagracion}`
-          : "Sin año de consagración registrado"}
+        {misionero.fechaConsagracion
+          ? `Consagración: ${fechaDeConsagracion(misionero.fechaConsagracion)}`
+          : "Sin fecha de consagración registrada"}
       </p>
 
       {/* El teléfono es de cada uno y no de la casa. Se muestra acá, al lado
@@ -243,6 +248,10 @@ function Conyuge({ misionero }: { misionero: MisioneroDTO }) {
           ? `Teléfono: ${misionero.telefono}`
           : "Sin teléfono registrado"}
       </p>
+
+      {misionero.email && (
+        <p className="text-base text-tinta-suave">Email: {misionero.email}</p>
+      )}
     </div>
   );
 }

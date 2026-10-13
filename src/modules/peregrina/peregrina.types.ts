@@ -13,6 +13,7 @@ import {
   filtrosTerritorialesSchema,
   type DiocesisLocalidadDTO,
 } from "@/modules/territorio/territorio.types";
+import { fechaDeConsagracionSchema } from "@/lib/consagracion";
 
 // ── Estados ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,10 @@ export interface PeregrinaDTO {
   codigo: string | null;
   /** Kept after the image gets a Código, so an old list still finds it. */
   numeracionAnterior: string | null;
+  /** The número inside the Código, or null when there is no Código. */
+  codigoNum: number | null;
+  /** `AAAA-MM-DD`, or null when nobody recorded it — ADR 0013. */
+  fechaConsagracion: string | null;
   tipo: PeregrinaTipo;
   estado: PeregrinaEstado;
   modalidad: Modalidad;
@@ -161,13 +166,28 @@ export const numeracionAnteriorSchema = z
   .max(40, "La numeración puede tener hasta 40 caracteres.");
 
 /**
- * The alta. Without `numeracionAnterior` the system generates the Código, as it
- * always has; with it, the image is registered by what it already carries and
- * no Código is generated — no número is spent on an image that does not have it
- * written on it.
+ * The número of a Código, typed by hand — ADR 0013. The Provincia and the
+ * Modalidad still come from the image, so only the número is written; it is
+ * padded to four digits, which is why it stops at 9999. Nothing checks that it
+ * follows the previous one: the one rule is that the Código it makes is not
+ * already taken, and only the service can know that.
+ */
+export const numeroDeCodigoSchema = z
+  .number({ message: "El número tiene que ser un número entero." })
+  .int("El número tiene que ser un número entero.")
+  .min(1, "El número tiene que ser 1 o más.")
+  .max(9999, "El número puede tener hasta cuatro cifras.");
+
+/**
+ * The alta. With `numero`, the Código is made from it; without it and without
+ * `numeracionAnterior`, the system takes the next free número, as it always
+ * has; with only `numeracionAnterior`, the image is registered by what it
+ * already carries and no Código is made — ADR 0012.
  */
 export const createPeregrinaSchema = z.object({
   numeracionAnterior: numeracionAnteriorSchema.optional(),
+  numero: numeroDeCodigoSchema.optional(),
+  fechaConsagracion: fechaDeConsagracionSchema,
   tipo: z.enum(peregrinaTipoEnum.enumValues, {
     message: "Elegí un Tipo válido.",
   }),
@@ -177,6 +197,16 @@ export const createPeregrinaSchema = z.object({
   diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
 });
 
+/**
+ * A correction to an image already registered — everything but who has it,
+ * which only an Asignación changes.
+ *
+ * `numero` and `numeracionAnterior` take null to mean "remove it", and the
+ * service refuses the combination that would leave the image with neither.
+ * A new `numero` is composed with the Provincia and Modalidad the image ends up
+ * with; leaving `numero` out leaves the Código exactly as it is written, even
+ * when the territory or the Modalidad change — ADR 0013.
+ */
 export const updatePeregrinaSchema = z.object({
   tipo: z.enum(peregrinaTipoEnum.enumValues).optional(),
   // Seleccionables, not the full enum: `inactiva` is readable and unwritable.
@@ -185,6 +215,9 @@ export const updatePeregrinaSchema = z.object({
     .optional(),
   modalidad: z.enum(modalidadEnum.enumValues).optional(),
   diocesisLocalidadId: z.string().min(1).optional(),
+  numero: numeroDeCodigoSchema.nullable().optional(),
+  numeracionAnterior: numeracionAnteriorSchema.nullable().optional(),
+  fechaConsagracion: fechaDeConsagracionSchema,
 });
 
 export type CreatePeregrinaInput = z.infer<typeof createPeregrinaSchema>;

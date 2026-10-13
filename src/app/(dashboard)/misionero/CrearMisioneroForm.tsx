@@ -21,16 +21,14 @@ import {
   createMatrimonioSchema,
   type Tenedor,
 } from "@/modules/misionero/matrimonio.types";
-import type {
-  Modalidad,
-  PeregrinaTipo,
-} from "@/modules/peregrina/peregrina.schema";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
-import {
-  MODALIDADES,
-  MODALIDAD_LABELS,
-  TIPO_LABELS,
-} from "@/modules/peregrina/peregrina.types";
+import { MODALIDAD_LABELS } from "@/modules/peregrina/peregrina.types";
+import CamposDePeregrinaForm, {
+  CampoDeFechaDeConsagracion,
+  useCamposDePeregrina,
+  type DatosParaAlta,
+  type Rotulacion,
+} from "@/modules/peregrina/CamposDePeregrina";
 import { nombreDeTenedor } from "@/lib/formato";
 import {
   useValidacionAlSalir,
@@ -69,9 +67,10 @@ import {
  * ésta, y después el flujo de Asignación, donde había que volver a buscar por
  * apellido a la persona recién tipeada. El último fieldset lo hace acá, con tres
  * respuestas: ninguna por ahora, una imagen ya registrada, o una nueva. La tercera
- * es el alta de Peregrinas —Tipo y Modalidad, sin Código, porque el Código se
- * genera— y usa el mismo territorio que se eligió para la persona, que es el caso
- * real: la imagen se registra donde vive quien la tiene.
+ * es el alta de Peregrinas entera —los mismos `CamposDePeregrina` que el listado,
+ * con número o con numeración anterior— y usa el mismo territorio que se eligió
+ * para la persona, que es el caso real: la imagen se registra donde vive quien la
+ * tiene.
  *
  * Las tres operaciones siguen siendo tres llamadas y en ese orden — crear la
  * persona, crear la imagen si hace falta, `asignar` — porque la carga de una
@@ -100,7 +99,7 @@ import {
  * hasta ahora eso eran dos personas cargadas por separado con la imagen anotada
  * abajo de la que se tipeó primero (ADR 0010). La primera pregunta del formulario
  * es entonces si es una persona o un matrimonio: si es un matrimonio cada uno
- * tiene su Nombre, su Apellido, su Teléfono y su Año de consagración, y el
+ * tiene su Nombre, su Apellido, su Teléfono, su Email y su Fecha de consagración, y el
  * territorio y el Centro se escriben una sola vez porque son de la casa. El
  * teléfono no lo es: se llama a una persona, y el segundo número es justamente el
  * que se marca cuando la primera no atiende. El primer par **es** el cónyuge A, que es el que
@@ -128,16 +127,6 @@ const CENTROS = CENTRO_TIPOS.map((t) => ({
 /** Named so "Guardar y agregar otro" can put the caret back in it. */
 const ID_NOMBRE = "misionero-nombre";
 
-/**
- * The year's *shape*, which is a fact about the text box rather than about the
- * Campaña. One copy, read by the blur check and by the submit guard, because two
- * would eventually word it differently.
- */
-const ANIO_DE_CUATRO_CIFRAS =
-  "El año de consagración tiene que ser un año de cuatro cifras.";
-
-const esAnioEscrito = (texto: string) => /^\d{4}$/.test(texto);
-
 /** Qué se hace con la imagen al cargar a la persona. */
 type Entrega = "ninguna" | "existente" | "nueva";
 
@@ -147,17 +136,10 @@ const ENTREGAS: { valor: Entrega; etiqueta: string }[] = [
   { valor: "nueva", etiqueta: "Una imagen nueva, que registro ahora" },
 ];
 
-// Desde el enum a través de la tabla de etiquetas, nunca a mano: son dieciséis
-// Modalidades, y una segunda copia de la lista es un segundo lugar donde falta una.
-const MODALIDADES_ELEGIBLES = MODALIDADES.map((m) => ({
-  valor: m,
-  etiqueta: `${MODALIDAD_LABELS[m]} (${m})`,
-}));
-
-const TIPOS = (["peregrina", "auxiliar"] as const).map((t) => ({
-  valor: t,
-  etiqueta: TIPO_LABELS[t],
-}));
+const ROTULACIONES = [
+  { valor: "nueva", etiqueta: "No, lleva el formato de la Campaña" },
+  { valor: "vieja", etiqueta: "Sí, ya tiene una numeración escrita de antes" },
+];
 
 /** Una persona sola, o un matrimonio: la primera pregunta de la pantalla. */
 const QUIEN = [
@@ -307,13 +289,11 @@ function CampoDeTelefono({
 }
 
 /**
- * El Año de consagración, que es de cada persona y no de la casa.
- *
- * Dos personas se consagran en dos años distintos, así que en un matrimonio este
- * campo aparece dos veces — y por eso está acá y no escrito dos veces adentro del
- * formulario, con la misma conversión de texto a número en los dos lados.
+ * El email de una persona, opcional. Va debajo del teléfono porque es la otra
+ * forma de ubicarla, y en un matrimonio aparece dos veces por la misma razón que
+ * el teléfono: es de cada uno.
  */
-function CampoDeAnio({
+function CampoDeEmail({
   campo,
   deQuien,
   valor,
@@ -329,11 +309,11 @@ function CampoDeAnio({
 }) {
   return (
     <Campo
-      etiqueta={`Año de consagración${deQuien ? ` (${deQuien})` : ""}`}
-      ayuda="Cuatro cifras, por ejemplo 1998."
-      type="text"
-      inputMode="numeric"
-      maxLength={4}
+      etiqueta={`Email${deQuien ? ` (${deQuien})` : ""}`}
+      ayuda="Opcional."
+      type="email"
+      inputMode="email"
+      autoComplete="email"
       value={valor}
       error={validador.error(campo)}
       onChange={(e) => {
@@ -341,16 +321,46 @@ function CampoDeAnio({
         validador.alEscribir(campo);
       }}
       onBlur={(e) => {
-        // Empty is "not recorded" and is fine. Anything else has to be four
-        // digits before the schema's own rules — 1900, not the future — can
-        // say anything meaningful about it.
         const texto = e.target.value.trim();
-        if (!texto) return;
-        if (!esAnioEscrito(texto)) {
-          validador.marcar(campo, ANIO_DE_CUATRO_CIFRAS);
-          return;
-        }
-        validador.alSalir(campo, Number(texto));
+        if (texto) validador.alSalir(campo, texto);
+      }}
+    />
+  );
+}
+
+/**
+ * La Fecha de consagración, que es de cada persona y no de la casa.
+ *
+ * Dos personas se consagran en dos días distintos, así que en un matrimonio este
+ * campo aparece dos veces — y por eso está acá y no escrito dos veces adentro del
+ * formulario. Era el Año de consagración hasta ADR 0013.
+ */
+function CampoDeFecha({
+  campo,
+  deQuien,
+  valor,
+  onValor,
+  validador,
+}: {
+  campo: string;
+  /** De cuál de los dos, por la misma razón que en `ParDeNombres`. */
+  deQuien?: string;
+  valor: string;
+  onValor: (valor: string) => void;
+  validador: Validador;
+}) {
+  return (
+    <CampoDeFechaDeConsagracion
+      etiqueta={`Fecha de consagración${deQuien ? ` (${deQuien})` : ""}`}
+      valor={valor}
+      error={validador.error(campo)}
+      onValor={(v) => {
+        onValor(v);
+        validador.alEscribir(campo);
+      }}
+      onSalir={(v) => {
+        // Vacío es «no se sabe», y está bien.
+        if (v) validador.alSalir(campo, v);
       }}
     />
   );
@@ -379,21 +389,23 @@ export default function CrearMisioneroForm({
   const [apellido, setApellido] = useState("");
   const [nombreB, setNombreB] = useState("");
   const [apellidoB, setApellidoB] = useState("");
-  const [anioConsagracionB, setAnioConsagracionB] = useState("");
+  const [fechaConsagracionB, setFechaConsagracionB] = useState("");
   /** El de la persona, o el de la primera de las dos: nunca uno de la casa. */
   const [telefono, setTelefono] = useState("");
   const [telefonoB, setTelefonoB] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailB, setEmailB] = useState("");
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
     null,
   );
   const [centroTipo, setCentroTipo] = useState<CentroTipo | "">("");
   const [centroNombre, setCentroNombre] = useState("");
-  const [anioConsagracion, setAnioConsagracion] = useState("");
+  const [fechaConsagracion, setFechaConsagracion] = useState("");
 
   const [entrega, setEntrega] = useState<Entrega>("ninguna");
   const [peregrinaId, setPeregrinaId] = useState("");
-  const [tipo, setTipo] = useState<PeregrinaTipo>("peregrina");
-  const [modalidad, setModalidad] = useState<Modalidad>("JOV");
+  const [rotulacion, setRotulacion] = useState<Rotulacion>("nueva");
+  const imagenNueva = useCamposDePeregrina();
 
   const [error, setError] = useState<string | null>(null);
   /**
@@ -432,7 +444,8 @@ export default function CrearMisioneroForm({
   const campoNombre = esMatrimonio ? "nombreA" : "nombre";
   const campoApellido = esMatrimonio ? "apellidoA" : "apellido";
   const campoTelefono = esMatrimonio ? "telefonoA" : "telefono";
-  const campoAnio = esMatrimonio ? "anioConsagracionA" : "anioConsagracion";
+  const campoEmail = esMatrimonio ? "emailA" : "email";
+  const campoFecha = esMatrimonio ? "fechaConsagracionA" : "fechaConsagracion";
 
   /**
    * La imagen, después de que la persona ya existe.
@@ -444,17 +457,17 @@ export default function CrearMisioneroForm({
    */
   async function entregarImagen(
     tenedor: Tenedor,
+    datosDeImagen: DatosParaAlta | null,
   ): Promise<{ identificacion: string } | { error: string }> {
     let id = peregrinaId;
     let identificacion =
       disponibles.find((p) => p.id === peregrinaId)?.identificacion ?? "";
 
-    if (entrega === "nueva") {
+    if (entrega === "nueva" && datosDeImagen) {
       // El territorio de la imagen es el de la persona que se la lleva: es donde
       // vive, y es la única respuesta que este formulario tiene.
       const creada = await createPeregrinaAction({
-        tipo,
-        modalidad,
+        ...datosDeImagen,
         diocesisLocalidadId,
       });
       if (!creada.ok) return { error: creada.error };
@@ -490,20 +503,11 @@ export default function CrearMisioneroForm({
       return;
     }
 
-    // The year is a string in the input and a number in the service. An empty
-    // field is "not recorded" and must reach the service as null, not as NaN —
-    // `Number("")` is 0, which would claim a consagración in the year zero.
-    const anio = anioConsagracion.trim();
-    if (anio && !esAnioEscrito(anio)) {
-      validador.marcar(campoAnio, ANIO_DE_CUATRO_CIFRAS);
-      return;
-    }
-
-    const anioB = anioConsagracionB.trim();
-    if (esMatrimonio && anioB && !esAnioEscrito(anioB)) {
-      validador.marcar("anioConsagracionB", ANIO_DE_CUATRO_CIFRAS);
-      return;
-    }
+    // La imagen nueva se valida antes de cargar a nadie: si falta su número o
+    // su numeración, mejor decirlo ahora que dejar a la persona cargada sola.
+    const datosDeImagen =
+      entrega === "nueva" ? imagenNueva.paraAlta(rotulacion) : null;
+    if (entrega === "nueva" && !datosDeImagen) return;
 
     // Lo que las dos ramas comparten, escrito una vez: el territorio y el Centro
     // son de la casa. El teléfono no — es de cada persona, y en un matrimonio son
@@ -523,18 +527,21 @@ export default function CrearMisioneroForm({
             nombreA: nombre,
             apellidoA: apellido,
             telefonoA: telefono.trim() || null,
-            anioConsagracionA: anio ? Number(anio) : null,
+            emailA: email.trim() || null,
+            fechaConsagracionA: fechaConsagracion || null,
             nombreB,
             apellidoB,
             telefonoB: telefonoB.trim() || null,
-            anioConsagracionB: anioB ? Number(anioB) : null,
+            emailB: emailB.trim() || null,
+            fechaConsagracionB: fechaConsagracionB || null,
           })
         : await createMisioneroAction({
             ...casa,
             nombre,
             apellido,
             telefono: telefono.trim() || null,
-            anioConsagracion: anio ? Number(anio) : null,
+            email: email.trim() || null,
+            fechaConsagracion: fechaConsagracion || null,
           });
 
       if (!resultado.ok) {
@@ -560,7 +567,7 @@ export default function CrearMisioneroForm({
 
       let entregado: string | null = null;
       if (entrega !== "ninguna") {
-        const imagen = await entregarImagen(tenedor);
+        const imagen = await entregarImagen(tenedor, datosDeImagen);
 
         if ("error" in imagen) {
           // La persona quedó cargada y la imagen no. Decirlo y quedarse acá: si
@@ -601,14 +608,17 @@ export default function CrearMisioneroForm({
       setApellido("");
       setNombreB("");
       setApellidoB("");
-      setAnioConsagracionB("");
+      setFechaConsagracionB("");
       setTelefono("");
       setTelefonoB("");
-      setAnioConsagracion("");
+      setEmail("");
+      setEmailB("");
+      setFechaConsagracion("");
       // La imagen es de esta persona y no del lote: la siguiente arranca sin
       // ninguna, para que nadie entregue dos veces la misma por inercia.
       setEntrega("ninguna");
       setPeregrinaId("");
+      imagenNueva.siguienteDelLote();
       formulario.current
         ?.querySelector<HTMLInputElement>(`#${ID_NOMBRE}`)
         ?.focus();
@@ -698,13 +708,21 @@ export default function CrearMisioneroForm({
               validador={validador}
             />
 
-            {/* El año es de cada uno: dos personas se consagran en dos años
-                distintos, y una sola casilla no podría guardar los dos. */}
-            <CampoDeAnio
-              campo={campoAnio}
+            <CampoDeEmail
+              campo={campoEmail}
               deQuien="la primera persona"
-              valor={anioConsagracion}
-              onValor={setAnioConsagracion}
+              valor={email}
+              onValor={setEmail}
+              validador={validador}
+            />
+
+            {/* La fecha es de cada uno: dos personas se consagran en dos días
+                distintos, y una sola casilla no podría guardar los dos. */}
+            <CampoDeFecha
+              campo={campoFecha}
+              deQuien="la primera persona"
+              valor={fechaConsagracion}
+              onValor={setFechaConsagracion}
               validador={validador}
             />
           </fieldset>
@@ -734,11 +752,19 @@ export default function CrearMisioneroForm({
               validador={validador}
             />
 
-            <CampoDeAnio
-              campo="anioConsagracionB"
+            <CampoDeEmail
+              campo="emailB"
               deQuien="la segunda persona"
-              valor={anioConsagracionB}
-              onValor={setAnioConsagracionB}
+              valor={emailB}
+              onValor={setEmailB}
+              validador={validador}
+            />
+
+            <CampoDeFecha
+              campo="fechaConsagracionB"
+              deQuien="la segunda persona"
+              valor={fechaConsagracionB}
+              onValor={setFechaConsagracionB}
               validador={validador}
             />
           </fieldset>
@@ -770,6 +796,13 @@ export default function CrearMisioneroForm({
             }}
             onBlur={(e) => validador.alSalir("telefono", e.target.value)}
           />
+
+          <CampoDeEmail
+            campo={campoEmail}
+            valor={email}
+            onValor={setEmail}
+            validador={validador}
+          />
         </>
       )}
 
@@ -788,7 +821,7 @@ export default function CrearMisioneroForm({
         <p className="text-base leading-relaxed text-tinta-suave">
           {esMatrimonio
             ? "El Santuario, Ermita o Parroquia donde pertenece el matrimonio, uno solo para los dos. Si no lo sabés ahora, dejalo vacío: se puede completar después."
-            : "El Santuario, Ermita o Parroquia donde pertenece el misionero, y el año en que se consagró. Si no lo sabés ahora, dejalo vacío: se puede completar después."}
+            : "El Santuario, Ermita o Parroquia donde pertenece el misionero, y la fecha en que se consagró. Si no lo sabés ahora, dejalo vacío: se puede completar después."}
         </p>
 
         <Eleccion
@@ -810,13 +843,13 @@ export default function CrearMisioneroForm({
           onBlur={(e) => validador.alSalir("centroNombre", e.target.value)}
         />
 
-        {/* En un matrimonio el año subió arriba, al lado de cada persona: son
+        {/* En un matrimonio la fecha subió arriba, al lado de cada persona: son
             dos, y acá abajo no habría manera de decir de cuál es. */}
         {!esMatrimonio && (
-          <CampoDeAnio
-            campo={campoAnio}
-            valor={anioConsagracion}
-            onValor={setAnioConsagracion}
+          <CampoDeFecha
+            campo={campoFecha}
+            valor={fechaConsagracion}
+            onValor={setFechaConsagracion}
             validador={validador}
           />
         )}
@@ -865,26 +898,26 @@ export default function CrearMisioneroForm({
 
         {entrega === "nueva" && (
           <>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Eleccion
-                etiqueta="Tipo"
-                value={tipo}
-                opciones={TIPOS}
-                onChange={(e) => setTipo(e.target.value as PeregrinaTipo)}
-              />
+            <Eleccion
+              etiqueta="¿La imagen ya tiene una numeración escrita?"
+              ayuda="Las imágenes que se rotularon antes del formato de la Campaña."
+              value={rotulacion}
+              opciones={ROTULACIONES}
+              onChange={(e) => {
+                setRotulacion(e.target.value as Rotulacion);
+                imagenNueva.validacion.limpiar();
+              }}
+            />
 
-              <Eleccion
-                etiqueta="Modalidad"
-                value={modalidad}
-                opciones={MODALIDADES_ELEGIBLES}
-                onChange={(e) => setModalidad(e.target.value as Modalidad)}
-              />
-            </div>
+            <CamposDePeregrinaForm
+              campos={imagenNueva}
+              rotulacion={rotulacion}
+            />
 
             <p className="text-base leading-relaxed text-tinta-suave">
               La imagen se registra en la misma Diócesis/Localidad que elegiste
-              arriba, y su Código se genera solo. Cuando se guarde, va a estar
-              acá para escribirlo en la imagen.
+              arriba. Cuando se guarde, su Código va a estar acá para escribirlo
+              en la imagen.
             </p>
           </>
         )}
