@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { updateMatrimonioAction } from "@/modules/misionero/matrimonio.router";
 import Boton from "@/components/Boton";
@@ -28,7 +27,7 @@ import {
 /**
  * Corregir los datos de un Matrimonio: los de cada uno y los de la casa.
  *
- * Una sola pantalla y un solo guardado, porque `MatrimonioService.update` mueve
+ * Un solo diálogo y un solo guardado, porque `MatrimonioService.update` mueve
  * a los dos en la misma transacción: el territorio cambia para la pareja o para
  * nadie (ADR 0010). Se manda todo — una caja vaciada borra el dato — porque lo
  * que se ve es lo que tiene que quedar.
@@ -143,10 +142,13 @@ function DatosDePersona({
 
 export default function EditarMatrimonioForm({
   matrimonio,
+  alGuardar,
+  alCancelar,
 }: {
   matrimonio: MatrimonioDTO;
+  alGuardar: () => void;
+  alCancelar: () => void;
 }) {
-  const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const validacion = useValidacionAlSalir(updateMatrimonioSchema);
 
@@ -194,14 +196,13 @@ export default function EditarMatrimonioForm({
         return;
       }
 
-      router.push(`/matrimonio/${matrimonio.id}`);
-      router.refresh();
+      alGuardar();
     });
   }
 
   return (
     <form
-      className="max-w-xl space-y-6"
+      className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
         guardar();
@@ -260,9 +261,14 @@ export default function EditarMatrimonioForm({
         />
       </fieldset>
 
-      <Boton type="submit" disabled={pendiente}>
-        {pendiente ? "Guardando…" : "Guardar los cambios"}
-      </Boton>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Boton type="submit" disabled={pendiente}>
+          {pendiente ? "Guardando…" : "Guardar los cambios"}
+        </Boton>
+        <Boton tono="secundario" disabled={pendiente} onClick={alCancelar}>
+          No, volver
+        </Boton>
+      </div>
     </form>
   );
 }

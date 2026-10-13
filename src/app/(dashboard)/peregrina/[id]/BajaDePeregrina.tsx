@@ -14,26 +14,34 @@ import {
  *  - **Marcar como extraviada** es la baja de siempre con su nombre de la
  *    Campaña: deja de aparecer en los listados, no se le entrega a nadie, y su
  *    historial sigue entero. Se puede recuperar.
- *  - **Eliminar** la borra del sistema, y existe para la que se cargó por
- *    error. Si ya estuvo a cargo de alguien, `PeregrinaService.eliminar` la
- *    rechaza y el mensaje dice que se marque como extraviada.
+ *  - **Eliminar** la borra del sistema junto con su historial. Se puede siempre;
+ *    si estuvo a cargo de alguien, el diálogo lo avisa con cuántos períodos se
+ *    pierden y quién la tiene ahora, y ofrece la otra salida.
  *
- * Ninguna de las dos reglas se repite acá: si el servicio dice que no, el motivo
- * llega al diálogo, y es exactamente lo que la persona necesita leer.
+ * La negativa de marcarla extraviada mientras alguien la tiene no se repite
+ * acá: si el servicio dice que no, el motivo llega al diálogo.
  */
 
 export default function BajaDePeregrina({
   id,
   identificacion,
   deBaja,
-  conHistorial,
+  periodos,
+  laTiene,
 }: {
   id: string;
   identificacion: string;
   deBaja: boolean;
-  /** Ya estuvo a cargo de alguien: entonces no se ofrece eliminarla. */
-  conHistorial: boolean;
+  /** Cuántas Asignaciones tuvo: es lo que se pierde al eliminarla. */
+  periodos: number;
+  /** El nombre de quien la tiene ahora, si alguien la tiene. */
+  laTiene: string | null;
 }) {
+  const aviso =
+    periodos === 0
+      ? "Nunca estuvo a cargo de nadie, así que no se pierde ningún historial."
+      : `Atención: ${laTiene ? `ahora la tiene ${laTiene}, y ` : ""}estuvo a cargo de alguien ${periodos === 1 ? "una vez" : `${periodos} veces`}. Ese historial también se borra, y deja de figurar en la ficha de cada Misionero que la tuvo. Si se perdió, conviene más marcarla como extraviada.`;
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
       {deBaja ? (
@@ -57,17 +65,15 @@ export default function BajaDePeregrina({
         />
       )}
 
-      {!conHistorial && (
-        <ConfirmarAccion
-          etiqueta="Eliminar"
-          titulo="¿Eliminar esta imagen del sistema?"
-          sujeto={identificacion}
-          consecuencia="Se borra para siempre y no se puede deshacer. Es para una imagen cargada por error: como nunca estuvo a cargo de nadie, no se pierde ningún historial."
-          etiquetaDeConfirmacion="Sí, eliminarla"
-          accion={() => eliminarPeregrinaAction(id)}
-          despues="/peregrina"
-        />
-      )}
+      <ConfirmarAccion
+        etiqueta="Eliminar"
+        titulo="¿Eliminar esta imagen del sistema?"
+        sujeto={identificacion}
+        consecuencia={`Se borra para siempre y no se puede deshacer. ${aviso}`}
+        etiquetaDeConfirmacion="Sí, eliminarla"
+        accion={() => eliminarPeregrinaAction(id)}
+        despues="/peregrina"
+      />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { updateMisioneroAction } from "@/modules/misionero/misionero.router";
 import Boton from "@/components/Boton";
@@ -19,11 +18,11 @@ import { CampoDeFechaDeConsagracion } from "@/modules/peregrina/CamposDePeregrin
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 
 /**
- * Corregir los datos de un Misionero ya cargado.
+ * Corregir los datos de un Misionero ya cargado, en un diálogo sobre su ficha.
  *
  * Los mismos campos que el alta, llenos con lo que hay, y un solo botón. Se
  * manda todo de una vez — una caja vaciada llega como null y borra el dato —
- * porque lo que se ve en la pantalla es lo que tiene que quedar.
+ * porque lo que se ve en el formulario es lo que tiene que quedar.
  *
  * Una persona casada no ve territorio ni Centro: son de la casa (ADR 0010), y se
  * corrigen en la ficha del matrimonio para los dos a la vez. El servicio rechaza
@@ -38,11 +37,14 @@ const CENTROS = CENTRO_TIPOS.map((t) => ({
 export default function EditarMisioneroForm({
   misionero,
   casado,
+  alGuardar,
+  alCancelar,
 }: {
   misionero: MisioneroDTO;
   casado: boolean;
+  alGuardar: () => void;
+  alCancelar: () => void;
 }) {
-  const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const validacion = useValidacionAlSalir(updateMisioneroSchema);
 
@@ -89,8 +91,7 @@ export default function EditarMisioneroForm({
         return;
       }
 
-      router.push(`/misionero/${misionero.id}`);
-      router.refresh();
+      alGuardar();
     });
   }
 
@@ -120,7 +121,7 @@ export default function EditarMisioneroForm({
 
   return (
     <form
-      className="max-w-xl space-y-6"
+      className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
         guardar();
@@ -207,9 +208,14 @@ export default function EditarMisioneroForm({
         </>
       )}
 
-      <Boton type="submit" disabled={pendiente}>
-        {pendiente ? "Guardando…" : "Guardar los cambios"}
-      </Boton>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Boton type="submit" disabled={pendiente}>
+          {pendiente ? "Guardando…" : "Guardar los cambios"}
+        </Boton>
+        <Boton tono="secundario" disabled={pendiente} onClick={alCancelar}>
+          No, volver
+        </Boton>
+      </div>
     </form>
   );
 }

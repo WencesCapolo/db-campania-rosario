@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { updatePeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import Boton from "@/components/Boton";
@@ -55,10 +54,13 @@ const NUMERO_ENTERO = "El número tiene que ser un número entero, sin letras.";
 
 export default function EditarPeregrinaForm({
   peregrina,
+  alGuardar,
+  alCancelar,
 }: {
   peregrina: PeregrinaDTO;
+  alGuardar: () => void;
+  alCancelar: () => void;
 }) {
-  const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const validacion = useValidacionAlSalir(updatePeregrinaSchema);
 
@@ -126,14 +128,13 @@ export default function EditarPeregrinaForm({
         setError(resultado.error);
         return;
       }
-      router.push(`/peregrina/${peregrina.id}`);
-      router.refresh();
+      alGuardar();
     });
   }
 
   return (
     <form
-      className="max-w-xl space-y-6"
+      className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
         guardar();
@@ -229,9 +230,14 @@ export default function EditarPeregrinaForm({
         onChange={setDiocesisLocalidadId}
       />
 
-      <Boton type="submit" disabled={pendiente}>
-        {pendiente ? "Guardando…" : "Guardar los cambios"}
-      </Boton>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Boton type="submit" disabled={pendiente}>
+          {pendiente ? "Guardando…" : "Guardar los cambios"}
+        </Boton>
+        <Boton tono="secundario" disabled={pendiente} onClick={alCancelar}>
+          No, volver
+        </Boton>
+      </div>
     </form>
   );
 }

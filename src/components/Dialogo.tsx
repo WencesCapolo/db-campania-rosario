@@ -54,6 +54,7 @@ export default function Dialogo({
   disparador,
   children,
   alCerrar,
+  cerrarConElFondo = true,
 }: {
   titulo: string;
   /** Used when `disparador` is omitted — renders a plain secondary button. */
@@ -63,6 +64,11 @@ export default function Dialogo({
   children: (control: ControlDeDialogo) => React.ReactNode;
   /** `cancelado` is true when Escape or the backdrop closed it, not `cerrar`. */
   alCerrar?: (cancelado: boolean) => void;
+  /**
+   * False for a form: a stray tap beside a long form on a phone would throw away
+   * everything typed in it. Escape and «No, volver» still cancel.
+   */
+  cerrarConElFondo?: boolean;
 }) {
   const [elemento, setElemento] = useState<HTMLDialogElement | null>(null);
 
@@ -109,9 +115,9 @@ export default function Dialogo({
         onClick={(e) => {
           // The backdrop belongs to the dialog element, so a click landing on
           // the element itself rather than on its content came from outside.
-          if (e.target === elemento) elemento?.close();
+          if (cerrarConElFondo && e.target === elemento) elemento?.close();
         }}
-        className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-tarjeta border-2 border-borde-fuerte bg-papel p-6 text-base text-tinta backdrop:bg-tinta/60"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-tarjeta border-2 border-borde-fuerte bg-papel p-6 text-base text-tinta backdrop:bg-tinta/60"
       >
         <h2 id={idTitulo} className="text-xl font-bold">
           {titulo}

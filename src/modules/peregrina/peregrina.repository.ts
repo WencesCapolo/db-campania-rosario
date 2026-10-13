@@ -657,26 +657,28 @@ export class PeregrinaRepository {
   }
 
   /**
-   * Destroys an image that was never in anybody's charge — ADR 0013.
+   * Destroys an image and every Asignación it ever had — ADR 0013, as amended.
    *
-   * The `not exists` is the guard and not a courtesy: the check the service
-   * makes first and this delete are two statements, and an Asignación opened
-   * between them would otherwise be left pointing at nothing. The table is
-   * named in SQL rather than imported because the module chain runs
-   * peregrina → asignacion, never back. Returns whether a row was deleted.
+   * One transaction, because a Peregrina gone with its periods left behind is a
+   * set of rows pointing at nothing, and the foreign key would refuse the
+   * delete anyway. The table is named in SQL rather than imported because the
+   * module chain runs peregrina → asignacion, never back. The open Asignación,
+   * if any, goes with the rest, and so do the denormalised pointers, which live
+   * on this row. Returns whether the image existed.
    */
-  static async eliminarSiNuncaAsignada(id: string): Promise<boolean> {
-    const borradas = await db
-      .delete(peregrina)
-      .where(
-        and(
-          eq(peregrina.id, id),
-          sql`not exists (select 1 from "asignacion" where "asignacion"."peregrina_id" = ${peregrina.id})`,
-        ),
-      )
-      .returning({ id: peregrina.id });
-    return borradas.length > 0;
+  static async eliminar(id: string): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        sql`delete from "asignacion" where "asignacion"."peregrina_id" = ${id}`,
+      );
+      const borradas = await tx
+        .delete(peregrina)
+        .where(eq(peregrina.id, id))
+        .returning({ id: peregrina.id });
+      return borradas.length > 0;
+    });
   }
+
 
   // ── Agregaciones ───────────────────────────────────────────────────────────
   //

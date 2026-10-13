@@ -11,7 +11,9 @@ import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
 import { fechaDeConsagracion } from "@/lib/consagracion";
+import DialogoDeEdicion from "@/components/DialogoDeEdicion";
 import BajaDeMisionero from "./BajaDeMisionero";
+import EditarMisioneroForm from "./EditarMisioneroForm";
 
 /**
  * Un Misionero, y todo lo que tuvo.
@@ -89,9 +91,15 @@ export default async function MisioneroPage({
         )}
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <BotonEnlace tono="secundario" href={`/misionero/${misionero.id}/editar`}>
-            Editar sus datos
-          </BotonEnlace>
+          <DialogoDeEdicion titulo={`Editar a ${nombreCompleto(misionero)}`}>
+            {(acciones) => (
+              <EditarMisioneroForm
+                misionero={misionero}
+                casado={matrimonioId !== null}
+                {...acciones}
+              />
+            )}
+          </DialogoDeEdicion>
           {/* Una persona casada tiene la imagen a nombre de la pareja, y el
               territorio y el Centro son de la casa: todo eso vive allá. */}
           {matrimonioId && (

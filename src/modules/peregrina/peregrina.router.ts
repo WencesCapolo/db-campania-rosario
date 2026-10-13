@@ -165,8 +165,8 @@ export async function darDeBajaPeregrinaAction(
 }
 
 /**
- * Destroys a Peregrina that was never in anybody's charge — ADR 0013. The
- * service refuses one with history; that one is marked extraviada instead.
+ * Destroys a Peregrina and its whole historial — ADR 0013. The warning is the
+ * dialog's; by the time this runs it was confirmed.
  */
 export async function eliminarPeregrinaAction(
   id: string

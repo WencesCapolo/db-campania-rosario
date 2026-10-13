@@ -127,7 +127,7 @@ Retired rather than deleted. A Peregrina that was lost — on screen it is **mar
 _Avoid_: Borrar, Baja (on its own, for a Peregrina that is merely unassigned)
 
 **Eliminar**:
-Destroying a Peregrina outright. Only one that was never in anybody's charge — registered twice, or by mistake — because it has no Asignación to keep resolving; one with history is refused and marked extraviada instead (ADR 0013). Nothing else is ever eliminated.
+Destroying a Peregrina outright, together with every Asignación it ever had — allowed even when it was, or is, in somebody's charge, behind a warning that says how much history goes with it. Each Misionero who had it loses that period from their page; marking it extraviada loses nothing (ADR 0013). Nothing else is ever eliminated.
 _Avoid_: using it for a baja
 
 **Tablero**:

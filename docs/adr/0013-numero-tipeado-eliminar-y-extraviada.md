@@ -1,4 +1,4 @@
-# El número del Código se tipea, una imagen sin historial se elimina, y la baja se llama Extraviada
+# El número del Código se tipea, una Peregrina se puede eliminar, y la baja se llama Extraviada
 
 Cuatro pedidos de la Campaña, del 2026-10-13, que deshacen partes de decisiones anteriores. Van juntos porque los cuatro dicen lo mismo de distintas formas: el sistema tiene que seguir a lo que está escrito en las imágenes y en los papeles, y no al revés.
 
@@ -14,13 +14,13 @@ El número tipeado también vale al ponerle Código a una imagen vieja (`generar
 
 `nextCodigoNum` no cambió: sigue siendo el máximo más uno, así que un número alto tipeado corre la secuencia. Es lo que se quiere: el siguiente automático nunca choca con uno escrito.
 
-## Eliminar, sólo sin historial
+## Eliminar, con su historial
 
-«No se borra nada» tenía una razón: cada Asignación tiene que seguir resolviendo a un Código real. Esa razón no alcanza a una imagen que **nunca estuvo a cargo de nadie** — cargada dos veces, o por error — y para esa existe ahora `PeregrinaService.eliminar`, que la borra de verdad.
+«No se borra nada» tenía una razón: cada Asignación tiene que seguir resolviendo a un Código real. La Campaña pidió igual poder eliminar una Peregrina **aunque haya estado a cargo de alguien**, con sólo un aviso — primero se hizo sólo para las que nunca tuvieron Asignación, y se amplió el mismo día.
 
-Se rechaza en cuanto tuvo una Asignación, abierta o cerrada, y el rechazo dice que se la marque como extraviada. La comprobación es sin alcance, como la de la baja: un período registrado desde otro territorio también es historia. Y el `delete` lleva su propio `not exists` contra `asignacion`, porque entre la pregunta y el borrado alguien puede entregarla; la clave foránea, sin cascada, es la tercera red.
+`PeregrinaService.eliminar` borra la Peregrina y todas sus Asignaciones, abiertas o cerradas, en una transacción: la clave foránea, sin cascada, rechazaría el borrado de la imagen sola, y una Asignación sin imagen es una fila de ids. Los punteros denormalizados viven en la fila de la Peregrina y se van con ella.
 
-La pantalla sólo ofrece «Eliminar» cuando el historial que ve está vacío. Es una cortesía: el servicio decide.
+**Lo que cuesta, y por eso el aviso:** cada Misionero que la tuvo pierde ese período de su ficha, y la pregunta «¿quién la tenía?» deja de tener respuesta. El diálogo dice cuántos períodos se pierden, quién la tiene ahora si alguien la tiene, y que si se perdió conviene marcarla como extraviada, que no pierde nada. Lo dice la pantalla; el servicio hace lo confirmado.
 
 Misionero, Matrimonio y Usuario siguen sin eliminar.
 
@@ -47,4 +47,4 @@ La migración va en dos archivos, como pide CLAUDE.md: 0010 agrega las columnas 
 
 - **No se adelanta cuál va a ser el siguiente número.** El formulario dice que vacío toma el siguiente libre y muestra el Código al guardar. Precargarlo pedía una lectura por cada cambio de Modalidad o territorio, y una carrera entre lo que alguien tipea y lo que llega del servidor.
 - **No se puede tipear el Código entero.** Sólo el número: un Código con letras inventadas no se puede filtrar por Provincia ni por Modalidad.
-- **No hay papelera.** Eliminar es definitivo; por eso se limita a lo que no tiene historia.
+- **No hay papelera.** Eliminar es definitivo, historial incluido; por eso el aviso.

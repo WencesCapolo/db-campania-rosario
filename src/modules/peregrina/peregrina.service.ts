@@ -509,37 +509,23 @@ export class PeregrinaService {
   }
 
   /**
-   * Destroys a Peregrina — ADR 0013. For an image registered by mistake, which
-   * is why it is refused once the image has been in anybody's charge: every
-   * Asignación has to keep resolving to a real Código, so an image with history
-   * is marked extraviada (`darDeBaja`) instead, and the refusal says so.
+   * Destroys a Peregrina, with its whole historial — ADR 0013, as amended on
+   * 2026-10-13: the Campaña wants it possible even for an image that was in
+   * somebody's charge, and wants only to be warned. The warning is the
+   * screen's; this does what was confirmed.
+   *
+   * What it costs is real and the ADR says so: every Misionero who had the
+   * image loses that period from their own page, because there is no longer a
+   * Código for it to resolve to. Marking it extraviada keeps all of that.
    */
   static async eliminar(actor: CurrentUser, id: string): Promise<void> {
     const operacion = "PeregrinaService.eliminar";
     const alcance = derivarAlcance(actor, operacion);
 
-    const actual = await PeregrinaService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
-    const nombre = identificacionDe(actual.peregrina);
+    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
 
-    const conHistorial = () =>
-      new ConflictoError(
-        `No se puede eliminar la Peregrina ${nombre}: ya estuvo a cargo de ` +
-          "alguien, y ese historial tiene que seguir nombrándola. Si no está " +
-          "más, marcala como extraviada."
-      );
-
-    // Unscoped, like the guard on the baja: a period registered from another
-    // territory is history all the same.
-    if (await AsignacionRepository.tieneHistorialSinAlcance(id)) {
-      throw conHistorial();
-    }
-    if (!(await PeregrinaRepository.eliminarSiNuncaAsignada(id))) {
-      throw conHistorial();
+    if (!(await PeregrinaRepository.eliminar(id))) {
+      throw new NoEncontradoError("No existe esa Peregrina.");
     }
   }
 
@@ -548,9 +534,8 @@ export class PeregrinaService {
    * intact — user story 16, renamed by ADR 0013. The Estado becomes
    * `extraviada` in the same write, so the record does not say two things.
    *
-   * An image with history is never destroyed (`eliminar` refuses it). An
-   * Asignación that cannot resolve its Código is a row of unreadable ids, so
-   * the record stays and only stops appearing in lists.
+   * Unlike `eliminar`, nothing is lost: the record stays and only stops
+   * appearing in lists, so every Asignación keeps resolving to its Código.
    *
    * Refused while somebody still has the image. A Peregrina that is physically in
    * a Misionero's house has not left the inventory, whatever the paperwork says,

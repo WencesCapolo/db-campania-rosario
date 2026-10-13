@@ -846,21 +846,6 @@ export class AsignacionRepository {
   }
 
   /**
-   * Whether this Peregrina was ever in anybody's charge, open or closed — the
-   * guard on `PeregrinaService.eliminar` (ADR 0013). Unscoped for the same
-   * reason as the one above: a period registered from another territory is
-   * still history that would be destroyed.
-   */
-  static async tieneHistorialSinAlcance(peregrinaId: string): Promise<boolean> {
-    const [fila] = await db
-      .select({ id: asignacion.id })
-      .from(asignacion)
-      .where(eq(asignacion.peregrinaId, peregrinaId))
-      .limit(1);
-    return fila !== undefined;
-  }
-
-  /**
    * Las imágenes abiertas de una página entera de **Tenedores**, en una consulta
    * — la columna «¿Tiene imagen?» del listado.
    *

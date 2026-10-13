@@ -13,8 +13,8 @@ import { ConflictoError, NoAutorizadoError, ValidacionError } from "@/lib/errors
 
 /**
  * ADR 0013 — el número del Código se puede tipear, la imagen tiene Fecha de
- * consagración, una imagen sin historial se puede eliminar, y la baja se llama
- * Extraviada.
+ * consagración, una imagen se puede eliminar con su historial, y la baja se
+ * llama Extraviada.
  */
 
 let territorio: TerritorioDePrueba;
@@ -234,28 +234,37 @@ describe("eliminar una Peregrina", () => {
     );
   });
 
-  it("rechaza la que tiene historial, aunque ya esté devuelta", async () => {
-    const creada = await nueva(referente);
+  it("borra también la que tuvo historial, y la que alguien tiene ahora", async () => {
     const ana = await crearMisioneroDirecto({
       diocesisLocalidadId: territorio.villaMaria.id,
       createdById: referente.id,
     });
+    const devuelta = await nueva(referente);
     await AsignacionService.asignar(referente, {
-      peregrinaId: creada.id,
+      peregrinaId: devuelta.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
     await AsignacionService.devolver(referente, {
-      peregrinaId: creada.id,
+      peregrinaId: devuelta.id,
       notaCierre: null,
     });
+    const enCasa = await nueva(referente);
+    await AsignacionService.asignar(referente, {
+      peregrinaId: enCasa.id,
+      tenedor: { tipo: "persona", id: ana.id },
+      nota: null,
+    });
 
-    const intento = PeregrinaService.eliminar(referente, creada.id);
-    await expect(intento).rejects.toThrow(ConflictoError);
-    await expect(intento).rejects.toThrow(/extraviada/);
+    await PeregrinaService.eliminar(referente, devuelta.id);
+    await PeregrinaService.eliminar(referente, enCasa.id);
 
-    const sigue = await PeregrinaService.getById(referente, creada.id);
-    expect(sigue.id).toBe(creada.id);
+    for (const id of [devuelta.id, enCasa.id]) {
+      await expect(PeregrinaService.getById(asesor, id)).rejects.toThrow(/No existe/);
+    }
+    // Su historial se fue con ella: la ficha de Ana ya no la nombra.
+    const historial = await AsignacionService.historialDeMisionero(referente, ana.id);
+    expect(historial).toEqual([]);
   });
 
   it("un Referente no elimina una imagen de otro territorio", async () => {
