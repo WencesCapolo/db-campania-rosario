@@ -24,6 +24,7 @@ import {
 } from "@/modules/peregrina/peregrina.types";
 import { CampoDeFechaDeConsagracion } from "@/modules/peregrina/CamposDePeregrina";
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
+import DialogoDeEdicion from "@/components/DialogoDeEdicion";
 
 /**
  * Corregir los datos de una Peregrina — todo menos quién la tiene, que sólo lo
@@ -51,6 +52,20 @@ const TIPOS = (["peregrina", "auxiliar"] as const).map((t) => ({
 }));
 
 const NUMERO_ENTERO = "El número tiene que ser un número entero, sin letras.";
+
+/**
+ * El botón y el diálogo, del lado del cliente. La ficha es un componente de
+ * servidor y no le puede pasar una función a `DialogoDeEdicion` — Next no
+ * serializa funciones hacia el cliente, y la ficha entera fallaba. La ficha pasa
+ * sólo datos, y el armado del diálogo vive acá.
+ */
+export function EditarPeregrina({ peregrina }: { peregrina: PeregrinaDTO }) {
+  return (
+    <DialogoDeEdicion titulo={`Editar ${peregrina.identificacion}`}>
+      {(acciones) => <EditarPeregrinaForm peregrina={peregrina} {...acciones} />}
+    </DialogoDeEdicion>
+  );
+}
 
 export default function EditarPeregrinaForm({
   peregrina,

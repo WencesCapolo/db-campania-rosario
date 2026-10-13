@@ -16,6 +16,8 @@ import {
 } from "@/modules/misionero/misionero.types";
 import { CampoDeFechaDeConsagracion } from "@/modules/peregrina/CamposDePeregrina";
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
+import DialogoDeEdicion from "@/components/DialogoDeEdicion";
+import { nombreCompleto } from "@/lib/formato";
 
 /**
  * Corregir los datos de un Misionero ya cargado, en un diálogo sobre su ficha.
@@ -33,6 +35,28 @@ const CENTROS = CENTRO_TIPOS.map((t) => ({
   valor: t,
   etiqueta: CENTRO_LABELS[t],
 }));
+
+/**
+ * El botón y el diálogo, del lado del cliente. La ficha es un componente de
+ * servidor y no le puede pasar una función a `DialogoDeEdicion` — Next no
+ * serializa funciones hacia el cliente, y la ficha entera fallaba. La ficha pasa
+ * sólo datos, y el armado del diálogo vive acá.
+ */
+export function EditarMisionero({
+  misionero,
+  casado,
+}: {
+  misionero: MisioneroDTO;
+  casado: boolean;
+}) {
+  return (
+    <DialogoDeEdicion titulo={`Editar a ${nombreCompleto(misionero)}`}>
+      {(acciones) => (
+        <EditarMisioneroForm misionero={misionero} casado={casado} {...acciones} />
+      )}
+    </DialogoDeEdicion>
+  );
+}
 
 export default function EditarMisioneroForm({
   misionero,

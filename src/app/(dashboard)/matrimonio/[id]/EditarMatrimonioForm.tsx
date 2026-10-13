@@ -23,6 +23,8 @@ import {
   useValidacionAlSalir,
   type ValidacionAlSalir,
 } from "@/lib/validacion-al-salir";
+import DialogoDeEdicion from "@/components/DialogoDeEdicion";
+import { nombreDeTenedor } from "@/lib/formato";
 
 /**
  * Corregir los datos de un Matrimonio: los de cada uno y los de la casa.
@@ -137,6 +139,22 @@ function DatosDePersona({
         }}
       />
     </fieldset>
+  );
+}
+
+/**
+ * El botón y el diálogo, del lado del cliente. La ficha es un componente de
+ * servidor y no le puede pasar una función a `DialogoDeEdicion` — Next no
+ * serializa funciones hacia el cliente, y la ficha entera fallaba. La ficha pasa
+ * sólo datos, y el armado del diálogo vive acá.
+ */
+export function EditarMatrimonio({ matrimonio }: { matrimonio: MatrimonioDTO }) {
+  return (
+    <DialogoDeEdicion
+      titulo={`Editar a ${nombreDeTenedor({ tipo: "matrimonio", matrimonio })}`}
+    >
+      {(acciones) => <EditarMatrimonioForm matrimonio={matrimonio} {...acciones} />}
+    </DialogoDeEdicion>
   );
 }
 

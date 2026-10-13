@@ -15,8 +15,7 @@ import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
 import { fechaDeConsagracion } from "@/lib/consagracion";
 import BajaDePeregrina from "./BajaDePeregrina";
 import GenerarCodigo from "./GenerarCodigo";
-import DialogoDeEdicion from "@/components/DialogoDeEdicion";
-import EditarPeregrinaForm from "./EditarPeregrinaForm";
+import { EditarPeregrina } from "./EditarPeregrinaForm";
 
 /**
  * Una Peregrina, en una pantalla.
@@ -85,11 +84,7 @@ export default async function PeregrinaPage({
         )}
 
         <div>
-          <DialogoDeEdicion titulo={`Editar ${peregrina.identificacion}`}>
-            {(acciones) => (
-              <EditarPeregrinaForm peregrina={peregrina} {...acciones} />
-            )}
-          </DialogoDeEdicion>
+          <EditarPeregrina peregrina={peregrina} />
         </div>
       </header>
 

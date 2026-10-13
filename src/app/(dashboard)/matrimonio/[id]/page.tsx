@@ -15,9 +15,8 @@ import {
   registro,
 } from "@/lib/formato";
 import { fechaDeConsagracion } from "@/lib/consagracion";
-import DialogoDeEdicion from "@/components/DialogoDeEdicion";
 import BajaDeMatrimonio from "./BajaDeMatrimonio";
-import EditarMatrimonioForm from "./EditarMatrimonioForm";
+import { EditarMatrimonio } from "./EditarMatrimonioForm";
 
 /**
  * Un Matrimonio, y todo lo que tuvo la casa.
@@ -102,11 +101,7 @@ export default async function MatrimonioPage({
         )}
 
         <div>
-          <DialogoDeEdicion titulo={`Editar a ${nombre}`}>
-            {(acciones) => (
-              <EditarMatrimonioForm matrimonio={matrimonio} {...acciones} />
-            )}
-          </DialogoDeEdicion>
+          <EditarMatrimonio matrimonio={matrimonio} />
         </div>
       </header>
 
