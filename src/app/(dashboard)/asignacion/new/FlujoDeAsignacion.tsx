@@ -14,6 +14,7 @@ import Mensaje from "@/components/Mensaje";
 import Insignia from "@/components/Insignia";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { nombreDeTenedor } from "@/lib/formato";
+import { coincide } from "@/lib/busqueda-en-pantalla";
 import {
   opcionDeTenedorConTerritorio,
   tenedorDeDTO,
@@ -56,22 +57,6 @@ import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
  */
 
 type Paso = 1 | 2 | 3;
-
-/** Sin tildes ni mayúsculas: «alvarez» tiene que encontrar a «Álvarez». */
-const normalizar = (texto: string) =>
-  texto.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-
-/**
- * Cada palabra de lo escrito tiene que estar en la opción, en cualquier orden:
- * «maria alvarez» y «alvarez maria» encuentran a la misma persona.
- */
-function coincide(etiqueta: string, busqueda: string): boolean {
-  const donde = normalizar(etiqueta);
-  return normalizar(busqueda)
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((palabra) => donde.includes(palabra));
-}
 
 const PASOS = 3;
 

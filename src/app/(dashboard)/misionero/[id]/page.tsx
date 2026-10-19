@@ -5,6 +5,8 @@ import {
 } from "@/modules/misionero/misionero.router";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
+import { getPeregrinasAction } from "@/modules/peregrina/peregrina.router";
+import EntregarImagen from "@/modules/asignacion/EntregarImagen";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
@@ -50,6 +52,13 @@ export default async function MisioneroPage({
 
   const abiertas = historial.filter((a) => a.abierta);
   const cerradas = historial.filter((a) => !a.abierta).reverse();
+
+  // Las imágenes para el diálogo de entrega, sólo cuando se lo ofrece. Una
+  // persona casada no recibe una sola: la recibe la casa, desde la ficha del
+  // matrimonio (ADR 0010).
+  const puedeRecibir =
+    abiertas.length === 0 && !misionero.deBaja && matrimonioId === null;
+  const peregrinas = puedeRecibir ? await getPeregrinasAction() : [];
 
   const resumenes = Object.entries(misionero.resumenesAnuales).sort(
     ([a], [b]) => Number(b) - Number(a),
@@ -107,10 +116,19 @@ export default async function MisioneroPage({
             <p className="text-base leading-relaxed text-tinta-suave">
               No tiene ninguna imagen a cargo.
             </p>
-            {!misionero.deBaja && (
-              <BotonEnlace href="/asignacion/new">
-                Entregarle una imagen
-              </BotonEnlace>
+            {puedeRecibir && (
+              <EntregarImagen
+                tenedor={{ tipo: "persona", id: misionero.id }}
+                nombre={nombreCompleto(misionero)}
+                diocesisLocalidadId={misionero.diocesisLocalidad.id}
+                peregrinas={peregrinas}
+              />
+            )}
+            {matrimonioId && !misionero.deBaja && (
+              <p className="text-base leading-relaxed text-tinta-suave">
+                Es parte de un matrimonio: la imagen se les entrega a los dos,
+                desde la ficha del matrimonio.
+              </p>
             )}
           </div>
         ) : (

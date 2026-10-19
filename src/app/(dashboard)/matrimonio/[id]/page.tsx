@@ -3,6 +3,8 @@ import { getMatrimonioByIdAction } from "@/modules/misionero/matrimonio.router";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
+import { getPeregrinasAction } from "@/modules/peregrina/peregrina.router";
+import EntregarImagen from "@/modules/asignacion/EntregarImagen";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
@@ -72,6 +74,10 @@ export default async function MatrimonioPage({
   // definido porque el formulario lo carga una sola vez para los dos.
   const territorio = misioneroA.diocesisLocalidad;
 
+  // Las imágenes para el diálogo de entrega, sólo cuando se lo ofrece.
+  const puedeRecibir = abiertas.length === 0 && !matrimonio.deBaja;
+  const peregrinas = puedeRecibir ? await getPeregrinasAction() : [];
+
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
       <header className="space-y-3">
@@ -124,10 +130,14 @@ export default async function MatrimonioPage({
             <p className="text-base leading-relaxed text-tinta-suave">
               No tienen ninguna imagen a cargo.
             </p>
-            {!matrimonio.deBaja && (
-              <BotonEnlace href="/asignacion/new">
-                Entregarles una imagen
-              </BotonEnlace>
+            {puedeRecibir && (
+              <EntregarImagen
+                tenedor={{ tipo: "matrimonio", id }}
+                nombre={nombre}
+                diocesisLocalidadId={territorio.id}
+                peregrinas={peregrinas}
+                etiqueta="Entregarles una imagen"
+              />
             )}
           </div>
         ) : (
