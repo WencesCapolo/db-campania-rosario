@@ -7,18 +7,17 @@ import {
   entregarAction,
 } from "@/modules/asignacion/asignacion.router";
 import Boton, { BotonEnlace } from "@/components/Boton";
-import Campo from "@/components/Campo";
-import Eleccion from "@/components/Eleccion";
+import Buscador from "@/components/Buscador";
 import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
 import Insignia from "@/components/Insignia";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { nombreDeTenedor } from "@/lib/formato";
-import { coincide } from "@/lib/busqueda-en-pantalla";
 import {
-  opcionDeTenedorConTerritorio,
+  opcionDeTenedorParaBuscar,
   tenedorDeDTO,
 } from "@/lib/tenedor-en-pantalla";
+import { opcionDePeregrina } from "@/modules/peregrina/OpcionDePeregrina";
 import { valorDeTenedor } from "@/modules/misionero/matrimonio.types";
 import type { TenedorDTO } from "@/modules/misionero/matrimonio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
@@ -48,12 +47,15 @@ import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
  * the option itself — finding that out at the confirmation is finding out after
  * the point where choosing a different image was still easy.
  *
+ * Los dos pasos que eligen son un `Buscador`, un solo campo donde se escribe y se
+ * elige (ADR 0015). Antes eran un campo de búsqueda y, debajo, un `<select>` que
+ * se achicaba: dos controles para una sola decisión.
+ *
  * El paso 1 elige un **Tenedor**, no una persona: una imagen la puede tener un
  * Misionero o un Matrimonio, y la lista es una sola con las dos clases adentro
  * (ADR 0010). Un Misionero casado no aparece — la pareja lo reemplaza — así que
- * no hay forma de elegir una opción que el service vaya a rechazar. El
- * `<option value>` es `persona:abc` / `matrimonio:def`, que es lo que un
- * `<select>` nativo sabe llevar: un string.
+ * no hay forma de elegir una opción que el service vaya a rechazar. El valor de
+ * cada opción es `persona:abc` / `matrimonio:def`: un string.
  */
 
 type Paso = 1 | 2 | 3;
@@ -73,22 +75,21 @@ export default function FlujoDeAsignacion({
 
   const [paso, setPaso] = useState<Paso>(1);
   const [valor, setValor] = useState("");
-  const [busqueda, setBusqueda] = useState("");
   const [peregrinaId, setPeregrinaId] = useState("");
   const [nota, setNota] = useState("");
   const [notaCierre, setNotaCierre] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // El paso 1 filtra mientras se escribe, y el `<select>` nativo sigue siendo el
-  // control: la lista de una Diócesis son cientos de nombres, y nadie la recorre
-  // con el pulgar. Lo elegido se conserva aunque el filtro lo deje afuera, para
-  // que borrar una letra no cambie a quién se le entrega.
-  const opcionesDeTenedor = tenedores.map(opcionDeTenedorConTerritorio);
-  const filtradas = busqueda.trim()
-    ? opcionesDeTenedor.filter(
-        (o) => o.valor === valor || coincide(o.etiqueta, busqueda),
-      )
-    : opcionesDeTenedor;
+  // La lista de una Diócesis son cientos de nombres, y nadie la recorre con el
+  // pulgar: se escribe. La «y» de una pareja se pasa por alto en un teléfono, así
+  // que la clase de Tenedor se dice también con una palabra.
+  const opcionesDeTenedor = tenedores.map((t) => ({
+    ...opcionDeTenedorParaBuscar(t),
+    insignia:
+      t.tipo === "matrimonio" ? (
+        <Insignia tono="neutro">Matrimonio</Insignia>
+      ) : undefined,
+  }));
 
   const elegido = tenedores.find(
     (t) => valorDeTenedor(tenedorDeDTO(t)) === valor,
@@ -182,52 +183,17 @@ export default function FlujoDeAsignacion({
             Paso 1: Elegir quién la recibe
           </h2>
 
-          <Campo
-            etiqueta="Buscar por nombre"
-            ayuda="Escribí parte del nombre o del apellido, y la lista de abajo se achica."
-            type="search"
-            autoComplete="off"
-            value={busqueda}
-            onChange={(e) => {
-              const texto = e.target.value;
-              setBusqueda(texto);
-              // Si queda uno solo, ya está elegido: un toque menos.
-              const quedan = opcionesDeTenedor.filter((o) =>
-                coincide(o.etiqueta, texto),
-              );
-              if (texto.trim() && quedan.length === 1 && quedan[0]) {
-                setValor(quedan[0].valor);
-              }
-            }}
+          <Buscador
+            etiqueta="¿A quién pasa la imagen?"
+            ayuda="Escribí parte del nombre o del apellido. En un matrimonio alcanza con el de cualquiera de los dos."
+            placeholder="Gómez"
+            value={valor}
+            opciones={opcionesDeTenedor}
+            alElegir={setValor}
+            sinCoincidencias={(b) =>
+              `Nadie se llama «${b}» en tu territorio. Revisá lo que escribiste, o cargalo desde «Cargar un Misionero».`
+            }
           />
-
-          {filtradas.length === 0 ? (
-            <Mensaje tono="aviso">
-              <p>
-                Nadie se llama así en tu territorio. Revisá lo que escribiste, o
-                cargalo desde «Cargar un Misionero».
-              </p>
-            </Mensaje>
-          ) : (
-            <Eleccion
-              etiqueta="¿A quién pasa la imagen?"
-              ayuda={
-                busqueda.trim()
-                  ? `${filtradas.length === 1 ? "Queda 1" : `Quedan ${filtradas.length}`} de ${opcionesDeTenedor.length}.`
-                  : "Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
-              }
-              vacia="Elegí un Misionero o un Matrimonio…"
-              value={valor}
-              opciones={filtradas}
-              onChange={(e) => setValor(e.target.value)}
-            />
-          )}
-
-          {/* La «y» sola se pasa por alto en un teléfono, así que la clase de
-              Tenedor se dice con una palabra además de con el nombre. */}
-          {elegido?.tipo === "matrimonio" && (
-            <Insignia tono="neutro">Matrimonio</Insignia>
-          )}
 
           <Boton disabled={!elegido} onClick={() => setPaso(2)}>
             Siguiente
@@ -245,17 +211,17 @@ export default function FlujoDeAsignacion({
             Para {nombreDeTenedor(elegido)}.
           </p>
 
-          <Eleccion
+          <Buscador
             etiqueta="¿Qué Peregrina?"
-            vacia="Elegí una Peregrina…"
+            ayuda="Escribí parte del Código o de la numeración anterior."
+            placeholder="JOV 0012"
+            mono
             value={peregrinaId}
-            opciones={peregrinas.map((p) => ({
-              valor: p.id,
-              etiqueta: p.tenenciaActual
-                ? `${p.identificacion} — la tiene ${nombreDeTenedor(p.tenenciaActual)}`
-                : `${p.identificacion} — sin entregar`,
-            }))}
-            onChange={(e) => setPeregrinaId(e.target.value)}
+            opciones={peregrinas.map((p) => opcionDePeregrina(p))}
+            alElegir={setPeregrinaId}
+            sinCoincidencias={(b) =>
+              `Ninguna Peregrina de tu territorio coincide con «${b}». Revisá lo que escribiste, o registrala desde «Registrar una Peregrina».`
+            }
           />
 
           <div className="flex flex-col gap-3 sm:flex-row">

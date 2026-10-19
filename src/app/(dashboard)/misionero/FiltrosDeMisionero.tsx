@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Boton from "@/components/Boton";
-import Campo from "@/components/Campo";
+import CampoDeBusqueda from "@/components/CampoDeBusqueda";
 import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
+import { useBusquedaEnVivo } from "@/lib/busqueda-en-vivo";
 
 /**
  * Buscar una persona, y ver quién tiene las manos libres.
@@ -27,6 +28,8 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * In the address like every other filter, so the tablero's "Misioneros sin imagen"
  * card can link straight here with the filter already applied, and so coming back
  * from a person's page does not throw the search away.
+ *
+ * El buscador busca mientras se escribe, sin botón (ADR 0015).
  *
  * El buscador encuentra a un matrimonio por el apellido de cualquiera de los dos
  * — «Benítez» trae a «Álvarez, Ana y Benítez, Juan» (ADR 0010). Eso va en la
@@ -62,7 +65,11 @@ export default function FiltrosDeMisionero({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendiente, empezar] = useTransition();
-  const [borrador, setBorrador] = useState(q);
+  const busqueda = useBusquedaEnVivo({
+    clave: "q",
+    enLaDireccion: q,
+    destino: "/misionero",
+  });
 
   function aplicar(cambios: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -79,32 +86,12 @@ export default function FiltrosDeMisionero({
 
   return (
     <div className="space-y-4">
-      {/* El buscador en un renglón desde `sm`: el campo se estira y el botón
-          queda al ras de la caja, no de la ayuda. */}
-      <form
-        role="search"
-        className="flex flex-col gap-3 sm:flex-row sm:items-end"
-        onSubmit={(e) => {
-          e.preventDefault();
-          aplicar({ q: borrador.trim() });
-        }}
-      >
-        <div className="sm:flex-1">
-          <Campo
-            etiqueta="Buscar por nombre, apellido o territorio"
-            ayuda="En un matrimonio alcanza con el apellido de cualquiera de los dos."
-            type="search"
-            inputMode="search"
-            placeholder="Gómez"
-            value={borrador}
-            onChange={(e) => setBorrador(e.target.value)}
-          />
-        </div>
-
-        <Boton type="submit" disabled={pendiente}>
-          {pendiente ? "Buscando…" : "Buscar"}
-        </Boton>
-      </form>
+      <CampoDeBusqueda
+        etiqueta="Buscar por nombre, apellido o territorio"
+        ayuda="En un matrimonio alcanza con el apellido de cualquiera de los dos."
+        placeholder="Gómez"
+        {...busqueda}
+      />
 
       <fieldset className="space-y-2">
         <legend className="text-base font-semibold text-tinta">
@@ -141,7 +128,7 @@ export default function FiltrosDeMisionero({
           tono="secundario"
           disabled={pendiente}
           onClick={() => {
-            setBorrador("");
+            busqueda.vaciar();
             aplicar({ q: "", imagen: "" });
           }}
         >

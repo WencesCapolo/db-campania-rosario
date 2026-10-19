@@ -10,15 +10,15 @@ import CamposDePeregrinaForm, {
   type Rotulacion,
 } from "@/modules/peregrina/CamposDePeregrina";
 import Boton from "@/components/Boton";
-import Campo from "@/components/Campo";
+import Buscador from "@/components/Buscador";
 import Eleccion from "@/components/Eleccion";
 import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
 import Dialogo from "@/components/Dialogo";
 import { nombreDeTenedor } from "@/lib/formato";
-import { coincide } from "@/lib/busqueda-en-pantalla";
 import type { Tenedor } from "@/modules/misionero/matrimonio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
+import { opcionDePeregrina } from "@/modules/peregrina/OpcionDePeregrina";
 
 /**
  * Entregar una imagen desde la ficha de quien la recibe, en un diálogo.
@@ -115,7 +115,6 @@ export function FormularioDeEntrega({
   const [pendiente, startTransition] = useTransition();
 
   const [vista, setVista] = useState<"elegir" | "alta">("elegir");
-  const [busqueda, setBusqueda] = useState("");
   const [peregrinaId, setPeregrinaId] = useState("");
   const [nota, setNota] = useState("");
   const [notaCierre, setNotaCierre] = useState("");
@@ -139,19 +138,6 @@ export function FormularioDeEntrega({
   // La imagen está afuera: confirmar cierra ese período y abre el siguiente.
   const tenencia = peregrina?.tenenciaActual ?? null;
 
-  const etiquetaDe = (p: PeregrinaDTO) =>
-    p.tenenciaActual
-      ? `${p.identificacion} — la tiene ${nombreDeTenedor(p.tenenciaActual)}`
-      : `${p.identificacion} — sin entregar`;
-
-  // Lo elegido se conserva aunque el filtro lo deje afuera, para que borrar una
-  // letra no cambie qué imagen se entrega.
-  const filtradas = busqueda.trim()
-    ? peregrinas.filter(
-        (p) => p.id === peregrinaId || coincide(etiquetaDe(p), busqueda),
-      )
-    : peregrinas;
-
   function registrarImagen() {
     setError(null);
     const datos = campos.paraAlta(rotulacion);
@@ -174,7 +160,6 @@ export function FormularioDeEntrega({
       setCreadas((c) => [resultado.data, ...c]);
       setRecienCreada(resultado.data);
       setPeregrinaId(resultado.data.id);
-      setBusqueda("");
       setVista("elegir");
       // Ya existe aunque después no se entregue: que la ficha la tenga si el
       // diálogo se vuelve a abrir.
@@ -234,8 +219,8 @@ export function FormularioDeEntrega({
           ayuda="Las imágenes que se rotularon antes del formato de la Campaña."
           value={rotulacion}
           opciones={[...ROTULACIONES]}
-          onChange={(e) => {
-            setRotulacion(e.target.value as Rotulacion);
+          alElegir={(valor) => {
+            setRotulacion(valor as Rotulacion);
             campos.validacion.limpiar();
           }}
         />
@@ -300,44 +285,21 @@ export function FormularioDeEntrega({
           después la entregás.
         </p>
       ) : (
-        <>
-          <Campo
-            etiqueta="Buscar por Identificación"
-            ayuda="Escribí parte del Código o de la numeración, y la lista de abajo se achica."
-            type="search"
-            autoComplete="off"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-
-          {filtradas.length === 0 ? (
-            <Mensaje tono="aviso">
-              <p>
-                Ninguna Peregrina coincide. Revisá lo que escribiste, o
-                registrala si es nueva.
-              </p>
-            </Mensaje>
-          ) : (
-            <Eleccion
-              etiqueta="¿Qué Peregrina?"
-              ayuda={
-                busqueda.trim()
-                  ? `${filtradas.length === 1 ? "Queda 1" : `Quedan ${filtradas.length}`} de ${peregrinas.length}.`
-                  : undefined
-              }
-              vacia="Elegí una Peregrina…"
-              value={peregrinaId}
-              opciones={filtradas.map((p) => ({
-                valor: p.id,
-                etiqueta: etiquetaDe(p),
-              }))}
-              onChange={(e) => {
-                setPeregrinaId(e.target.value);
-                setRecienCreada(null);
-              }}
-            />
-          )}
-        </>
+        <Buscador
+          etiqueta="¿Qué Peregrina?"
+          ayuda="Escribí parte del Código o de la numeración anterior."
+          placeholder="JOV 0012"
+          mono
+          value={peregrinaId}
+          opciones={peregrinas.map((p) => opcionDePeregrina(p))}
+          alElegir={(valor) => {
+            setPeregrinaId(valor);
+            setRecienCreada(null);
+          }}
+          sinCoincidencias={(b) =>
+            `Ninguna Peregrina coincide con «${b}». Revisá lo que escribiste, o registrala si es nueva.`
+          }
+        />
       )}
 
       <Boton

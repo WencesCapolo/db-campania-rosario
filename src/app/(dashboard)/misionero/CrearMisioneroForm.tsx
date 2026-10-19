@@ -10,6 +10,8 @@ import { asignarAction } from "@/modules/asignacion/asignacion.router";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
+import Buscador from "@/components/Buscador";
+import { opcionDePeregrina } from "@/modules/peregrina/OpcionDePeregrina";
 import Mensaje from "@/components/Mensaje";
 import type { CentroTipo } from "@/modules/misionero/misionero.schema";
 import {
@@ -668,7 +670,7 @@ export default function CrearMisioneroForm({
         ayuda="Un matrimonio tiene una sola imagen a cargo entre los dos, y aparece como una sola fila en la lista."
         value={esMatrimonio ? "matrimonio" : "persona"}
         opciones={QUIEN}
-        onChange={(e) => setEsMatrimonio(e.target.value === "matrimonio")}
+        alElegir={(valor) => setEsMatrimonio(valor === "matrimonio")}
       />
 
       {esMatrimonio ? (
@@ -829,7 +831,7 @@ export default function CrearMisioneroForm({
           vacia="Sin especificar"
           value={centroTipo}
           opciones={CENTROS}
-          onChange={(e) => setCentroTipo(e.target.value as CentroTipo | "")}
+          alElegir={(valor) => setCentroTipo(valor as CentroTipo | "")}
         />
 
         <Campo
@@ -870,7 +872,7 @@ export default function CrearMisioneroForm({
           etiqueta="¿Se lleva alguna imagen?"
           value={entrega}
           opciones={ENTREGAS}
-          onChange={(e) => setEntrega(e.target.value as Entrega)}
+          alElegir={(valor) => setEntrega(valor as Entrega)}
         />
 
         {entrega === "existente" &&
@@ -883,16 +885,22 @@ export default function CrearMisioneroForm({
               </p>
             </Mensaje>
           ) : (
-            <Eleccion
+            <Buscador
               etiqueta="Cuál"
-              vacia="Elegí la imagen"
-              ayuda="Sólo las que no tiene nadie ahora mismo."
+              ayuda="Sólo las que no tiene nadie ahora mismo. Escribí parte del Código o de la numeración anterior."
+              placeholder="JOV 0012"
+              mono
               value={peregrinaId}
-              opciones={disponibles.map((p) => ({
-                valor: p.id,
-                etiqueta: `${p.identificacion} — ${MODALIDAD_LABELS[p.modalidad]}, ${p.diocesisLocalidad.nombre}`,
-              }))}
-              onChange={(e) => setPeregrinaId(e.target.value)}
+              opciones={disponibles.map((p) =>
+                opcionDePeregrina(
+                  p,
+                  `${MODALIDAD_LABELS[p.modalidad]}, ${p.diocesisLocalidad.nombre}`,
+                ),
+              )}
+              alElegir={setPeregrinaId}
+              sinCoincidencias={(b) =>
+                `Ninguna imagen libre coincide con «${b}». Revisá lo que escribiste, o registrala como nueva.`
+              }
             />
           ))}
 
@@ -903,8 +911,8 @@ export default function CrearMisioneroForm({
               ayuda="Las imágenes que se rotularon antes del formato de la Campaña."
               value={rotulacion}
               opciones={ROTULACIONES}
-              onChange={(e) => {
-                setRotulacion(e.target.value as Rotulacion);
+              alElegir={(valor) => {
+                setRotulacion(valor as Rotulacion);
                 imagenNueva.validacion.limpiar();
               }}
             />

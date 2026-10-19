@@ -20,8 +20,7 @@ import { fechaDeConsagracionSchema } from "@/lib/consagracion";
  * It is one value for three reasons, and the third is the one that decided it:
  * the four charge-changing methods take one parameter instead of two half-filled
  * ones; the repository has one place that fans it out to the two columns; and a
- * native `<select>` holds one string, while the listado is one list of both
- * kinds. See `valorDeTenedor` / `tenedorDesdeValor` below.
+ * picker option holds one string, while the listado is one list of both kinds. See `valorDeTenedor` / `tenedorDesdeValor` below.
  */
 export type Tenedor =
   | { tipo: "persona"; id: string }
@@ -35,10 +34,9 @@ export const tenedorSchema = z.discriminatedUnion("tipo", [
 ]);
 
 /**
- * The `<option value>` for a Tenedor, and its inverse.
+ * The option value for a Tenedor, and its inverse.
  *
- * A native `<select>` — which CLAUDE.md §6 requires, for the OS picker and the
- * focus handling — carries one string per option. The listado's union already
+ * A picker — `Eleccion` or `Buscador` — carries one string per option. The listado's union already
  * projects `(id, tipo)`, so the value is built from columns that exist rather
  * than from anything a component invents.
  *

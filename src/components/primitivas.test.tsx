@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render } from "vitest-browser-react";
+import { userEvent } from "vitest/browser";
 import Boton, { BotonEnlace } from "./Boton";
 import Campo from "./Campo";
 import AreaDeTexto from "./AreaDeTexto";
 import Eleccion from "./Eleccion";
+import Buscador from "./Buscador";
 import Insignia from "./Insignia";
 import Mensaje from "./Mensaje";
 import Tarjeta from "./Tarjeta";
@@ -169,7 +171,7 @@ describe("los campos", () => {
           etiqueta="Modalidad"
           value="JOV"
           opciones={[{ valor: "JOV", etiqueta: "Juventud" }]}
-          onChange={() => {}}
+          alElegir={() => {}}
         />
         <AreaDeTexto etiqueta="Nota" value="" onChange={() => {}} />
       </>
@@ -189,23 +191,111 @@ describe("los campos", () => {
     }
   });
 
-  it("la Elección sigue pareciendo una Elección", async () => {
+  it("la Elección se abre, se recorre y se elige con el teclado, sin perder el foco", async () => {
+    let elegido = "";
+    const pantalla = await render(
+      <Eleccion
+        etiqueta="Modalidad"
+        vacia="Todas"
+        value=""
+        opciones={[
+          { valor: "JOV", etiqueta: "Jóvenes" },
+          { valor: "FAM", etiqueta: "Familias" },
+          { valor: "MAT", etiqueta: "Matrimonios" },
+        ]}
+        alElegir={(v) => (elegido = v)}
+      />
+    );
+    const control = await pantalla
+      .getByRole("combobox", { name: "Modalidad" })
+      .element();
+
+    // Ya no es un `<select>` (ADR 0015): lo que el navegador daba gratis tiene
+    // que estar acá. El foco se queda en el botón mientras se recorre la lista;
+    // la opción en la que se está la nombra `aria-activedescendant`.
+    (control as HTMLElement).focus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(control.getAttribute("aria-expanded")).toBe("true");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    const activa = document.getElementById(
+      control.getAttribute("aria-activedescendant") ?? "",
+    );
+    expect(activa?.textContent).toContain("Familias");
+    expect(document.activeElement).toBe(control);
+
+    await userEvent.keyboard("{Enter}");
+    expect(elegido).toBe("FAM");
+    expect(control.getAttribute("aria-expanded")).toBe("false");
+
+    // Escribir salta a la opción que empieza así, como en un `<select>`.
+    await userEvent.keyboard("m");
+    expect(
+      document.getElementById(control.getAttribute("aria-activedescendant") ?? "")
+        ?.textContent,
+    ).toContain("Matrimonios");
+    await userEvent.keyboard("{Escape}");
+    expect(control.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("las filas de la Elección abierta llegan a los 48px", async () => {
     const pantalla = await render(
       <Eleccion
         etiqueta="Modalidad"
         value="JOV"
-        opciones={[{ valor: "JOV", etiqueta: "Juventud" }]}
-        onChange={() => {}}
+        opciones={[
+          { valor: "JOV", etiqueta: "Jóvenes" },
+          { valor: "FAM", etiqueta: "Familias" },
+        ]}
+        alElegir={() => {}}
       />
     );
-    const select = await pantalla
-      .getByRole("combobox", { name: "Modalidad" })
-      .element();
+    await pantalla.getByRole("combobox", { name: "Modalidad" }).click();
 
-    // `appearance-none` is deliberately absent: stripping the chevron to draw our
-    // own is how a select stops looking like a select, and on a phone the native
-    // one hands back the OS picker.
-    expect(getComputedStyle(select).appearance).not.toBe("none");
+    // Más bajas que un campo, porque una lista de 25 Diócesis tiene que entrar en
+    // un teléfono. Pero no más bajas que el piso: es un dedo el que elige.
+    const filas = pantalla.getByRole("option").elements();
+    expect(filas).toHaveLength(2);
+    for (const fila of filas) {
+      expect(tamanioDelObjetivo(fila).alto).toBeGreaterThanOrEqual(48);
+    }
+    // La elegida no lo dice sólo con el azul: lleva ✓ y `aria-selected`.
+    const elegida = await pantalla
+      .getByRole("option", { name: "Jóvenes" })
+      .element();
+    expect(elegida.getAttribute("aria-selected")).toBe("true");
+    expect(elegida.textContent).toContain("✓");
+    expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
+  });
+
+  it("el Buscador abierto no tiene violaciones de axe, y sus filas llegan a los 48px", async () => {
+    const pantalla = await render(
+      <Buscador
+        etiqueta="¿Qué Peregrina?"
+        value=""
+        opciones={[
+          { valor: "1", etiqueta: "CBA JOV 0001", detalle: "Sin entregar" },
+          { valor: "2", etiqueta: "CBA JOV 0002", detalle: "La tiene Beatriz Ruiz" },
+        ]}
+        alElegir={() => {}}
+        sinCoincidencias={(b) => `Ninguna coincide con «${b}».`}
+      />
+    );
+    await userEvent.fill(
+      pantalla.getByRole("combobox", { name: "¿Qué Peregrina?" }),
+      "cba",
+    );
+
+    for (const fila of pantalla.getByRole("option").elements()) {
+      expect(tamanioDelObjetivo(fila).alto).toBeGreaterThanOrEqual(48);
+    }
+    // El nombre de una opción lleva el detalle, separado: el lector de pantalla
+    // tiene que oír quién la tiene, no «0002La tiene».
+    await expect
+      .element(
+        pantalla.getByRole("option", { name: /^CBA JOV 0002\s*, La tiene Beatriz Ruiz$/ }),
+      )
+      .toBeInTheDocument();
+    expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
   });
 
   it("el contador del AreaDeTexto queda descrito, no suelto", async () => {
@@ -344,7 +434,7 @@ describe("axe", () => {
           vacia="Elegí una"
           value=""
           opciones={[{ valor: "JOV", etiqueta: "Juventud" }]}
-          onChange={() => {}}
+          alElegir={() => {}}
         />
         <AreaDeTexto etiqueta="Nota" value="" maxLength={500} contador onChange={() => {}} />
 

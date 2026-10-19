@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "vitest-browser-react";
 import EntregarImagen from "./EntregarImagen";
 import { violacionesDeAxe } from "@/test/accesibilidad";
+import { buscarYElegir } from "@/test/elegir";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 
@@ -113,9 +114,7 @@ describe("EntregarImagen", () => {
   it("abre un diálogo con quien la recibe ya elegido, y asigna", async () => {
     const pantalla = await abrir();
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 0001 — sin entregar");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 0001", "CBA JOV 0001");
     await expect
       .element(pantalla.getByRole("status"))
       .toHaveTextContent("queda a cargo de Ana Gómez");
@@ -133,9 +132,7 @@ describe("EntregarImagen", () => {
   it("entrega, y dice de quién se cierra el período, cuando la imagen está afuera", async () => {
     const pantalla = await abrir();
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 0002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 0002", "CBA JOV 0002");
     await expect
       .element(pantalla.getByRole("status"))
       .toHaveTextContent("Se cierra el período de Beatriz Ruiz");
@@ -150,19 +147,15 @@ describe("EntregarImagen", () => {
 
   it("la búsqueda achica la lista y dice cuando nada coincide", async () => {
     const pantalla = await abrir();
-    const buscar = pantalla.getByRole("searchbox", {
-      name: "Buscar por Identificación",
-    });
+    const buscar = pantalla.getByRole("combobox", { name: "¿Qué Peregrina?" });
 
     await buscar.fill("0002");
-    const opciones = Array.from(
-      (
-        pantalla.getByRole("combobox", { name: "¿Qué Peregrina?" }).element() as
-          HTMLSelectElement
-      ).options,
-      (o) => o.value,
-    ).filter(Boolean);
-    expect(opciones).toEqual([YA_ENTREGADA.id]);
+    const opciones = pantalla
+      .getByRole("option")
+      .elements()
+      .map((o) => o.textContent);
+    expect(opciones).toHaveLength(1);
+    expect(opciones[0]).toContain(YA_ENTREGADA.identificacion);
 
     await buscar.fill("zzz");
     await expect
@@ -182,7 +175,7 @@ describe("EntregarImagen", () => {
     // El territorio viene puesto: el selector carga y queda en Villa María.
     await expect
       .element(pantalla.getByRole("combobox", { name: /Diócesis/ }))
-      .toHaveValue(VILLA_MARIA.id);
+      .toHaveTextContent(VILLA_MARIA.nombre);
 
     await pantalla.getByRole("button", { name: "Guardar y elegirla" }).click();
 
@@ -194,7 +187,7 @@ describe("EntregarImagen", () => {
       .toHaveTextContent("CBA JOV 0009");
     await expect
       .element(pantalla.getByRole("combobox", { name: "¿Qué Peregrina?" }))
-      .toHaveValue(NUEVA.id);
+      .toHaveValue(NUEVA.identificacion);
 
     await pantalla.getByRole("button", { name: "Registrar la entrega" }).click();
     expect(asignarAction.mock.calls[0][0]).toMatchObject({
@@ -210,9 +203,7 @@ describe("EntregarImagen", () => {
     });
     const pantalla = await abrir();
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 0001 — sin entregar");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 0001", "CBA JOV 0001");
     await pantalla.getByRole("button", { name: "Registrar la entrega" }).click();
 
     await expect
@@ -223,9 +214,7 @@ describe("EntregarImagen", () => {
 
   it("no tiene violaciones de axe en ninguna de las dos vistas", async () => {
     const pantalla = await abrir();
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 0002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 0002", "CBA JOV 0002");
     expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
 
     await pantalla
@@ -233,7 +222,7 @@ describe("EntregarImagen", () => {
       .click();
     await expect
       .element(pantalla.getByRole("combobox", { name: /Diócesis/ }))
-      .toHaveValue(VILLA_MARIA.id);
+      .toHaveTextContent(VILLA_MARIA.nombre);
     expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
   });
 });

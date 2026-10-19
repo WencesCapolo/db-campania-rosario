@@ -115,7 +115,7 @@ export default function EditarUsuario({
                 valor: r,
                 etiqueta: ROLE_LABELS[r],
               }))}
-              onChange={(e) => setRol(e.target.value as Role)}
+              alElegir={(valor) => setRol(valor as Role)}
             />
 
             {necesitaTerritorio ? (

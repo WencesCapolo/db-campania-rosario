@@ -3,6 +3,7 @@ import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 import FlujoDeAsignacion from "./FlujoDeAsignacion";
 import { violacionesDeAxe } from "@/test/accesibilidad";
+import { buscarYElegir } from "@/test/elegir";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import type {
   MatrimonioDTO,
@@ -182,22 +183,16 @@ describe("FlujoDeAsignacion", () => {
   it("se recorre entero con el teclado, sin tocar la pantalla", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    // Paso 1. Tab reaches the search box first, then the select; the OS picker
-    // is native, so choosing is typing the option's first letters — which is
-    // one of the reasons the select is native.
-    await userEvent.keyboard("{Tab}");
-    expect(document.activeElement).toBe(
-      await pantalla.getByRole("searchbox", { name: "Buscar por nombre" }).element(),
-    );
+    // Paso 1. Tab reaches the one field first. Typing narrows the list, and with
+    // one match left it is already chosen (ADR 0015).
     await userEvent.keyboard("{Tab}");
     const misioneros = await pantalla
       .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
       .element();
     expect(document.activeElement).toBe(misioneros);
-
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await userEvent.keyboard("gomez");
+    await userEvent.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+    expect(misioneros).toHaveValue("Gómez, Ana");
 
     await userEvent.keyboard("{Tab}");
     expect(document.activeElement).toBe(
@@ -211,9 +206,7 @@ describe("FlujoDeAsignacion", () => {
       .element(pantalla.getByRole("heading", { name: "Paso 2: Elegir Imagen" }))
       .toBeInTheDocument();
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 001 — sin entregar");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 001", "CBA JOV 001");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
 
     // Paso 3.
@@ -227,37 +220,42 @@ describe("FlujoDeAsignacion", () => {
 
   it("escribir filtra la lista, sin tildes ni orden, y con uno solo lo elige", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
-    const buscar = pantalla.getByRole("searchbox", { name: "Buscar por nombre" });
-    const lista = pantalla.getByRole("combobox", {
+    const campo = pantalla.getByRole("combobox", {
       name: "¿A quién pasa la imagen?",
     });
-
-    await userEvent.fill(buscar, "perez");
     const opciones = () =>
-      Array.from(
-        (lista.element() as HTMLSelectElement).options,
-        (o) => o.value,
-      ).filter(Boolean);
-    expect(opciones()).toEqual(["matrimonio:mat-1"]);
+      pantalla
+        .getByRole("option")
+        .elements()
+        .map((o) => o.textContent ?? "");
+
+    await userEvent.fill(campo, "perez");
+    expect(opciones()).toHaveLength(1);
+    expect(opciones()[0]).toContain("Pérez, Ana y Juan");
     // Quedó uno: ya está elegido, y Siguiente se puede tocar.
-    await expect.element(lista).toHaveValue("matrimonio:mat-1");
+    await expect
+      .element(pantalla.getByRole("button", { name: "Siguiente" }))
+      .toBeEnabled();
 
     // En cualquier orden, y sin la tilde de Gómez.
-    await userEvent.fill(buscar, "gomez ana");
-    expect(opciones()).toEqual(["persona:m-1"]);
-    await expect.element(lista).toHaveValue("persona:m-1");
+    await userEvent.fill(campo, "ana gomez");
+    expect(opciones()).toHaveLength(1);
+    expect(opciones()[0]).toContain("Gómez, Ana");
+    await expect
+      .element(pantalla.getByRole("button", { name: "Siguiente" }))
+      .toBeEnabled();
   });
 
   it("cuando nadie coincide lo dice, en vez de dejar una lista vacía", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
     await userEvent.fill(
-      pantalla.getByRole("searchbox", { name: "Buscar por nombre" }),
+      pantalla.getByRole("combobox", { name: "¿A quién pasa la imagen?" }),
       "zzz",
     );
 
     await expect
-      .element(pantalla.getByText(/Nadie se llama así/))
+      .element(pantalla.getByText(/Nadie se llama «zzz»/))
       .toBeVisible();
   });
 
@@ -273,9 +271,7 @@ describe("FlujoDeAsignacion", () => {
   it("Volver no pierde lo que ya se eligió", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Gómez, Ana", "Gómez, Ana");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
     await pantalla.getByRole("button", { name: "Volver" }).click();
 
@@ -285,19 +281,15 @@ describe("FlujoDeAsignacion", () => {
       .element(
         pantalla.getByRole("combobox", { name: "¿A quién pasa la imagen?" }),
       )
-      .toHaveValue("persona:m-1");
+      .toHaveValue("Gómez, Ana");
   });
 
   it("dice de quién se cierra el período antes de cerrarlo", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Gómez, Ana", "Gómez, Ana");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 002", "CBA JOV 002");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
 
     // The sentence somebody is agreeing to, in the future tense, naming the person
@@ -310,13 +302,9 @@ describe("FlujoDeAsignacion", () => {
   it("entrega en vez de asignar cuando la imagen ya está afuera", async () => {
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Gómez, Ana", "Gómez, Ana");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 002", "CBA JOV 002");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
     await pantalla
       .getByRole("button", { name: "Registrar la entrega" })
@@ -340,13 +328,9 @@ describe("FlujoDeAsignacion", () => {
     });
     const pantalla = await render(<FlujoDeAsignacion {...TODOS} />);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Gómez, Ana", "Gómez, Ana");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 002", "CBA JOV 002");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
     await pantalla
       .getByRole("button", { name: "Registrar la entrega" })
@@ -387,14 +371,10 @@ describe("FlujoDeAsignacion", () => {
     // Una fila, dos nombres, un apellido. Los dos cónyuges no están sueltos en
     // la lista: el roster llega colapsado, y ofrecer a uno solo sería ofrecer
     // una opción que `asignar` rechaza siempre.
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Pérez, Ana y Juan — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Pérez, Ana y Juan", "Pérez, Ana y Juan");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 001 — sin entregar");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 001", "CBA JOV 001");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
 
     // Un nombre, no dos, en la frase con la que alguien está de acuerdo.
@@ -417,15 +397,11 @@ describe("FlujoDeAsignacion", () => {
 
     expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿A quién pasa la imagen?" })
-      .selectOptions("Gómez, Ana — Villa María");
+    await buscarYElegir(pantalla, "¿A quién pasa la imagen?", "Gómez, Ana", "Gómez, Ana");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
     expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
 
-    await pantalla
-      .getByRole("combobox", { name: "¿Qué Peregrina?" })
-      .selectOptions("CBA JOV 002 — la tiene Beatriz Ruiz");
+    await buscarYElegir(pantalla, "¿Qué Peregrina?", "CBA JOV 002", "CBA JOV 002");
     await pantalla.getByRole("button", { name: "Siguiente" }).click();
     expect(await violacionesDeAxe(pantalla.container)).toEqual([]);
   });

@@ -20,8 +20,9 @@ import type { DiocesisLocalidadDTO, ProvinciaDTO } from "./territorio.types";
  * Referente Local it would be a list of one, and a control with one option is
  * noise. An Asesor Nacional gets it, because their list is the country.
  *
- * Native `<select>` through `Eleccion`: the OS picker is large, familiar, and
- * scrolls with a thumb. On the primitives now rather than on its own CAMPO and
+ * Through `Eleccion`, which is our own dropdown since ADR 0015: typing a name's
+ * first letters jumps to it, which is what a list of 25 Diócesis needs. On the
+ * primitives rather than on its own CAMPO and
  * ETIQUETA constants, which is not only a visual change — `Eleccion` binds the
  * label, the help text, the error and the derived facts to the control with one
  * `useId`, and the hand-written version bound the label and left the derived
@@ -41,7 +42,6 @@ interface Props {
   onChange: (diocesisLocalidadId: string | null) => void;
   /** Rendered as the form control's name, for a plain form POST. */
   name?: string;
-  required?: boolean;
 }
 
 type Estado =
@@ -53,7 +53,6 @@ export default function SelectorDeTerritorio({
   value,
   onChange,
   name = "diocesisLocalidadId",
-  required = true,
 }: Props) {
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" });
   const [provinciaId, setProvinciaId] = useState<string>("");
@@ -136,10 +135,10 @@ export default function SelectorDeTerritorio({
             valor: p.id,
             etiqueta: p.nombre,
           }))}
-          onChange={(e) => {
-            setProvinciaId(e.target.value);
+          alElegir={(valor) => {
+            setProvinciaId(valor);
             // The chosen Diócesis may not be in the new Provincia's list, and a
-            // select whose value is not among its options renders as blank while
+            // picker whose value is not among its options renders as blank while
             // the form still holds the old id.
             onChange(null);
           }}
@@ -149,7 +148,6 @@ export default function SelectorDeTerritorio({
       <Eleccion
         etiqueta="Diócesis/Localidad"
         name={name}
-        required={required}
         vacia="Elegí una Diócesis/Localidad"
         value={value ?? ""}
         opciones={diocesisVisibles.map((d) => ({
@@ -160,7 +158,7 @@ export default function SelectorDeTerritorio({
               ? `${d.nombre} — ${d.provincia.nombre}`
               : d.nombre,
         }))}
-        onChange={(e) => onChange(e.target.value || null)}
+        alElegir={(valor) => onChange(valor || null)}
         // Provincia and Región follow from the choice. Shown, never asked for.
         derivado={
           elegida && (

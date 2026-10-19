@@ -209,13 +209,13 @@ export default function EditarPeregrinaForm({
           etiqueta="Tipo"
           value={tipo}
           opciones={TIPOS}
-          onChange={(e) => setTipo(e.target.value as PeregrinaTipo)}
+          alElegir={(valor) => setTipo(valor as PeregrinaTipo)}
         />
         <Eleccion
           etiqueta="Modalidad"
           value={modalidad}
           opciones={MODALIDADES_ELEGIBLES}
-          onChange={(e) => setModalidad(e.target.value as Modalidad)}
+          alElegir={(valor) => setModalidad(valor as Modalidad)}
         />
       </div>
 
@@ -224,7 +224,7 @@ export default function EditarPeregrinaForm({
         ayuda="Si se perdió estando a cargo de alguien, ponela Extraviada: así queda dicho quién la tuvo por última vez."
         value={estado}
         opciones={estados}
-        onChange={(e) => setEstado(e.target.value as PeregrinaEstado)}
+        alElegir={(valor) => setEstado(valor as PeregrinaEstado)}
       />
 
       <CampoDeFechaDeConsagracion

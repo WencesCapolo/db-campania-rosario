@@ -14,8 +14,8 @@ import type { InvitacionDTO } from "@/modules/invitacion/invitacion.types";
 import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
-import Campo from "@/components/Campo";
-import Boton, { BotonEnlace } from "@/components/Boton";
+import BuscarUsuarios from "./BuscarUsuarios";
+import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import RevocarInvitacion from "./RevocarInvitacion";
 import CopiarEnlaceDeInvitacion from "./CopiarEnlaceDeInvitacion";
@@ -240,32 +240,7 @@ export default async function UsuariosPage({
               })}
             </nav>
 
-            <form
-              method="get"
-              action="/admin/users"
-              role="search"
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            >
-              {mostrar !== "todos" && (
-                <input type="hidden" name="mostrar" value={mostrar} />
-              )}
-              <div className="flex-1">
-                <Campo
-                  etiqueta="Buscar por Buzón, nombre o territorio"
-                  name="buscar"
-                  type="search"
-                  defaultValue={buscar}
-                />
-              </div>
-              <Boton type="submit" tono="secundario">
-                Buscar
-              </Boton>
-              {buscar && (
-                <BotonEnlace tono="secundario" href={hrefDe(mostrar, "")}>
-                  Borrar la búsqueda
-                </BotonEnlace>
-              )}
-            </form>
+            <BuscarUsuarios buscar={buscar} />
 
             {pendientes.length > 0 && (
               // Historia 26, dicha una vez y no en cada fila.

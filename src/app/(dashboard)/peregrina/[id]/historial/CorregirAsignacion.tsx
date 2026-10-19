@@ -6,7 +6,8 @@ import { corregirAsignacionAction } from "@/modules/asignacion/asignacion.router
 import Boton from "@/components/Boton";
 import Dialogo from "@/components/Dialogo";
 import Campo from "@/components/Campo";
-import Eleccion from "@/components/Eleccion";
+import Buscador from "@/components/Buscador";
+import Insignia from "@/components/Insignia";
 import AreaDeTexto from "@/components/AreaDeTexto";
 import Mensaje from "@/components/Mensaje";
 import {
@@ -15,7 +16,7 @@ import {
   nombreDeTenedorEnLista,
   paraCampoDeFecha,
 } from "@/lib/formato";
-import { opcionDeTenedor } from "@/lib/tenedor-en-pantalla";
+import { opcionDeTenedorParaBuscar } from "@/lib/tenedor-en-pantalla";
 import {
   tenedorDesdeValor,
   valorDeTenedor,
@@ -103,18 +104,24 @@ export default function CorregirAsignacion({
   // is added back, marked, so the field shows what the record says. Vale igual
   // para un Matrimonio dado de baja: la historia sigue leyéndose como la pareja,
   // porque eso es lo que era entonces.
-  const opciones = tenedores.map(opcionDeTenedor);
+  const opciones = tenedores.map((t) => ({
+    ...opcionDeTenedorParaBuscar(t),
+    insignia:
+      t.tipo === "matrimonio" ? (
+        <Insignia tono="neutro">Matrimonio</Insignia>
+      ) : undefined,
+  }));
   const opcionesDeTenedor = opciones.some((o) => o.valor === valorRegistrado)
     ? opciones
     : [
         ...opciones,
         {
           valor: valorRegistrado,
-          etiqueta: `${nombreDeTenedorEnLista(asignacion.tenedor)} (${
+          etiqueta: nombreDeTenedorEnLista(asignacion.tenedor),
+          detalle:
             asignacion.tenedor.tipo === "matrimonio"
-              ? "matrimonio dado de baja"
-              : "dado de baja"
-          })`,
+              ? "Matrimonio dado de baja"
+              : "Dado de baja",
         },
       ];
 
@@ -152,12 +159,16 @@ export default function CorregirAsignacion({
           )}
 
           <div className="mt-4 space-y-5">
-            <Eleccion
+            <Buscador
               etiqueta="¿Quién la tuvo?"
-              ayuda="Un Misionero o un Matrimonio. Una pareja aparece una sola vez, con los dos nombres."
+              ayuda="Un Misionero o un Matrimonio. Escribí parte del nombre o del apellido."
+              placeholder="Gómez"
               value={campos.tenedor}
               opciones={opcionesDeTenedor}
-              onChange={(e) => editar("tenedor", e.target.value)}
+              alElegir={(valor) => editar("tenedor", valor)}
+              sinCoincidencias={(b) =>
+                `Nadie se llama «${b}» en tu territorio. Revisá lo que escribiste.`
+              }
             />
 
             <Campo

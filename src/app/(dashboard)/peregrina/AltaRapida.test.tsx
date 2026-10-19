@@ -4,6 +4,7 @@ import { userEvent } from "vitest/browser";
 import AltaRapida from "./AltaRapida";
 import SeccionDeAlta from "./SeccionDeAlta";
 import { tamanioDelObjetivo, violacionesDeAxe } from "@/test/accesibilidad";
+import { elegir } from "@/test/elegir";
 import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 import type { PeregrinaDTO } from "@/modules/peregrina/peregrina.types";
 
@@ -89,10 +90,7 @@ describe("el alta de una imagen vieja", () => {
     const pantalla = await render(<AltaRapida rotulacion="vieja" />);
 
     await userEvent.fill(pantalla.getByLabelText("Numeración anterior"), "Peregrina 7");
-    await userEvent.selectOptions(
-      pantalla.getByLabelText("Diócesis/Localidad"),
-      "dl-1",
-    );
+    await elegir(pantalla, "Diócesis/Localidad", "Villa María");
     await userEvent.click(
       pantalla.getByRole("button", { name: "Registrar con su numeración" }),
     );
@@ -132,10 +130,7 @@ describe("el alta de una imagen nueva", () => {
       pantalla.container.querySelector("input[autocomplete=off]:not([inputmode=numeric])"),
     ).toBeNull();
 
-    await userEvent.selectOptions(
-      pantalla.getByLabelText("Diócesis/Localidad"),
-      "dl-1",
-    );
+    await elegir(pantalla, "Diócesis/Localidad", "Villa María");
     await userEvent.click(
       pantalla.getByRole("button", { name: "Registrar con su Código" }),
     );
@@ -154,10 +149,7 @@ describe("el alta de una imagen nueva", () => {
     const pantalla = await render(<AltaRapida rotulacion="nueva" />);
 
     await userEvent.fill(pantalla.getByLabelText("Número (opcional)"), "42");
-    await userEvent.selectOptions(
-      pantalla.getByLabelText("Diócesis/Localidad"),
-      "dl-1",
-    );
+    await elegir(pantalla, "Diócesis/Localidad", "Villa María");
     await userEvent.click(
       pantalla.getByRole("button", { name: "Registrar con su Código" }),
     );
@@ -182,10 +174,7 @@ describe("el alta de una imagen nueva", () => {
       .element(pantalla.getByText(/tiene que ser un número entero/))
       .toBeVisible();
 
-    await userEvent.selectOptions(
-      pantalla.getByLabelText("Diócesis/Localidad"),
-      "dl-1",
-    );
+    await elegir(pantalla, "Diócesis/Localidad", "Villa María");
     await userEvent.click(
       pantalla.getByRole("button", { name: "Registrar con su Código" }),
     );
@@ -203,10 +192,7 @@ describe("el alta de una imagen nueva", () => {
       pantalla.getByLabelText("Fecha de consagración de la imagen (opcional)"),
       "1998-10-18",
     );
-    await userEvent.selectOptions(
-      pantalla.getByLabelText("Diócesis/Localidad"),
-      "dl-1",
-    );
+    await elegir(pantalla, "Diócesis/Localidad", "Villa María");
     await userEvent.click(
       pantalla.getByRole("button", { name: "Registrar con su Código" }),
     );

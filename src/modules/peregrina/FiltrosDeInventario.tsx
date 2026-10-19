@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import Boton from "@/components/Boton";
-import Campo from "@/components/Campo";
+import CampoDeBusqueda from "@/components/CampoDeBusqueda";
 import Eleccion from "@/components/Eleccion";
+import { useBusquedaEnVivo } from "@/lib/busqueda-en-vivo";
 import { REGIONES } from "@/modules/territorio/territorio.schema";
 import {
   CLAVES_DE_FILTRO,
@@ -31,14 +32,15 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * and the listado cannot drift: they render this, and they parse what it wrote.
  *
  * Changing a select navigates immediately, because a select that needs a separate
- * "Apply" is two actions for one decision. The Código box does not: it is typed,
- * and navigating per keystroke would fight the keyboard.
+ * "Apply" is two actions for one decision. The two typed searches navigate too,
+ * after a short pause in the typing rather than per keystroke, and with no
+ * button (ADR 0015).
  *
  * `enLaTabla` is the listado's version, and it differs in two ways. It has no
  * frame of its own: it sits inside the "Las imágenes" frame, in the strip under
  * the title, so what filters is attached to what is filtered. And it hides the
  * six selects behind a link and leaves the two searches out in the open, on one
- * line with their button. On the listado that is the honest weighting — somebody
+ * line. On the listado that is the honest weighting — somebody
  * arrives holding an image and types its Código; filtering by Modalidad is the
  * rarer errand, and six selects above the rows push them off a phone. The
  * tablero keeps the framed, always-open version, because there the filters
@@ -110,10 +112,16 @@ export default function FiltrosDeInventario({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendiente, empezar] = useTransition();
-  const [borrador, setBorrador] = useState(filtros.identificacion ?? "");
-  const [borradorMisionero, setBorradorMisionero] = useState(
-    filtros.misionero ?? "",
-  );
+  const porCodigo = useBusquedaEnVivo({
+    clave: "identificacion",
+    enLaDireccion: filtros.identificacion ?? "",
+    destino,
+  });
+  const porQuienLaTiene = useBusquedaEnVivo({
+    clave: "misionero",
+    enLaDireccion: filtros.misionero ?? "",
+    destino,
+  });
 
   // Arranca abierto cuando la dirección ya trae un filtro de los plegados: quien
   // llega a una vista filtrada — desde el tablero, o por un link pegado en un
@@ -141,8 +149,8 @@ export default function FiltrosDeInventario({
   }
 
   function limpiar() {
-    setBorrador("");
-    setBorradorMisionero("");
+    porCodigo.vaciar();
+    porQuienLaTiene.vaciar();
     const params = new URLSearchParams(searchParams.toString());
     for (const clave of CLAVES_DE_FILTRO) params.delete(clave);
     params.delete("q");
@@ -153,21 +161,13 @@ export default function FiltrosDeInventario({
 
   /** One chip's ✕. A typed search also empties its box, or it would come back. */
   function quitar(clave: ClaveDeFiltro) {
-    if (clave === "identificacion") setBorrador("");
-    if (clave === "misionero") setBorradorMisionero("");
+    if (clave === "identificacion") porCodigo.vaciar();
+    if (clave === "misionero") porQuienLaTiene.vaciar();
     aplicar({ [clave]: "" });
   }
 
   const activos = describir(filtros, territorios ?? []);
   const conTerritorio = Boolean(territorios && territorios.length > 1);
-
-  const enviar = (e: React.FormEvent) => {
-    e.preventDefault();
-    aplicar({
-      identificacion: borrador.trim(),
-      misionero: borradorMisionero.trim(),
-    });
-  };
 
   const selects = (
     <>
@@ -176,28 +176,28 @@ export default function FiltrosDeInventario({
         opciones={OPCIONES_DE_ESTADO}
         vacia="Todos"
         value={filtros.estado ?? ""}
-        onChange={(e) => aplicar({ estado: e.target.value })}
+        alElegir={(valor) => aplicar({ estado: valor })}
       />
       <Eleccion
         etiqueta="Modalidad"
         opciones={OPCIONES_DE_MODALIDAD}
         vacia="Todas"
         value={filtros.modalidad ?? ""}
-        onChange={(e) => aplicar({ modalidad: e.target.value })}
+        alElegir={(valor) => aplicar({ modalidad: valor })}
       />
       <Eleccion
         etiqueta="Tipo"
         opciones={OPCIONES_DE_TIPO}
         vacia="Peregrinas y auxiliares"
         value={filtros.tipo ?? ""}
-        onChange={(e) => aplicar({ tipo: e.target.value })}
+        alElegir={(valor) => aplicar({ tipo: valor })}
       />
       <Eleccion
         etiqueta="¿Quién la tiene?"
         opciones={OPCIONES_DE_TENENCIA}
         vacia="No importa"
         value={filtros.tenencia ?? ""}
-        onChange={(e) => aplicar({ tenencia: e.target.value })}
+        alElegir={(valor) => aplicar({ tenencia: valor })}
       />
 
       {conTerritorio && territorios && (
@@ -210,14 +210,14 @@ export default function FiltrosDeInventario({
             }))}
             vacia="Todo el país"
             value={filtros.diocesisLocalidadId ?? ""}
-            onChange={(e) => aplicar({ diocesisLocalidadId: e.target.value })}
+            alElegir={(valor) => aplicar({ diocesisLocalidadId: valor })}
           />
           <Eleccion
             etiqueta="Región"
             opciones={OPCIONES_DE_REGION}
             vacia="Todas"
             value={filtros.region ?? ""}
-            onChange={(e) => aplicar({ region: e.target.value })}
+            alElegir={(valor) => aplicar({ region: valor })}
           />
         </>
       )}
@@ -226,39 +226,28 @@ export default function FiltrosDeInventario({
 
   if (enLaTabla) {
     return (
-      <form role="search" className="space-y-4" onSubmit={enviar}>
-        {/* Las dos búsquedas y su botón en un renglón desde `md`, con el botón
-            al ras de las cajas. Sin ayuda debajo de la etiqueta: «Código o
-            numeración anterior» ya la dice, y en un renglón una ayuda de dos
-            líneas desalinea las cajas. */}
+      <div className="space-y-4">
+        {/* Las dos búsquedas en un renglón desde `md`. Sin ayuda debajo de la
+            etiqueta: «Código o numeración anterior» ya la dice, y en un renglón
+            una ayuda de dos líneas desalinea las cajas. */}
         <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <div className="md:flex-1">
-            <Campo
+            <CampoDeBusqueda
               etiqueta="Código o numeración anterior"
-              type="search"
-              inputMode="search"
               placeholder="CBA JOV 0001"
-              value={borrador}
-              onChange={(e) => setBorrador(e.target.value)}
+              {...porCodigo}
             />
           </div>
           {/* El nombre de quien la tiene, y no un selector de Misioneros: una
               Diócesis tiene cientos, y quien pregunta ya tiene el apellido en la
-              cabeza. Las dos cajas se envían con el mismo botón, porque son la
-              misma pregunta hecha por dos datos que suelen venir juntos. */}
+              cabeza. */}
           <div className="md:flex-1">
-            <Campo
+            <CampoDeBusqueda
               etiqueta="Quién la tiene"
-              type="search"
-              inputMode="search"
               placeholder="Álvarez"
-              value={borradorMisionero}
-              onChange={(e) => setBorradorMisionero(e.target.value)}
+              {...porQuienLaTiene}
             />
           </div>
-          <Boton type="submit" disabled={pendiente}>
-            {pendiente ? "Buscando…" : "Buscar"}
-          </Boton>
         </div>
 
         {/* Un link subrayado y no un botón con borde: abre más controles en el
@@ -281,7 +270,7 @@ export default function FiltrosDeInventario({
           Se esconde con `display: none` — la utilidad `hidden` — y no con opacidad ni
           alto cero: eso lo saca del orden de tabulación y del árbol de accesibilidad
           de una vez, mientras el nodo sigue existiendo, que es lo que `aria-controls`
-          necesita para apuntar a algo. Un `<select>` tapado con `opacity-0` seguiría
+          necesita para apuntar a algo. Un desplegable tapado con `opacity-0` seguiría
           siendo tabulable, y el teclado caería adentro de seis controles invisibles.
 
           Es la clase y no el atributo `hidden`, y la razón es la desviación de esta
@@ -326,51 +315,34 @@ export default function FiltrosDeInventario({
             )}
           </div>
         )}
-      </form>
+      </div>
     );
   }
 
   return (
-    <form
-      className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5"
-      onSubmit={enviar}
-    >
+    <div className="space-y-4 rounded-marco border-2 border-borde-suave bg-papel p-5">
       {conBusqueda && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo
+          <CampoDeBusqueda
             etiqueta="Buscar por Código"
             ayuda="O por la numeración anterior, si la imagen tiene una."
-            type="search"
-            inputMode="search"
             placeholder="CBA JOV 0001"
-            value={borrador}
-            onChange={(e) => setBorrador(e.target.value)}
+            {...porCodigo}
           />
-          <Campo
+          <CampoDeBusqueda
             etiqueta="Buscar por quién la tiene"
             ayuda="Nombre o apellido del Misionero."
-            type="search"
-            inputMode="search"
             placeholder="Álvarez"
-            value={borradorMisionero}
-            onChange={(e) => setBorradorMisionero(e.target.value)}
+            {...porQuienLaTiene}
           />
         </div>
       )}
 
-      {(conBusqueda || hayFiltros(filtros)) && (
+      {hayFiltros(filtros) && (
         <div className="flex flex-col gap-3 sm:flex-row">
-          {conBusqueda && (
-            <Boton type="submit" disabled={pendiente}>
-              {pendiente ? "Buscando…" : "Buscar"}
-            </Boton>
-          )}
-
-          {hayFiltros(filtros) && (
-            <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
-              Limpiar filtros
-            </Boton>
-          )}
+          <Boton tono="secundario" disabled={pendiente} onClick={limpiar}>
+            Limpiar filtros
+          </Boton>
         </div>
       )}
 
@@ -387,7 +359,7 @@ export default function FiltrosDeInventario({
           {activos.map((a) => a.texto).join(" · ")}
         </p>
       )}
-    </form>
+    </div>
   );
 }
 

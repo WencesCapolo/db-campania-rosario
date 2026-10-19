@@ -217,15 +217,15 @@ export default function CamposDePeregrinaForm({
           etiqueta="Tipo"
           value={datos.tipo}
           opciones={TIPOS}
-          onChange={(e) => cambiar({ tipo: e.target.value as PeregrinaTipo })}
+          alElegir={(valor) => cambiar({ tipo: valor as PeregrinaTipo })}
         />
 
         <Eleccion
           etiqueta="Modalidad"
           value={datos.modalidad}
           opciones={MODALIDADES_ELEGIBLES}
-          onChange={(e) =>
-            cambiar({ modalidad: e.target.value as Modalidad })
+          alElegir={(valor) =>
+            cambiar({ modalidad: valor as Modalidad })
           }
         />
       </div>

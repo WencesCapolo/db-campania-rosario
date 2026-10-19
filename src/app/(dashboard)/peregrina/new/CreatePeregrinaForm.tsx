@@ -135,8 +135,8 @@ export default function CreatePeregrinaForm() {
         ayuda="Las imágenes que se rotularon antes del formato de la Campaña."
         value={rotulacion}
         opciones={[...ROTULACIONES]}
-        onChange={(e) => {
-          setRotulacion(e.target.value as Rotulacion);
+        alElegir={(valor) => {
+          setRotulacion(valor as Rotulacion);
           campos.validacion.limpiar();
         }}
       />

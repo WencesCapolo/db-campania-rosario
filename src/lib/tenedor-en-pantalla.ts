@@ -5,6 +5,7 @@ import {
 } from "@/modules/misionero/matrimonio.types";
 import { nombreDeTenedorEnLista } from "./formato";
 import type { Opcion } from "@/components/Eleccion";
+import type { OpcionDeBuscador } from "@/components/Buscador";
 
 /**
  * Un Tenedor en pantalla: su `<option>`, y su página — ADR 0010.
@@ -64,8 +65,10 @@ export function opcionDeTenedor(t: TenedorDTO): Opcion {
   };
 }
 
-/** La misma opción, con la Diócesis/Localidad detrás — dos «Pérez, Ana». */
-export function opcionDeTenedorConTerritorio(t: TenedorDTO): Opcion {
-  const { valor, etiqueta } = opcionDeTenedor(t);
-  return { valor, etiqueta: `${etiqueta} — ${territorioDeTenedor(t)}` };
+/**
+ * La misma opción para un `Buscador`, con la Diócesis/Localidad en la segunda
+ * línea — dos «Pérez, Ana». La insignia de Matrimonio la pone quien la muestra.
+ */
+export function opcionDeTenedorParaBuscar(t: TenedorDTO): OpcionDeBuscador {
+  return { ...opcionDeTenedor(t), detalle: territorioDeTenedor(t) };
 }

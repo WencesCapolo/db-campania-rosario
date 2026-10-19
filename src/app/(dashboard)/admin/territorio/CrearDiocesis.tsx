@@ -132,7 +132,7 @@ export default function CrearDiocesis({
           etiqueta: `${p.nombre} (${p.abreviatura})`,
         }))}
         value={provinciaId}
-        onChange={(e) => setProvinciaId(e.target.value)}
+        alElegir={(valor) => setProvinciaId(valor)}
       />
 
       <Eleccion
@@ -140,7 +140,7 @@ export default function CrearDiocesis({
         ayuda="La Región pastoral de esta Diócesis, que no siempre es la de su Provincia: Reconquista es NEA y Rosario es CENTRO, y las dos están en Santa Fe."
         opciones={REGIONES.map((r) => ({ valor: r, etiqueta: r }))}
         value={region}
-        onChange={(e) => setRegion(e.target.value)}
+        alElegir={(valor) => setRegion(valor)}
       />
 
       <div className="flex flex-col gap-3 sm:flex-row">

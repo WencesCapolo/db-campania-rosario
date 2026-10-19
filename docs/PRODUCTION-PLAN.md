@@ -28,7 +28,7 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 | Deletion | Soft delete only. Blocked while an Asignación is open |
 | Asignación scope | Through the Peregrina's territory, so a Peregrina that moves takes its history with it — ADR 0004 |
 | Driver | `neon-serverless` in production, not `neon-http`: the latter throws on `db.transaction` |
-| Styling | Tailwind only, own primitives. Native `<dialog>` and `<select>` |
+| Styling | Tailwind only, own primitives. Native `<dialog>`; own dropdown and picker (ADR 0015) |
 | Client data | Server components and server actions. TanStack Query when a screen needs client fetching — nothing does yet, so it is not installed |
 | Validation | Zod as source of truth, parsed at the router boundary |
 | Data entry | Manual only. No importer |

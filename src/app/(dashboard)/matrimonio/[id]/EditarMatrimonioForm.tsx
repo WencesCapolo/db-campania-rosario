@@ -262,7 +262,7 @@ export default function EditarMatrimonioForm({
           vacia="Sin especificar"
           value={centroTipo}
           opciones={CENTROS}
-          onChange={(e) => setCentroTipo(e.target.value as CentroTipo | "")}
+          alElegir={(valor) => setCentroTipo(valor as CentroTipo | "")}
         />
 
         <Campo
