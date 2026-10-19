@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { PeregrinaService } from "./peregrina.service";
 import { TableroService } from "@/modules/tablero/tablero.service";
+import { AsignacionService } from "@/modules/asignacion/asignacion.service";
 import {
   crearActor,
+  crearMisioneroDirecto,
   crearTerritorioDePrueba,
   type TerritorioDePrueba,
 } from "@/test/factories";
@@ -136,5 +138,51 @@ describe("el filtro «Inventario: Marcadas como extraviadas»", () => {
     });
 
     expect(tablero.totalPeregrinas).toBe(2);
+  });
+});
+
+describe("eliminar una imagen marcada como extraviada", () => {
+  it("la borra con su historial, y su Código vuelve a quedar libre", async () => {
+    const ana = await crearMisioneroDirecto({
+      diocesisLocalidadId: territorio.villaMaria.id,
+      createdById: referente.id,
+    });
+    const perdida = await nueva(referente, 23);
+    await AsignacionService.asignar(referente, {
+      peregrinaId: perdida.id,
+      tenedor: { tipo: "persona", id: ana.id },
+      nota: null,
+    });
+    await AsignacionService.devolver(referente, {
+      peregrinaId: perdida.id,
+      notaCierre: null,
+    });
+    await PeregrinaService.darDeBaja(referente, perdida.id);
+
+    await PeregrinaService.eliminar(referente, perdida.id);
+
+    await expect(PeregrinaService.getById(asesor, perdida.id)).rejects.toThrow(
+      /No existe/,
+    );
+    const historial = await AsignacionService.historialDeMisionero(
+      referente,
+      ana.id,
+    );
+    expect(historial).toEqual([]);
+    const pagina = await PeregrinaService.listPagina(referente, {
+      inventario: "marcadas",
+    });
+    expect(pagina.total).toBe(0);
+
+    const otraVez = await nueva(referente, 23);
+    expect(otraVez.codigo).toBe("CBA JOV 0023");
+  });
+
+  it("un Referente no elimina una marcada de otro territorio", async () => {
+    const ajena = await marcada(23, territorio.rioCuarto.id);
+
+    await expect(PeregrinaService.eliminar(referente, ajena.id)).rejects.toThrow();
+    const sigue = await PeregrinaService.getById(asesor, ajena.id);
+    expect(sigue.deBaja).toBe(true);
   });
 });

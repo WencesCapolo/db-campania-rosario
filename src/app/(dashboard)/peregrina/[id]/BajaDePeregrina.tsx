@@ -40,7 +40,10 @@ export default function BajaDePeregrina({
   const aviso =
     periodos === 0
       ? "Nunca estuvo a cargo de nadie, así que no se pierde ningún historial."
-      : `Atención: ${laTiene ? `ahora la tiene ${laTiene}, y ` : ""}estuvo a cargo de alguien ${periodos === 1 ? "una vez" : `${periodos} veces`}. Ese historial también se borra, y deja de figurar en la ficha de cada Misionero que la tuvo. Si se perdió, conviene más marcarla como extraviada.`;
+      : `Atención: ${laTiene ? `ahora la tiene ${laTiene}, y ` : ""}estuvo a cargo de alguien ${periodos === 1 ? "una vez" : `${periodos} veces`}. Ese historial también se borra, y deja de figurar en la ficha de cada Misionero que la tuvo.${
+          // Ya marcada, ofrecer marcarla sería ofrecer lo que ya hizo.
+          deBaja ? "" : " Si se perdió, conviene más marcarla como extraviada."
+        }`;
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
