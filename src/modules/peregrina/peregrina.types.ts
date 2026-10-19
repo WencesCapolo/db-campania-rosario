@@ -250,6 +250,20 @@ export const TENENCIA_LABELS: Record<Tenencia, string> = {
 };
 
 /**
+ * Qué parte del inventario se mira. Ausente es el inventario activo, que es lo
+ * que alguien quiere decir con «las imágenes»; `marcadas` son las que se
+ * marcaron como extraviadas (la baja, ADR 0013), que de otro modo no aparecen en
+ * ninguna lista — y sin una lista, una imagen que apareció no se puede recuperar
+ * ni encontrar cuando su Código se rechaza por repetido.
+ */
+export const INVENTARIOS = ["marcadas"] as const;
+export type Inventario = (typeof INVENTARIOS)[number];
+
+export const INVENTARIO_LABELS: Record<Inventario, string> = {
+  marcadas: "Marcadas como extraviadas",
+};
+
+/**
  * The filters, validated. Every field optional: absent means "no restriction",
  * which is what an empty picker means to somebody reading the screen.
  *
@@ -282,6 +296,7 @@ export const filtrosDeInventarioSchema = filtrosTerritorialesSchema.extend({
   modalidad: z.enum(modalidadEnum.enumValues).optional(),
   tipo: z.enum(peregrinaTipoEnum.enumValues).optional(),
   tenencia: z.enum(TENENCIAS).optional(),
+  inventario: z.enum(INVENTARIOS).optional(),
 });
 
 export type FiltrosDeInventario = z.infer<typeof filtrosDeInventarioSchema>;
@@ -298,6 +313,7 @@ export const CLAVES_DE_FILTRO = [
   "diocesisLocalidadId",
   "region",
   "tenencia",
+  "inventario",
 ] as const satisfies readonly (keyof FiltrosDeInventario)[];
 
 /**
@@ -349,6 +365,7 @@ export function filtrosDesdeParams(
     diocesisLocalidadId: territorio,
     region: uno("region", filtrosDeInventarioSchema.shape.region),
     tenencia: uno("tenencia", filtrosDeInventarioSchema.shape.tenencia),
+    inventario: uno("inventario", filtrosDeInventarioSchema.shape.inventario),
   });
 }
 

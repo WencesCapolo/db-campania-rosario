@@ -85,6 +85,13 @@
       "when": 1791897670669,
       "tag": "0011_sin_anio_de_consagracion",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792419997442,
+      "tag": "0012_bajas_extraviadas",
+      "breakpoints": true
     }
   ]
 }

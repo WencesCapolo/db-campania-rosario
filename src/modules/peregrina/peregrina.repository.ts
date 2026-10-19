@@ -264,6 +264,7 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
         ? CON_TENEDOR
         : undefined,
     condicionDeTenedor(filtros.misionero),
+    filtros.inventario === "marcadas" ? isNotNull(peregrina.bajaAt) : undefined,
   ];
 }
 
@@ -361,7 +362,10 @@ function condiciones(
   filtros: FiltrosDeInventario,
   opts: OpcionesDeLectura = {},
 ) {
-  return conAlcance(alcance, opts, ...condicionDeFiltros(filtros));
+  // Las marcadas como extraviadas son justo las que una lectura deja afuera por
+  // defecto, así que pedirlas es pedir las bajas — ADR 0013.
+  const incluirBajas = opts.incluirBajas || filtros.inventario === "marcadas";
+  return conAlcance(alcance, { incluirBajas }, ...condicionDeFiltros(filtros));
 }
 
 /**
@@ -635,16 +639,24 @@ export class PeregrinaRepository {
   }
 
   /**
-   * Whether a Código is already written on some image, de baja or not — the
-   * unique index covers every row, so this does too. Unscoped: a Código is
-   * unique across the country, whoever can see the other image.
+   * The image a Código is already written on, de baja or not — the unique index
+   * covers every row, so this does too. Unscoped: a Código is unique across the
+   * country, whoever can see the other image. It hands back only what the
+   * refusal needs to word itself, and the service decides how much of it the
+   * Actor may hear.
    */
-  static async existeCodigo(
+  static async findPorCodigo(
     codigo: string,
     exceptoId?: string,
-  ): Promise<boolean> {
+  ): Promise<
+    { id: string; diocesisLocalidadId: string; bajaAt: Date | null } | undefined
+  > {
     const [fila] = await db
-      .select({ id: peregrina.id })
+      .select({
+        id: peregrina.id,
+        diocesisLocalidadId: peregrina.diocesisLocalidadId,
+        bajaAt: peregrina.bajaAt,
+      })
       .from(peregrina)
       .where(
         and(
@@ -653,7 +665,7 @@ export class PeregrinaRepository {
         ),
       )
       .limit(1);
-    return fila !== undefined;
+    return fila;
   }
 
   /**
@@ -832,7 +844,7 @@ export class PeregrinaRepository {
     paginacion?: { limit: number; offset: number },
   ): Promise<PeregrinaConTerritorio[]> {
     const consulta = conTerritorio()
-      .where(conAlcance(alcance, opts, ...condicionDeFiltros(filtros)))
+      .where(condiciones(alcance, filtros, opts))
       .orderBy(...POR_IDENTIFICACION);
 
     return leerVarias(

@@ -4,6 +4,7 @@ import {
   type PeregrinaConTerritorio,
 } from "./peregrina.repository";
 import {
+  INVENTARIO_LABELS,
   identificacionDe,
   type PeregrinaDTO,
   type CreatePeregrinaInput,
@@ -16,6 +17,7 @@ import { TerritorioRepository } from "@/modules/territorio/territorio.repository
 import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
 import {
+  dentroDelAlcance,
   derivarAlcance,
   exigirDentroDelAlcance,
   exigirTerritorioDentroDelAlcance,
@@ -283,6 +285,7 @@ export class PeregrinaService {
     const codigo =
       input.numero !== undefined
         ? await PeregrinaService.codigoEscrito(
+            alcance,
             territorio.provincia,
             input.modalidad,
             input.numero
@@ -354,6 +357,7 @@ export class PeregrinaService {
     const { codigo, codigoNum } =
       numero !== undefined
         ? await PeregrinaService.codigoEscrito(
+            alcance,
             actual.provincia,
             actual.peregrina.modalidad,
             numero
@@ -393,18 +397,43 @@ export class PeregrinaService {
    *
    * Every image counts, the ones de baja included, because the unique index
    * does and because a Código written on a lost statue is still written on it.
+   *
+   * When the other image is one the Actor can see and it is marcada como
+   * extraviada, the refusal says so and says where to find it: that image is in
+   * no list, so "revisá el número" sent people looking for a record the system
+   * hid from them — and most often the image they hold *is* that one, back.
+   * Somebody else's territory gets the plain sentence, because the Código's
+   * existence is all a national uniqueness check has to tell them.
    */
   private static async codigoEscrito(
+    alcance: Alcance,
     provincia: { abreviatura: string },
     modalidad: Modalidad,
     numero: number,
     exceptoId?: string
   ): Promise<{ codigo: string; codigoNum: number }> {
     const codigo = buildCodigo(provincia.abreviatura, modalidad, numero);
-    if (await PeregrinaRepository.existeCodigo(codigo, exceptoId)) {
-      throw new ConflictoError(PeregrinaService.codigoRepetido(codigo));
+    const otra = await PeregrinaRepository.findPorCodigo(codigo, exceptoId);
+    if (otra) {
+      const marcadaYVisible =
+        otra.bajaAt !== null &&
+        dentroDelAlcance(alcance, otra.diocesisLocalidadId);
+      throw new ConflictoError(
+        marcadaYVisible
+          ? PeregrinaService.codigoDeUnaMarcada(codigo)
+          : PeregrinaService.codigoRepetido(codigo)
+      );
     }
     return { codigo, codigoNum: numero };
+  }
+
+  private static codigoDeUnaMarcada(codigo: string): string {
+    return (
+      `La Peregrina ${codigo} ya existe y está marcada como extraviada. ` +
+      "Si es la que apareció, buscala en Peregrinas con el filtro " +
+      `«Inventario: ${INVENTARIO_LABELS.marcadas}» y recuperala desde su ` +
+      "ficha. Si es otra imagen, revisá el número."
+    );
   }
 
   private static codigoRepetido(codigo: string): string {
@@ -469,6 +498,7 @@ export class PeregrinaService {
         : input.numero === null
           ? { codigo: null, codigoNum: null }
           : await PeregrinaService.codigoEscrito(
+              alcance,
               provincia,
               modalidad,
               input.numero,

@@ -35,6 +35,8 @@ Quedan dos maneras de que una imagen esté extraviada, y son dos situaciones dis
 
 Por eso la negativa de marcarla mientras alguien la tiene ahora dice que se cambie el Estado: es lo que quien aprieta el botón quería hacer.
 
+**Las marcadas se pueden encontrar** (2026-10-19). Una marcada sale de todas las listas pero su Código sigue ocupado. En producción eso dejó a alguien con «Ya hay una Peregrina con el Código CAB JOV 0023» y ninguna pantalla donde verla, ni la imagen para entregar. Ahora pasan tres cosas. El filtro `inventario=marcadas` («Inventario: Marcadas como extraviadas») es el único que alcanza filas de baja, y lo usan igual el listado y el tablero. Cuando el Código repetido es de una marcada que el Actor puede ver, la negativa lo dice y nombra ese filtro; si es de otro territorio, la frase sigue siendo la de siempre. Y la migración 0012 pasa a `extraviada` las bajas anteriores a esta decisión, que habían quedado «Activa».
+
 ## La Fecha de consagración
 
 El Año de consagración de un Misionero pasa a ser una fecha, y una Peregrina tiene la suya, opcional, en todas las altas. Es una columna `date` leída como texto (`AAAA-MM-DD`) de punta a punta, para que ninguna zona horaria la corra un día.
