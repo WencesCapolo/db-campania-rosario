@@ -179,9 +179,6 @@ beforeEach(async () => {
               ? individuales[i % individuales.length]!
               : null,
           matrimonioActualId: deUnHogar ? parejas[i % parejas.length]! : null,
-          // Una de cada veinte está dada de baja, que es lo que los índices
-          // parciales dejan afuera.
-          bajaAt: i % 20 === 0 ? new Date() : null,
           createdById: actor.id,
         };
       })
@@ -276,9 +273,9 @@ describe("los planes del tablero, con volumen", () => {
     // El desglose por Estado y por Modalidad es la razón del índice compuesto:
     // el predicado selectivo es el territorio y la columna que se agrupa viene
     // en el mismo índice.
-    expect.soft(porEstado).toContain("peregrina_activas_por_territorio_idx");
-    expect.soft(porModalidad).toContain("peregrina_activas_por_territorio_idx");
-    expect.soft(totalFiltrado).toContain("peregrina_activas_por_territorio_idx");
+    expect.soft(porEstado).toContain("peregrina_por_territorio_idx");
+    expect.soft(porModalidad).toContain("peregrina_por_territorio_idx");
+    expect.soft(totalFiltrado).toContain("peregrina_por_territorio_idx");
 
     // Lo que se le exige a todas: ninguna carga del tablero recorre una tabla
     // entera para responder por una Diócesis.

@@ -255,15 +255,6 @@ describe("la Numeración anterior — ADR 0012", () => {
     ).rejects.toThrow(/ya tiene el Código CBA JOV 0001/);
   });
 
-  it("no se le genera Código a una imagen extraviada", async () => {
-    const vieja = await registrarVieja("7");
-    await PeregrinaService.darDeBaja(actor, vieja.id);
-
-    await expect(
-      PeregrinaService.generarCodigo(actor, vieja.id)
-    ).rejects.toThrow(/extraviada/);
-  });
-
   it("se la sigue encontrando por la numeración anterior después de tener Código", async () => {
     const vieja = await registrarVieja("Rosario-12");
     await PeregrinaService.generarCodigo(actor, vieja.id);

@@ -13,7 +13,7 @@ import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreDeTenedor } from "@/lib/formato";
 import { hrefDeTenedor } from "@/lib/tenedor-en-pantalla";
 import { fechaDeConsagracion } from "@/lib/consagracion";
-import BajaDePeregrina from "./BajaDePeregrina";
+import BorrarPeregrina from "./BorrarPeregrina";
 import GenerarCodigo from "./GenerarCodigo";
 import { EditarPeregrina } from "./EditarPeregrinaForm";
 
@@ -66,9 +66,6 @@ export default async function PeregrinaPage({
 
         <div className="flex flex-wrap items-center gap-3">
           <EstadoDePeregrina estado={peregrina.estado} />
-          {peregrina.deBaja && (
-            <Insignia tono="neutro">Fuera del inventario</Insignia>
-          )}
         </div>
 
         <p className="text-base text-tinta-suave">
@@ -129,11 +126,9 @@ export default async function PeregrinaPage({
             <p className="text-base leading-relaxed text-tinta-suave">
               No la tiene nadie ahora.
             </p>
-            {!peregrina.deBaja && (
-              <BotonEnlace href="/asignacion/new">
-                Entregarla a un Misionero
-              </BotonEnlace>
-            )}
+            <BotonEnlace href="/asignacion/new">
+              Entregarla a un Misionero
+            </BotonEnlace>
           </div>
         )}
       </Tarjeta>
@@ -187,26 +182,18 @@ export default async function PeregrinaPage({
               Esta imagen está registrada con la numeración que ya tenía
               escrita. Cuando se le escriba un Código nuevo, ponéselo acá.
             </p>
-            {peregrina.deBaja ? (
-              <p className="text-base text-tinta-suave">
-                Está marcada como extraviada. Para ponerle un Código, primero
-                hay que recuperarla.
-              </p>
-            ) : (
-              <GenerarCodigo
-                id={peregrina.id}
-                numeracionAnterior={peregrina.numeracionAnterior}
-              />
-            )}
+            <GenerarCodigo
+              id={peregrina.id}
+              numeracionAnterior={peregrina.numeracionAnterior}
+            />
           </div>
         </Tarjeta>
       )}
 
       <Tarjeta titulo="Administrar">
-        <BajaDePeregrina
+        <BorrarPeregrina
           id={peregrina.id}
           identificacion={peregrina.identificacion}
-          deBaja={peregrina.deBaja}
           periodos={historial.length}
           laTiene={abierta ? nombreDeTenedor(abierta.tenedor) : null}
         />

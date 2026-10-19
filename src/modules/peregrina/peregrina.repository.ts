@@ -62,17 +62,6 @@ export interface PeregrinaConTerritorio {
 }
 
 /**
- * Whether a read includes records given de baja.
- *
- * Excluded by default, everywhere: "the active inventory" is what a Referente
- * means by a list. A caller that wants a retired record has to say so, which
- * makes every such call visible at the call site.
- */
-export interface OpcionesDeLectura {
-  incluirBajas?: boolean;
-}
-
-/**
  * Los dos cónyuges del Matrimonio que tiene la imagen, para que la columna
  * «¿Quién la tiene?» pueda decir «Ana y Juan Pérez» — ADR 0010.
  */
@@ -223,14 +212,9 @@ function condicionDeAlcance(alcance: Alcance) {
     : eq(peregrina.diocesisLocalidadId, alcance.diocesisLocalidadId);
 }
 
-function conAlcance(
-  alcance: Alcance,
-  opts: OpcionesDeLectura,
-  ...extras: (SQL | undefined)[]
-) {
+function conAlcance(alcance: Alcance, ...extras: (SQL | undefined)[]) {
   const filtros = [
     condicionDeAlcance(alcance),
-    opts.incluirBajas ? undefined : isNull(peregrina.bajaAt),
     ...extras,
   ].filter((f) => f !== undefined);
   return filtros.length ? and(...filtros) : undefined;
@@ -264,7 +248,6 @@ function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
         ? CON_TENEDOR
         : undefined,
     condicionDeTenedor(filtros.misionero),
-    filtros.inventario === "marcadas" ? isNotNull(peregrina.bajaAt) : undefined,
   ];
 }
 
@@ -357,23 +340,16 @@ function agregando<T extends CamposAgregados>(campos: T) {
 }
 
 /** Alcance and filters together — the `where` every aggregate shares. */
-function condiciones(
-  alcance: Alcance,
-  filtros: FiltrosDeInventario,
-  opts: OpcionesDeLectura = {},
-) {
-  // Las marcadas como extraviadas son justo las que una lectura deja afuera por
-  // defecto, así que pedirlas es pedir las bajas — ADR 0013.
-  const incluirBajas = opts.incluirBajas || filtros.inventario === "marcadas";
-  return conAlcance(alcance, { incluirBajas }, ...condicionDeFiltros(filtros));
+function condiciones(alcance: Alcance, filtros: FiltrosDeInventario) {
+  return conAlcance(alcance, ...condicionDeFiltros(filtros));
 }
 
 /**
  * PeregrinaRepository
  *
  * Responsibility: raw database access for the `peregrina` table.
- * No business logic. No permission checks. Excludes records given de baja by
- * default.
+ * No business logic. No permission checks. There is no baja to exclude: a
+ * Peregrina is in the inventory until it is borrada (ADR 0014).
  *
  * Every read takes an `Alcance` as its first parameter, mirroring the Actor-first
  * rule one layer up. It is required rather than optional on purpose: a new read
@@ -391,11 +367,10 @@ export class PeregrinaRepository {
   static async findById(
     alcance: Alcance,
     id: string,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio | undefined> {
     return leerUna(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(peregrina.id, id)))
+        .where(conAlcance(alcance, eq(peregrina.id, id)))
         .limit(1),
     );
   }
@@ -407,9 +382,6 @@ export class PeregrinaRepository {
    * Named so the bypass is visible at the call site. It is a primary-key lookup,
    * so it cannot enumerate anything, and its only callers immediately compare
    * the row's territory against the Actor's scope.
-   *
-   * Includes records given de baja, because reactivating one is a mutation too,
-   * and "no existe" would be a lie the operator has to debug.
    */
   static async findByIdSinAlcance(
     id: string,
@@ -419,11 +391,10 @@ export class PeregrinaRepository {
 
   static async findAll(
     alcance: Alcance,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts))
+        .where(conAlcance(alcance))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -431,11 +402,10 @@ export class PeregrinaRepository {
   static async findByEstado(
     alcance: Alcance,
     estado: PeregrinaEstado,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(peregrina.estado, estado)))
+        .where(conAlcance(alcance, eq(peregrina.estado, estado)))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -443,11 +413,10 @@ export class PeregrinaRepository {
   static async findByRegion(
     alcance: Alcance,
     region: Region,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
+        .where(conAlcance(alcance, eq(diocesisLocalidad.region, region)))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -455,11 +424,10 @@ export class PeregrinaRepository {
   static async findByModalidad(
     alcance: Alcance,
     modalidad: Modalidad,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(peregrina.modalidad, modalidad)))
+        .where(conAlcance(alcance, eq(peregrina.modalidad, modalidad)))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -467,14 +435,12 @@ export class PeregrinaRepository {
   static async findByDiocesisLocalidad(
     alcance: Alcance,
     diocesisLocalidadId: string,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
         .where(
           conAlcance(
             alcance,
-            opts,
             eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
           ),
         )
@@ -485,11 +451,10 @@ export class PeregrinaRepository {
   static async findByProvincia(
     alcance: Alcance,
     provinciaId: string,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(provincia.id, provinciaId)))
+        .where(conAlcance(alcance, eq(provincia.id, provinciaId)))
         .orderBy(...POR_IDENTIFICACION),
     );
   }
@@ -497,11 +462,10 @@ export class PeregrinaRepository {
   static async findByCreator(
     alcance: Alcance,
     createdById: string,
-    opts: OpcionesDeLectura = {},
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, opts, eq(peregrina.createdById, createdById)))
+        .where(conAlcance(alcance, eq(peregrina.createdById, createdById)))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -518,7 +482,7 @@ export class PeregrinaRepository {
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, {}, SIN_TENEDOR))
+        .where(conAlcance(alcance, SIN_TENEDOR))
         .orderBy(...POR_IDENTIFICACION),
     );
   }
@@ -530,10 +494,8 @@ export class PeregrinaRepository {
    * which is what made the old numbering unreliable: "Córdoba" and "cordoba "
    * each ran their own sequence and produced colliding Códigos.
    *
-   * Deliberately not scoped, and deliberately counting records given de baja. A
-   * Código is globally unique and physically written on an image; skipping a
-   * retired one's número would eventually mint a duplicate of something sitting
-   * in a cupboard.
+   * Deliberately not scoped. A Código is globally unique and physically written
+   * on an image, wherever that image is filed.
    */
   static async nextCodigoNum(
     provinciaId: string,
@@ -575,7 +537,6 @@ export class PeregrinaRepository {
         | "createdAt"
         | "misioneroActualId"
         | "matrimonioActualId"
-        | "bajaAt"
       >
     >,
   ): Promise<PeregrinaConTerritorio> {
@@ -611,52 +572,16 @@ export class PeregrinaRepository {
   }
 
   /**
-   * Baja lógica — user story 16. There is no `delete`, and that is the point:
-   * every Asignación has to keep resolving to a real Código, so a Peregrina that
-   * leaves the inventory leaves it as a row.
-   *
-   * `undefined` means it was already de baja, which the predicate makes a fact
-   * rather than a race.
+   * Whether a Código is already written on some image — the unique index covers
+   * every row, so this does too. Unscoped: a Código is unique across the
+   * country, whoever can see the other image.
    */
-  static async darDeBaja(id: string): Promise<PeregrinaRow | undefined> {
-    const [row] = await db
-      .update(peregrina)
-      // Extraviada — ADR 0013. The baja is how the Campaña marks an image lost,
-      // so the Estado says the same thing the baja does.
-      .set({ bajaAt: new Date(), estado: "extraviada", updatedAt: new Date() })
-      .where(and(eq(peregrina.id, id), isNull(peregrina.bajaAt)))
-      .returning();
-    return row;
-  }
-
-  static async reactivar(id: string): Promise<PeregrinaRow | undefined> {
-    const [row] = await db
-      .update(peregrina)
-      .set({ bajaAt: null, estado: "activa", updatedAt: new Date() })
-      .where(and(eq(peregrina.id, id), sql`${peregrina.bajaAt} is not null`))
-      .returning();
-    return row;
-  }
-
-  /**
-   * The image a Código is already written on, de baja or not — the unique index
-   * covers every row, so this does too. Unscoped: a Código is unique across the
-   * country, whoever can see the other image. It hands back only what the
-   * refusal needs to word itself, and the service decides how much of it the
-   * Actor may hear.
-   */
-  static async findPorCodigo(
+  static async existeCodigo(
     codigo: string,
     exceptoId?: string,
-  ): Promise<
-    { id: string; diocesisLocalidadId: string; bajaAt: Date | null } | undefined
-  > {
+  ): Promise<boolean> {
     const [fila] = await db
-      .select({
-        id: peregrina.id,
-        diocesisLocalidadId: peregrina.diocesisLocalidadId,
-        bajaAt: peregrina.bajaAt,
-      })
+      .select({ id: peregrina.id })
       .from(peregrina)
       .where(
         and(
@@ -665,11 +590,11 @@ export class PeregrinaRepository {
         ),
       )
       .limit(1);
-    return fila;
+    return fila !== undefined;
   }
 
   /**
-   * Destroys an image and every Asignación it ever had — ADR 0013, as amended.
+   * Borrar: destroys an image and every Asignación it ever had — ADR 0014.
    *
    * One transaction, because a Peregrina gone with its periods left behind is a
    * set of rows pointing at nothing, and the foreign key would refuse the
@@ -678,7 +603,7 @@ export class PeregrinaRepository {
    * if any, goes with the rest, and so do the denormalised pointers, which live
    * on this row. Returns whether the image existed.
    */
-  static async eliminar(id: string): Promise<boolean> {
+  static async borrar(id: string): Promise<boolean> {
     return db.transaction(async (tx) => {
       await tx.execute(
         sql`delete from "asignacion" where "asignacion"."peregrina_id" = ${id}`,
@@ -707,10 +632,9 @@ export class PeregrinaRepository {
   static async contarTotal(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
   ): Promise<number> {
     const [row] = await agregando({}).where(
-      condiciones(alcance, filtros, opts),
+      condiciones(alcance, filtros),
     );
     return row?.total ?? 0;
   }
@@ -718,20 +642,18 @@ export class PeregrinaRepository {
   static async contarPorEstado(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
   ): Promise<{ estado: PeregrinaEstado; total: number }[]> {
     return agregando({ estado: peregrina.estado })
-      .where(condiciones(alcance, filtros, opts))
+      .where(condiciones(alcance, filtros))
       .groupBy(peregrina.estado);
   }
 
   static async contarPorModalidad(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
   ): Promise<{ modalidad: Modalidad; total: number }[]> {
     return agregando({ modalidad: peregrina.modalidad })
-      .where(condiciones(alcance, filtros, opts))
+      .where(condiciones(alcance, filtros))
       .groupBy(peregrina.modalidad);
   }
 
@@ -739,7 +661,6 @@ export class PeregrinaRepository {
   static async contarPorDiocesisLocalidad(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
   ): Promise<
     {
       diocesisLocalidadId: string;
@@ -754,7 +675,7 @@ export class PeregrinaRepository {
       provincia: provincia.nombre,
     })
       .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      .where(condiciones(alcance, filtros, opts))
+      .where(condiciones(alcance, filtros))
       .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre, provincia.nombre)
       .orderBy(desc(TOTAL), asc(diocesisLocalidad.nombre));
   }
@@ -840,11 +761,10 @@ export class PeregrinaRepository {
   static async findFiltradas(
     alcance: Alcance,
     filtros: FiltrosDeInventario,
-    opts: OpcionesDeLectura = {},
     paginacion?: { limit: number; offset: number },
   ): Promise<PeregrinaConTerritorio[]> {
     const consulta = conTerritorio()
-      .where(condiciones(alcance, filtros, opts))
+      .where(condiciones(alcance, filtros))
       .orderBy(...POR_IDENTIFICACION);
 
     return leerVarias(

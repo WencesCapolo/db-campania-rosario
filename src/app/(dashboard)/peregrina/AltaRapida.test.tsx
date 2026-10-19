@@ -57,7 +57,6 @@ function guardada(
     provincia: "Córdoba",
     region: "CENTRO",
     tenenciaActual: null,
-    deBaja: false,
     createdById: "u-1",
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),

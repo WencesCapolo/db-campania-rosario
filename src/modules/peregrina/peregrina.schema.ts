@@ -163,14 +163,8 @@ export const peregrina = pgTable(
       () => matrimonio.id
     ),
 
-    /**
-     * Baja lógica — user story 16. A Peregrina permanently out of service leaves
-     * the active inventory without erasing its history, because every Asignación
-     * has to keep resolving to a real Código and a real name. Refused while an
-     * Asignación is still open: an image that is physically with somebody has not
-     * left the inventory, whatever the paperwork says.
-     */
-    bajaAt: timestamp("baja_at", { withTimezone: true }),
+    // No `bajaAt`: a Peregrina has no baja (ADR 0014). Lost is an Estado,
+    // Extraviada, and the image stays in every list; gone is `borrar`.
 
     // Auditoría
     createdById: text("created_by_id")
@@ -191,8 +185,6 @@ export const peregrina = pgTable(
     index("peregrina_diocesis_localidad_idx").on(t.diocesisLocalidadId),
     index("peregrina_estado_idx").on(t.estado),
     index("peregrina_modalidad_idx").on(t.modalidad),
-    // Active inventory excludes bajas, which is every list by default.
-    index("peregrina_baja_idx").on(t.bajaAt),
     // "Who has this one" on a list screen reads straight off this column.
     index("peregrina_misionero_actual_idx").on(t.misioneroActualId),
 
@@ -200,16 +192,14 @@ export const peregrina = pgTable(
      * The tablero's own index — issue #5.
      *
      * Every aggregate a scoped Actor loads is the same shape: narrow to one
-     * Diócesis, exclude the bajas, group by one of Estado, Modalidad or Tipo.
+     * Diócesis, group by one of Estado, Modalidad or Tipo.
      * The three single-column indexes above cannot serve that, because the
      * selective predicate is the territory and Postgres would have to visit the
      * heap for every row of it to read the column it is grouping by.
      *
-     * Composite and **partial**: `where baja_at is null` is in every list and
-     * every figure by default, so keeping the retired rows out of the index makes
-     * it both smaller and applicable without a recheck — and it lets these counts
-     * be answered index-only, which is what keeps a dashboard load off the heap
-     * as the Campaña grows.
+     * Composite, so these counts can be answered index-only, which is what
+     * keeps a dashboard load off the heap as the Campaña grows. It was partial
+     * on `baja_at is null` until a Peregrina stopped having a baja (ADR 0014).
      *
      * Column order is the selective one first. Estado before Modalidad because a
      * filter on Estado narrows more in practice: most images are `activa`, and
@@ -222,9 +212,12 @@ export const peregrina = pgTable(
      * order. The planner picked the plain territory indexes and a sort over both,
      * so they were write cost and disk for nothing.
      */
-    index("peregrina_activas_por_territorio_idx")
-      .on(t.diocesisLocalidadId, t.estado, t.modalidad, t.tipo)
-      .where(sql`${t.bajaAt} is null`),
+    index("peregrina_por_territorio_idx").on(
+      t.diocesisLocalidadId,
+      t.estado,
+      t.modalidad,
+      t.tipo
+    ),
 
     // "Who has this one", for the couples. Mirrors the misionero one above.
     index("peregrina_matrimonio_actual_idx").on(t.matrimonioActualId),

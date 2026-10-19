@@ -250,13 +250,13 @@ describe.each([
     ).rejects.toThrow(NoAutorizadoError);
   });
 
-  it("NO puede dar de baja una ajena, y el registro sigue activo", async () => {
+  it("NO puede borrar una ajena, y el registro sigue", async () => {
     await expect(
-      PeregrinaService.darDeBaja(obtenerActor(), ajena.id),
+      PeregrinaService.borrar(obtenerActor(), ajena.id),
     ).rejects.toThrow(NoAutorizadoError);
 
     const intacta = await PeregrinaService.getById(asesor, ajena.id);
-    expect(intacta.deBaja).toBe(false);
+    expect(intacta.id).toBe(ajena.id);
   });
 
   it("puede registrar en su propia Diócesis", async () => {
@@ -363,14 +363,13 @@ describe("escrituras de un Asesor Nacional", () => {
     expect(movida.region).toBe("R. PAT");
   });
 
-  it("puede dar de baja cualquier registro del país, y sale del inventario activo sin desaparecer", async () => {
-    await PeregrinaService.darDeBaja(asesor, ajena.id);
+  it("puede borrar cualquier registro del país", async () => {
+    await PeregrinaService.borrar(asesor, ajena.id);
 
-    // Fuera de las listas activas…
     expect(await PeregrinaService.listAll(asesor)).toHaveLength(2);
-    // …y todavía legible por id, porque su historial tiene que seguir resolviendo.
-    const deBaja = await PeregrinaService.getById(asesor, ajena.id);
-    expect(deBaja.deBaja).toBe(true);
+    await expect(PeregrinaService.getById(asesor, ajena.id)).rejects.toThrow(
+      /No existe/,
+    );
   });
 });
 

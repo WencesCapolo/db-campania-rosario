@@ -204,6 +204,9 @@ export class TerritorioRepository {
   // itself, and the guard would refuse forever with a count of things nobody can
   // see. A retired record is not a reference worth protecting; its Asignaciones
   // still resolve either way, because nothing is ever destroyed.
+  //
+  // Peregrinas count every row: they have no baja (ADR 0014). A Diócesis with
+  // images filed in it is retired after they are moved or borradas.
 
   static async countUsoDiocesisLocalidad(
     id: string
@@ -212,9 +215,7 @@ export class TerritorioRepository {
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(peregrina)
-        .where(
-          and(eq(peregrina.diocesisLocalidadId, id), isNull(peregrina.bajaAt))
-        ),
+        .where(eq(peregrina.diocesisLocalidadId, id)),
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(misionero)
@@ -238,12 +239,7 @@ export class TerritorioRepository {
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(peregrina)
-        .where(
-          and(
-            sql`${peregrina.diocesisLocalidadId} in ${hijas}`,
-            isNull(peregrina.bajaAt)
-          )
-        ),
+        .where(sql`${peregrina.diocesisLocalidadId} in ${hijas}`),
       db
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(misionero)

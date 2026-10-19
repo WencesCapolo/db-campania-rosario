@@ -1,5 +1,7 @@
 # El número del Código se tipea, una Peregrina se puede eliminar, y la baja se llama Extraviada
 
+> **Reemplazada en parte por ADR 0014** (2026-10-19): una Peregrina ya no tiene baja. Lo de abajo sobre «marcar como extraviada» y el filtro «Inventario» describe lo que hubo, no lo que hay; eliminar se llama **borrar**. El número tipeado y la Fecha de consagración siguen vigentes.
+
 Cuatro pedidos de la Campaña, del 2026-10-13, que deshacen partes de decisiones anteriores. Van juntos porque los cuatro dicen lo mismo de distintas formas: el sistema tiene que seguir a lo que está escrito en las imágenes y en los papeles, y no al revés.
 
 ## El número del Código se escribe

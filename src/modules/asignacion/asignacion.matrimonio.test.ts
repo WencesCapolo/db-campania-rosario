@@ -340,14 +340,6 @@ describe("las imágenes de un Matrimonio se ven en cada lectura", () => {
       await AsignacionRepository.findAbiertasDeMatrimonioSinAlcance(parejaId);
     expect(delPar.map((a) => a.peregrinaIdentificacion)).toEqual([peregrina.identificacion]);
   });
-
-  it("la baja de la Peregrina se rechaza y nombra a la pareja", async () => {
-    await darsela();
-
-    await expect(
-      PeregrinaService.darDeBaja(referente, peregrina.id)
-    ).rejects.toThrow(/Ana Álvarez y Juan Benítez/);
-  });
 });
 
 // ── Devolver y pasar, con el puntero denormalizado en el medio ────────────────

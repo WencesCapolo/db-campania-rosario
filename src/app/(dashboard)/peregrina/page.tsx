@@ -279,11 +279,6 @@ export default async function PeregrinaListaPage({
                         >
                           {p.identificacion}
                         </Link>
-                        {p.deBaja && (
-                          <span className="mt-1 block text-sm text-tinta-suave">
-                            fuera del inventario
-                          </span>
-                        )}
                       </th>
 
                       <td className={CELDA}>

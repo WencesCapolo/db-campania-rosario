@@ -48,7 +48,6 @@ import type {
 export interface AsignacionCompleta {
   asignacion: AsignacionRow;
   peregrinaIdentificacion: string;
-  peregrinaBajaAt: Date | null;
   /** The Peregrina's territory — what this Asignación is scoped through. */
   peregrinaDiocesisLocalidadId: string;
   tenedor: TenedorResueltoDTO;
@@ -137,7 +136,6 @@ function completa() {
     .select({
       asignacion,
       peregrinaIdentificacion: IDENTIFICACION,
-      peregrinaBajaAt: peregrina.bajaAt,
       peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
       misioneroId: misionero.id,
       misioneroNombre: misionero.nombre,
@@ -293,7 +291,6 @@ function aCompleta(fila: FilaCompleta): AsignacionCompleta {
   return {
     asignacion: fila.asignacion,
     peregrinaIdentificacion: fila.peregrinaIdentificacion,
-    peregrinaBajaAt: fila.peregrinaBajaAt,
     peregrinaDiocesisLocalidadId: fila.peregrinaDiocesisLocalidadId,
     tenedor: tenedorDeColumnasResueltas(fila, fila.asignacion.id),
     registradaPorDiocesis: fila.registradaPorDiocesis,
@@ -962,9 +959,7 @@ export class AsignacionRepository {
       .where(
         conAlcance(
           alcance,
-          isNull(asignacion.id),
-          // Retired images are not idle capacity.
-          isNull(peregrina.bajaAt)
+          isNull(asignacion.id)
         )
       )
       .orderBy(asc(IDENTIFICACION));
@@ -1069,7 +1064,6 @@ export class AsignacionRepository {
         conAlcance(
           alcance,
           abierta,
-          isNull(peregrina.bajaAt),
           filtros.diocesisLocalidadId
             ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
             : undefined,

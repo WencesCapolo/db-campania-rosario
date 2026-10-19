@@ -36,7 +36,6 @@ export type { TenedorResueltoDTO, PersonaDeTenedorDTO } from "@/lib/tenedor";
 export interface PeregrinaDeAsignacionDTO {
   id: string;
   identificacion: string;
-  deBaja: boolean;
 }
 
 /**

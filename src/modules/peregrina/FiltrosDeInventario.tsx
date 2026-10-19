@@ -10,8 +10,6 @@ import {
   CLAVES_DE_FILTRO,
   ESTADOS_SELECCIONABLES,
   ESTADO_LABELS,
-  INVENTARIOS,
-  INVENTARIO_LABELS,
   MODALIDADES,
   MODALIDAD_LABELS,
   TENENCIAS,
@@ -77,11 +75,6 @@ const OPCIONES_DE_TIPO = peregrinaTipoEnum.enumValues.map((t) => ({
 const OPCIONES_DE_TENENCIA = TENENCIAS.map((t) => ({
   valor: t,
   etiqueta: TENENCIA_LABELS[t],
-}));
-
-const OPCIONES_DE_INVENTARIO = INVENTARIOS.map((i) => ({
-  valor: i,
-  etiqueta: INVENTARIO_LABELS[i],
 }));
 
 const OPCIONES_DE_REGION = REGIONES.map((r) => ({ valor: r, etiqueta: r }));
@@ -206,15 +199,6 @@ export default function FiltrosDeInventario({
         value={filtros.tenencia ?? ""}
         onChange={(e) => aplicar({ tenencia: e.target.value })}
       />
-      {/* Las marcadas como extraviadas no están en ninguna otra lista, y una
-          imagen que apareció se recupera desde su ficha — ADR 0013. */}
-      <Eleccion
-        etiqueta="Inventario"
-        opciones={OPCIONES_DE_INVENTARIO}
-        vacia="Las del inventario"
-        value={filtros.inventario ?? ""}
-        onChange={(e) => aplicar({ inventario: e.target.value })}
-      />
 
       {conTerritorio && territorios && (
         <>
@@ -289,7 +273,7 @@ export default function FiltrosDeInventario({
         >
           {abiertos
             ? "Menos filtros"
-            : `Más filtros: Estado, Modalidad, Tipo, extraviadas${conTerritorio ? ", territorio" : ""}`}
+            : `Más filtros: Estado, Modalidad, Tipo${conTerritorio ? ", territorio" : ""}`}
           <span aria-hidden>{abiertos ? "▴" : "▾"}</span>
         </button>
 
@@ -434,9 +418,6 @@ function describir(
     poner("modalidad", MODALIDAD_LABELS[filtros.modalidad]);
   if (filtros.tipo) poner("tipo", TIPO_LABELS[filtros.tipo]);
   if (filtros.tenencia) poner("tenencia", TENENCIA_LABELS[filtros.tenencia]);
-  if (filtros.inventario) {
-    poner("inventario", INVENTARIO_LABELS[filtros.inventario]);
-  }
   if (filtros.region) poner("region", `Región ${filtros.region}`);
   if (filtros.diocesisLocalidadId) {
     const territorio = territorios.find(

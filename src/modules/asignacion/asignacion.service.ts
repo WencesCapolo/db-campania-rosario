@@ -84,7 +84,6 @@ export class AsignacionService {
       peregrina: {
         id: a.peregrinaId,
         identificacion: row.peregrinaIdentificacion,
-        deBaja: row.peregrinaBajaAt !== null,
       },
       tenedor: row.tenedor,
       abiertaAt: a.abiertaAt,
@@ -228,16 +227,6 @@ export class AsignacionService {
       `Esa persona está en el Matrimonio ${comoSeLlaman}, y un Matrimonio tiene ` +
         "la imagen a cargo como una sola persona. Elegí el Matrimonio en la lista."
     );
-  }
-
-  /** A Peregrina out of service is not handed to anybody. */
-  private static exigirPeregrinaActiva(row: PeregrinaConTerritorio): void {
-    if (row.peregrina.bajaAt !== null) {
-      throw new ValidacionError(
-        `La Peregrina ${identificacionDe(row.peregrina)} está dada de baja, así que no se ` +
-          "puede asignar. Reactivala primero."
-      );
-    }
   }
 
   // ── Reads ──────────────────────────────────────────────────────────────────
@@ -498,7 +487,6 @@ export class AsignacionService {
       input.peregrinaId,
       operacion
     );
-    AsignacionService.exigirPeregrinaActiva(peregrina);
 
     const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,
@@ -554,7 +542,6 @@ export class AsignacionService {
       input.peregrinaId,
       operacion
     );
-    AsignacionService.exigirPeregrinaActiva(peregrina);
 
     const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,

@@ -77,7 +77,6 @@ export default async function HistorialPage({
 
         <div className="flex flex-wrap items-center gap-3">
           <EstadoDePeregrina estado={peregrina.estado} />
-          {peregrina.deBaja && <Insignia tono="neutro">Fuera del inventario</Insignia>}
         </div>
 
         <p className="text-base text-tinta-suave">
@@ -123,11 +122,9 @@ export default async function HistorialPage({
             <p className="text-base leading-relaxed text-tinta-suave">
               No está a cargo de nadie.
             </p>
-            {!peregrina.deBaja && (
-              <BotonEnlace href="/asignacion/new">
-                Entregarla a un Misionero
-              </BotonEnlace>
-            )}
+            <BotonEnlace href="/asignacion/new">
+              Entregarla a un Misionero
+            </BotonEnlace>
           </div>
         )}
       </Tarjeta>

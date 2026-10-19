@@ -147,33 +147,15 @@ export async function updatePeregrinaAction(
 }
 
 /**
- * Marks a Peregrina extraviada — out of the active inventory, its history
- * intact (ADR 0013). The service refuses it while somebody has the image.
- */
-export async function darDeBajaPeregrinaAction(
-  id: string
-): Promise<ActionResult<PeregrinaDTO>> {
-  const actor = await getCurrentUser();
-  const result = await aResultado(() => PeregrinaService.darDeBaja(actor, id));
-
-  if (result.ok) {
-    revalidatePath("/peregrina");
-    revalidatePath(`/peregrina/${id}`);
-  }
-
-  return result;
-}
-
-/**
- * Destroys a Peregrina and its whole historial — ADR 0013. The warning is the
+ * Borra a Peregrina and its whole historial — ADR 0014. The warning is the
  * dialog's; by the time this runs it was confirmed.
  */
-export async function eliminarPeregrinaAction(
+export async function borrarPeregrinaAction(
   id: string
 ): Promise<ActionResult<null>> {
   const actor = await getCurrentUser();
   const result = await aResultado(async () => {
-    await PeregrinaService.eliminar(actor, id);
+    await PeregrinaService.borrar(actor, id);
     return null;
   });
 
@@ -205,20 +187,6 @@ export async function generarCodigoAction(
   const result = await aResultado(() =>
     PeregrinaService.generarCodigo(actor, id, parsed.data)
   );
-
-  if (result.ok) {
-    revalidatePath("/peregrina");
-    revalidatePath(`/peregrina/${id}`);
-  }
-
-  return result;
-}
-
-export async function reactivarPeregrinaAction(
-  id: string
-): Promise<ActionResult<PeregrinaDTO>> {
-  const actor = await getCurrentUser();
-  const result = await aResultado(() => PeregrinaService.reactivar(actor, id));
 
   if (result.ok) {
     revalidatePath("/peregrina");

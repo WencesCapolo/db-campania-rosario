@@ -91,7 +91,7 @@ describe("el número del Código, tipeado", () => {
 
   it("cuenta también las imágenes extraviadas: su Código sigue escrito", async () => {
     const perdida = await nueva(asesor, { numero: 5 });
-    await PeregrinaService.darDeBaja(asesor, perdida.id);
+    await PeregrinaService.update(asesor, perdida.id, { estado: "extraviada" });
 
     await expect(nueva(asesor, { numero: 5 })).rejects.toThrow(/CBA JOV 0005/);
   });
@@ -223,11 +223,11 @@ describe("editar una Peregrina", () => {
   });
 });
 
-describe("eliminar una Peregrina", () => {
+describe("borrar una Peregrina", () => {
   it("borra la que nunca estuvo a cargo de nadie", async () => {
     const creada = await nueva(referente);
 
-    await PeregrinaService.eliminar(referente, creada.id);
+    await PeregrinaService.borrar(referente, creada.id);
 
     await expect(PeregrinaService.getById(asesor, creada.id)).rejects.toThrow(
       /No existe/
@@ -256,8 +256,8 @@ describe("eliminar una Peregrina", () => {
       nota: null,
     });
 
-    await PeregrinaService.eliminar(referente, devuelta.id);
-    await PeregrinaService.eliminar(referente, enCasa.id);
+    await PeregrinaService.borrar(referente, devuelta.id);
+    await PeregrinaService.borrar(referente, enCasa.id);
 
     for (const id of [devuelta.id, enCasa.id]) {
       await expect(PeregrinaService.getById(asesor, id)).rejects.toThrow(/No existe/);
@@ -274,7 +274,7 @@ describe("eliminar una Peregrina", () => {
       diocesisLocalidadId: territorio.rioCuarto.id,
     });
 
-    await expect(PeregrinaService.eliminar(referente, ajena.id)).rejects.toThrow(
+    await expect(PeregrinaService.borrar(referente, ajena.id)).rejects.toThrow(
       NoAutorizadoError
     );
     const sigue = await PeregrinaService.getById(asesor, ajena.id);
@@ -283,23 +283,9 @@ describe("eliminar una Peregrina", () => {
 
   it("libera su Código: se puede volver a cargar con el mismo número", async () => {
     const creada = await nueva(asesor, { numero: 8 });
-    await PeregrinaService.eliminar(asesor, creada.id);
+    await PeregrinaService.borrar(asesor, creada.id);
 
     const otra = await nueva(asesor, { numero: 8 });
     expect(otra.codigo).toBe("CBA JOV 0008");
-  });
-});
-
-describe("marcar como extraviada", () => {
-  it("la saca del inventario con Estado Extraviada, y recuperarla la vuelve Activa", async () => {
-    const creada = await nueva(asesor);
-
-    const perdida = await PeregrinaService.darDeBaja(asesor, creada.id);
-    expect(perdida.deBaja).toBe(true);
-    expect(perdida.estado).toBe("extraviada");
-
-    const recuperada = await PeregrinaService.reactivar(asesor, creada.id);
-    expect(recuperada.deBaja).toBe(false);
-    expect(recuperada.estado).toBe("activa");
   });
 });

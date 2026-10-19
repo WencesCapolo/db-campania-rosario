@@ -106,8 +106,8 @@ _Avoid_: Modalidad
 
 **Estado**:
 The condition of a Peregrina: Activa, En reparación, or Extraviada. It describes the image and says nothing about who has it — an Extraviada Peregrina keeps its open Asignación, because the last holder is where anyone starts looking. `Inactiva` is a legacy value: still displayed on records that carry it, never offered for new entry.
-Extraviada also names the baja of a Peregrina — see **De baja** (ADR 0013).
-_Avoid_: using it to mean "not currently assigned" (that is Tenencia actual)
+**Extraviada** means lost for now, whether or not somebody had it. It is only an Estado: the image stays in every list, figure and filter, and changing it back is an edit (ADR 0014).
+_Avoid_: using it to mean "not currently assigned" (that is Tenencia actual); "marcada como extraviada" or any baja of a Peregrina
 
 **Centro**:
 The place where a Peregrina is venerated — a santuario, ermita, or parroquia, recorded with its name.
@@ -123,12 +123,12 @@ The single open Asignación for a Peregrina — the Tenedor responsible for it r
 _Avoid_: Ubicación
 
 **De baja**:
-Retired rather than deleted. A Peregrina that was lost — on screen it is **marcada como extraviada**, and its Estado becomes Extraviada in the same write (ADR 0013) — a Misionero who has left the Campaña, a Matrimonio that has ended, or a Usuario whose access has ended — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real Código and a real name. Refused while an Asignación is still open: an image physically in somebody's house has not left the inventory.
-_Avoid_: Borrar, Baja (on its own, for a Peregrina that is merely unassigned)
+Retired rather than deleted: a Misionero who has left the Campaña, a Matrimonio that has ended, a Usuario whose access has ended, or a territory — recorded with a timestamp, excluded from active lists, and never destroyed, because every Asignación has to keep resolving to a real name. Refused while an Asignación is still open. **A Peregrina has no baja** (ADR 0014): it is in the inventory, Extraviada or not, until it is borrada.
+_Avoid_: Borrar (that destroys); any baja of a Peregrina
 
-**Eliminar**:
-Destroying a Peregrina outright, together with every Asignación it ever had — allowed even when it was, or is, in somebody's charge, behind a warning that says how much history goes with it. Each Misionero who had it loses that period from their page; marking it extraviada loses nothing (ADR 0013). Nothing else is ever eliminated.
-_Avoid_: using it for a baja
+**Borrar**:
+A Peregrina stops existing in the system, together with every Asignación it ever had — a hard delete, allowed even when it was, or is, in somebody's charge, behind a warning that says how much history goes with it. Each Misionero who had it loses that period from their page, and its Código is free again. An image that is only lost is not borrada: its Estado is Extraviada (ADR 0014). Nothing else is ever borrado.
+_Avoid_: Eliminar; using it for a baja
 
 **Tablero**:
 The screen of aggregate figures for the Actor's own territory — counts by Estado, Modalidad, Tipo and territory, plus the four lists that lead to work. Every figure links to the records behind it. It is a destination reached from the header, not the home screen: Inicio is the three things somebody came to do.

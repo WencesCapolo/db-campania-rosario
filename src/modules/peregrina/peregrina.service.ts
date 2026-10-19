@@ -4,7 +4,6 @@ import {
   type PeregrinaConTerritorio,
 } from "./peregrina.repository";
 import {
-  INVENTARIO_LABELS,
   identificacionDe,
   type PeregrinaDTO,
   type CreatePeregrinaInput,
@@ -17,7 +16,6 @@ import { TerritorioRepository } from "@/modules/territorio/territorio.repository
 import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import type { Region } from "@/modules/territorio/territorio.schema";
 import {
-  dentroDelAlcance,
   derivarAlcance,
   exigirDentroDelAlcance,
   exigirTerritorioDentroDelAlcance,
@@ -35,12 +33,6 @@ import {
   rango,
   type Pagina,
 } from "@/lib/paginacion";
-import { nombreDeTenedor } from "@/lib/formato";
-import { AsignacionRepository } from "@/modules/asignacion/asignacion.repository";
-// ↑ The one import that runs against the module direction, and it is deliberate:
-//   the guard below has to know whether an Asignación is open before it lets a
-//   Peregrina leave the inventory. Only the repository, never the service, so
-//   there is no cycle between the two services.
 
 /**
  * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
@@ -92,7 +84,6 @@ export class PeregrinaService {
       provincia: diocesisLocalidad.provincia.nombre,
       region: diocesisLocalidad.region,
       tenenciaActual: row.tenedorActual,
-      deBaja: row.peregrina.bajaAt !== null,
       createdById: row.peregrina.createdById,
       createdAt: row.peregrina.createdAt,
       updatedAt: row.peregrina.updatedAt,
@@ -207,7 +198,6 @@ export class PeregrinaService {
     const rows = await PeregrinaRepository.findFiltradas(
       alcance,
       filtros,
-      {},
       rango(actual)
     );
 
@@ -285,7 +275,6 @@ export class PeregrinaService {
     const codigo =
       input.numero !== undefined
         ? await PeregrinaService.codigoEscrito(
-            alcance,
             territorio.provincia,
             input.modalidad,
             input.numero
@@ -323,9 +312,7 @@ export class PeregrinaService {
    * Numeración anterior stays on the record, and from here on the Código is the
    * image's Identificación.
    *
-   * Refused on an image given de baja — a Código for an image out of the
-   * inventory is a número spent on nothing — and on one that already has a
-   * Código, which is never regenerated.
+   * Refused on one that already has a Código, which is never regenerated.
    */
   static async generarCodigo(
     actor: CurrentUser,
@@ -346,18 +333,11 @@ export class PeregrinaService {
         `Esa Peregrina ya tiene el Código ${actual.peregrina.codigo}.`
       );
     }
-    if (actual.peregrina.bajaAt !== null) {
-      throw new ConflictoError(
-        `La Peregrina ${identificacionDe(actual.peregrina)} está marcada como ` +
-          "extraviada. Recuperala antes de generarle un Código."
-      );
-    }
 
     // A número typed by whoever is holding the image, or the next free one.
     const { codigo, codigoNum } =
       numero !== undefined
         ? await PeregrinaService.codigoEscrito(
-            alcance,
             actual.provincia,
             actual.peregrina.modalidad,
             numero
@@ -395,49 +375,28 @@ export class PeregrinaService {
    * — the one check ADR 0013 asks for. Not that it follows the previous one:
    * images were numbered by hand for years, and gaps are real.
    *
-   * Every image counts, the ones de baja included, because the unique index
-   * does and because a Código written on a lost statue is still written on it.
-   *
-   * When the other image is one the Actor can see and it is marcada como
-   * extraviada, the refusal says so and says where to find it: that image is in
-   * no list, so "revisá el número" sent people looking for a record the system
-   * hid from them — and most often the image they hold *is* that one, back.
-   * Somebody else's territory gets the plain sentence, because the Código's
-   * existence is all a national uniqueness check has to tell them.
+   * Every image counts, the extraviadas and other territories' included,
+   * because the unique index does and because a Código written on a lost
+   * statue is still written on it.
    */
   private static async codigoEscrito(
-    alcance: Alcance,
     provincia: { abreviatura: string },
     modalidad: Modalidad,
     numero: number,
     exceptoId?: string
   ): Promise<{ codigo: string; codigoNum: number }> {
     const codigo = buildCodigo(provincia.abreviatura, modalidad, numero);
-    const otra = await PeregrinaRepository.findPorCodigo(codigo, exceptoId);
-    if (otra) {
-      const marcadaYVisible =
-        otra.bajaAt !== null &&
-        dentroDelAlcance(alcance, otra.diocesisLocalidadId);
-      throw new ConflictoError(
-        marcadaYVisible
-          ? PeregrinaService.codigoDeUnaMarcada(codigo)
-          : PeregrinaService.codigoRepetido(codigo)
-      );
+    if (await PeregrinaRepository.existeCodigo(codigo, exceptoId)) {
+      throw new ConflictoError(PeregrinaService.codigoRepetido(codigo));
     }
     return { codigo, codigoNum: numero };
   }
 
-  private static codigoDeUnaMarcada(codigo: string): string {
-    return (
-      `La Peregrina ${codigo} ya existe y está marcada como extraviada. ` +
-      "Si es la que apareció, buscala en Peregrinas con el filtro " +
-      `«Inventario: ${INVENTARIO_LABELS.marcadas}» y recuperala desde su ` +
-      "ficha. Si es otra imagen, revisá el número."
-    );
-  }
-
   private static codigoRepetido(codigo: string): string {
-    return `Ya hay una Peregrina con el Código ${codigo}. Revisá el número.`;
+    return (
+      `Ya hay una Peregrina con el Código ${codigo}. Revisá el número, o ` +
+      "buscala por su Código en Peregrinas."
+    );
   }
 
   /**
@@ -498,7 +457,6 @@ export class PeregrinaService {
         : input.numero === null
           ? { codigo: null, codigoNum: null }
           : await PeregrinaService.codigoEscrito(
-              alcance,
               provincia,
               modalidad,
               input.numero,
@@ -539,91 +497,24 @@ export class PeregrinaService {
   }
 
   /**
-   * Destroys a Peregrina, with its whole historial — ADR 0013, as amended on
-   * 2026-10-13: the Campaña wants it possible even for an image that was in
-   * somebody's charge, and wants only to be warned. The warning is the
-   * screen's; this does what was confirmed.
+   * Borrar: the Peregrina stops existing, with its whole historial — ADR 0014.
+   * Allowed even for an image that was or is in somebody's charge; the Campaña
+   * wants only to be warned, and the warning is the screen's. This does what
+   * was confirmed.
    *
-   * What it costs is real and the ADR says so: every Misionero who had the
-   * image loses that period from their own page, because there is no longer a
-   * Código for it to resolve to. Marking it extraviada keeps all of that.
+   * What it costs is real: every Misionero who had the image loses that period
+   * from their own page, because there is no longer a Código for it to resolve
+   * to. An image that is only lost is not borrada — its Estado is Extraviada.
    */
-  static async eliminar(actor: CurrentUser, id: string): Promise<void> {
-    const operacion = "PeregrinaService.eliminar";
+  static async borrar(actor: CurrentUser, id: string): Promise<void> {
+    const operacion = "PeregrinaService.borrar";
     const alcance = derivarAlcance(actor, operacion);
 
     await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
 
-    if (!(await PeregrinaRepository.eliminar(id))) {
+    if (!(await PeregrinaRepository.borrar(id))) {
       throw new NoEncontradoError("No existe esa Peregrina.");
     }
-  }
-
-  /**
-   * Marks a Peregrina extraviada: out of the active inventory, its history
-   * intact — user story 16, renamed by ADR 0013. The Estado becomes
-   * `extraviada` in the same write, so the record does not say two things.
-   *
-   * Unlike `eliminar`, nothing is lost: the record stays and only stops
-   * appearing in lists, so every Asignación keeps resolving to its Código.
-   *
-   * Refused while somebody still has the image. A Peregrina that is physically in
-   * a Misionero's house has not left the inventory, whatever the paperwork says,
-   * and giving it de baja would hide the one record that says where it is.
-   */
-  static async darDeBaja(
-    actor: CurrentUser,
-    id: string
-  ): Promise<PeregrinaDTO> {
-    const operacion = "PeregrinaService.darDeBaja";
-    const alcance = derivarAlcance(actor, operacion);
-
-    const actual = await PeregrinaService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
-
-    // Unscoped on purpose — see the repository. A Misionero can be holding an
-    // image whose territory has since changed, and a guard that misses that case
-    // is a guard that loses images.
-    const abierta = await AsignacionRepository.findAbiertaDePeregrinaSinAlcance(
-      id
-    );
-    if (abierta) {
-      throw new ConflictoError(
-        `No se puede dar de baja la Peregrina ${identificacionDe(actual.peregrina)}: ` +
-          `todavía está a cargo de ${nombreDeTenedor(abierta.tenedor)}. ` +
-          "Registrá primero que fue devuelta. Si se perdió estando a su " +
-          "cargo, cambiá su Estado a Extraviada: así queda dicho quién la " +
-          "tuvo por última vez."
-      );
-    }
-
-    const row = await PeregrinaRepository.darDeBaja(id);
-    if (!row) {
-      throw new ConflictoError("Esa Peregrina ya estaba marcada como extraviada.");
-    }
-
-    return PeregrinaService.leerUna(id);
-  }
-
-  static async reactivar(
-    actor: CurrentUser,
-    id: string
-  ): Promise<PeregrinaDTO> {
-    const operacion = "PeregrinaService.reactivar";
-    const alcance = derivarAlcance(actor, operacion);
-
-    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
-
-    const row = await PeregrinaRepository.reactivar(id);
-    if (!row) {
-      throw new ConflictoError("Esa Peregrina no estaba marcada como extraviada.");
-    }
-
-    return PeregrinaService.leerUna(id);
   }
 
   /** Reads a row back after a write, by primary key, already scope-checked. */
