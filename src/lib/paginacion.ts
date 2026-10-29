@@ -15,8 +15,8 @@ import { z } from "zod";
  * What it is deliberately not: a cursor. An offset re-reads rows the previous
  * page already read, which is the honest cost, and in exchange somebody can be
  * told "página 3 de 7" and jump. A Diócesis has hundreds of images rather than
- * millions, the ordering is a unique Código, and "página 3" is a thing a
- * Referente says out loud on the phone. A cursor buys deep-page performance the
+ * millions, the ordering is a unique Código, and "página 3" is a thing somebody
+ * says out loud on the phone. A cursor buys deep-page performance the
  * Campaña will not reach and loses the count that makes the control legible.
  */
 

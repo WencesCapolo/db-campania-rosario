@@ -2,39 +2,30 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { actualizarUsuarioAction } from "@/modules/user/user.router";
 import Boton from "@/components/Boton";
 import Dialogo from "@/components/Dialogo";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
-import { ROLE_LABELS, llevaTerritorio } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/permissions";
 import type { Role } from "@/modules/user/user.schema";
 
 /**
- * Cambiar el rol o el territorio de un Usuario — historia 16.
+ * Cambiar el rol de un Usuario — historia 16.
  *
- * A real-world reassignment: somebody moves Diócesis, or a Referente Local becomes
- * the Responsable Diocesano. `UserService.actualizar` handled both and nothing
- * called it, so the only way to express a reassignment through the app was to
+ * A real-world reassignment: a Buzón that should answer to another rol.
+ * `UserService.actualizar` handled it and nothing called it, so the only way to express a reassignment through the app was to
  * revoke the access and invite the person again — which changes the row, and with
  * it every attribution pointing at it.
  *
  * The rol list comes from the server, resolved from the Actor's own rank, so the
  * form cannot offer an escalation the service would refuse. That is a courtesy and
  * not the guard: `UserService.actualizar` asks the same question twice, once about
- * the rol the target has now and once about the rol they are being given, because
- * offering a Referente Local a promotion to Asesor Nacional and refusing it at the
- * boundary is the correct order.
- *
- * The territory picker appears only for the two territorial rols. Choosing a
- * country-wide rol sends `diocesisLocalidadId: null` explicitly rather than
- * leaving it out — omitting it means "leave it as it was", and a Usuario left with
- * a Diócesis they no longer answer to is the bug that reads as working.
+ * the rol the target has now and once about the rol they are being given.
  *
  * Escape and "No, volver" both discard. Nothing is submitted until the button is
  * pressed, so backing out of a half-made change costs nothing, and `alCerrar`
- * resets both fields to what the Usuario actually is — otherwise reopening the
+ * resets the field to what the Usuario actually is — otherwise reopening the
  * dialog shows the abandoned edit as though it had been saved.
  *
  * The trigger lives in a row of the Usuarios table, beside «Quitar acceso», and
@@ -45,13 +36,11 @@ export default function EditarUsuario({
   id,
   email,
   rolActual,
-  diocesisLocalidadIdActual,
   rolesDisponibles,
 }: {
   id: string;
   email: string;
   rolActual: Role;
-  diocesisLocalidadIdActual: string | null;
   /** What this Actor may hand out. Always includes `rolActual`. */
   rolesDisponibles: Role[];
 }) {
@@ -59,16 +48,11 @@ export default function EditarUsuario({
   const [pendiente, empezar] = useTransition();
 
   const [rol, setRol] = useState<Role>(rolActual);
-  const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    diocesisLocalidadIdActual,
-  );
   const [error, setError] = useState<string | null>(null);
-
-  const necesitaTerritorio = llevaTerritorio(rol);
 
   return (
     <Dialogo
-      titulo="Cambiar el rol o el territorio"
+      titulo="Cambiar el rol"
       alCerrar={(cancelado) => {
         setError(null);
         // Only on a cancel, and this is where `cancelado` earns its keep. On a
@@ -78,13 +62,12 @@ export default function EditarUsuario({
         // claiming the change had not happened.
         if (!cancelado) return;
         setRol(rolActual);
-        setDiocesisLocalidadId(diocesisLocalidadIdActual);
       }}
       disparador={(control) => (
         <Boton
           tono="secundario"
           compacto
-          aria-label={`Cambiar el rol o el territorio de ${email || "este usuario sin identidad"}`}
+          aria-label={`Cambiar el rol de ${email || "este usuario sin identidad"}`}
           onClick={control.abrir}
         >
           Cambiar
@@ -117,20 +100,6 @@ export default function EditarUsuario({
               }))}
               alElegir={(valor) => setRol(valor as Role)}
             />
-
-            {necesitaTerritorio ? (
-              <SelectorDeTerritorio
-                value={diocesisLocalidadId}
-                onChange={setDiocesisLocalidadId}
-              />
-            ) : (
-              <Mensaje tono="neutro">
-                <p>
-                  Este rol cubre todo el país, así que no lleva
-                  Diócesis/Localidad.
-                </p>
-              </Mensaje>
-            )}
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -140,25 +109,7 @@ export default function EditarUsuario({
                 empezar(async () => {
                   setError(null);
 
-                  if (necesitaTerritorio && !diocesisLocalidadId) {
-                    // The service refuses this too, and would refuse it with a
-                    // sentence about scope. Said here it is a sentence about the
-                    // field somebody is looking at.
-                    setError(
-                      "Este rol necesita una Diócesis/Localidad. Elegí una.",
-                    );
-                    return;
-                  }
-
-                  const resultado = await actualizarUsuarioAction(id, {
-                    rol,
-                    // Explicitly null for a country-wide rol. Omitting it means
-                    // "leave the territory as it was", which would leave somebody
-                    // bound to a Diócesis they no longer answer to.
-                    diocesisLocalidadId: necesitaTerritorio
-                      ? diocesisLocalidadId
-                      : null,
-                  });
+                  const resultado = await actualizarUsuarioAction(id, { rol });
 
                   if (!resultado.ok) {
                     setError(resultado.error);

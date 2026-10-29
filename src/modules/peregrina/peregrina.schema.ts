@@ -33,7 +33,7 @@ import { matrimonio } from "@/modules/misionero/matrimonio.schema";
  * `activa` would assert something untrue about an image somebody marked inactive
  * for a reason, and rewriting it to `extraviada` would invent a claim that
  * images are lost. It stays readable and is excluded from new entry — see
- * `ESTADOS_SELECCIONABLES` in peregrina.types — so a Referente corrects each one
+ * `ESTADOS_SELECCIONABLES` in peregrina.types — so somebody corrects each one
  * knowingly.
  *
  * Estado is independent of whether an Asignación is open. Marking a Peregrina
@@ -191,7 +191,7 @@ export const peregrina = pgTable(
     /*
      * The tablero's own index — issue #5.
      *
-     * Every aggregate a scoped Actor loads is the same shape: narrow to one
+     * Every aggregate filtered by a Diócesis is the same shape: narrow to one
      * Diócesis, group by one of Estado, Modalidad or Tipo.
      * The three single-column indexes above cannot serve that, because the
      * selective predicate is the territory and Postgres would have to visit the

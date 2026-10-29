@@ -34,7 +34,6 @@ import type {
 import { misionero } from "@/modules/misionero/misionero.schema";
 import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 import { alias } from "drizzle-orm/pg-core";
-import type { Alcance } from "@/lib/authorization/alcance";
 import { coincideAlgunNombre } from "@/lib/busqueda";
 import type { TenedorResueltoDTO } from "@/lib/tenedor";
 
@@ -200,37 +199,14 @@ const CON_TENEDOR = or(
 );
 
 /**
- * The Actor's territorial filter, as SQL. `undefined` for a country-wide Actor,
- * which is how a filter says "no restriction" to Drizzle's `and()`.
- *
- * Note what is *not* here: any decision about who gets which filter. That lives
- * in `derivarAlcance`, once, and arrives already made.
- */
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(peregrina.diocesisLocalidadId, alcance.diocesisLocalidadId);
-}
-
-function conAlcance(alcance: Alcance, ...extras: (SQL | undefined)[]) {
-  const filtros = [
-    condicionDeAlcance(alcance),
-    ...extras,
-  ].filter((f) => f !== undefined);
-  return filtros.length ? and(...filtros) : undefined;
-}
-
-/**
  * The shared filters, as SQL — the other half of `FiltrosDeInventario`.
  *
  * One translation, used by the filtered list and by every aggregate, which is
  * what stops the tablero's figures and the listado's rows disagreeing about what
  * "Modalidad Jóvenes, en reparación" means.
  *
- * Territory arrives as an id and is applied on top of the Actor's `Alcance`, so
- * the two compose as an intersection: a filter can only ever narrow. The service
- * has already refused an id outside the scope by the time this runs — the
- * narrowing here is not the guard, it is the query.
+ * Territory arrives as an id like any other dimension: a Diócesis/Localidad or a
+ * Región somebody chose, never a boundary on what they may see.
  */
 function condicionDeFiltros(filtros: FiltrosDeInventario): (SQL | undefined)[] {
   return [
@@ -339,9 +315,9 @@ function agregando<T extends CamposAgregados>(campos: T) {
     .leftJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId));
 }
 
-/** Alcance and filters together — the `where` every aggregate shares. */
-function condiciones(alcance: Alcance, filtros: FiltrosDeInventario) {
-  return conAlcance(alcance, ...condicionDeFiltros(filtros));
+/** The filters as one `where` — the one every aggregate and the list share. */
+function condiciones(filtros: FiltrosDeInventario) {
+  return and(...condicionDeFiltros(filtros));
 }
 
 /**
@@ -350,10 +326,6 @@ function condiciones(alcance: Alcance, filtros: FiltrosDeInventario) {
  * Responsibility: raw database access for the `peregrina` table.
  * No business logic. No permission checks. There is no baja to exclude: a
  * Peregrina is in the inventory until it is borrada (ADR 0014).
- *
- * Every read takes an `Alcance` as its first parameter, mirroring the Actor-first
- * rule one layer up. It is required rather than optional on purpose: a new read
- * that forgets to scope itself does not compile, which is user story 20.
  *
  * `misioneroActualId` **and** `matrimonioActualId` are deliberately absent from
  * every write signature here. Both are derived from the open Asignación and
@@ -365,107 +337,76 @@ export class PeregrinaRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   static async findById(
-    alcance: Alcance,
-    id: string,
-  ): Promise<PeregrinaConTerritorio | undefined> {
-    return leerUna(
-      conTerritorio()
-        .where(conAlcance(alcance, eq(peregrina.id, id)))
-        .limit(1),
-    );
-  }
-
-  /**
-   * The row regardless of territory, for a mutation that has to tell "does not
-   * exist" apart from "not yours" before it refuses.
-   *
-   * Named so the bypass is visible at the call site. It is a primary-key lookup,
-   * so it cannot enumerate anything, and its only callers immediately compare
-   * the row's territory against the Actor's scope.
-   */
-  static async findByIdSinAlcance(
     id: string,
   ): Promise<PeregrinaConTerritorio | undefined> {
     return leerUna(conTerritorio().where(eq(peregrina.id, id)).limit(1));
   }
 
-  static async findAll(
-    alcance: Alcance,
-  ): Promise<PeregrinaConTerritorio[]> {
+  static async findAll(): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
 
   static async findByEstado(
-    alcance: Alcance,
     estado: PeregrinaEstado,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, eq(peregrina.estado, estado)))
+        .where(eq(peregrina.estado, estado))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
 
   static async findByRegion(
-    alcance: Alcance,
     region: Region,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, eq(diocesisLocalidad.region, region)))
+        .where(eq(diocesisLocalidad.region, region))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
 
   static async findByModalidad(
-    alcance: Alcance,
     modalidad: Modalidad,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, eq(peregrina.modalidad, modalidad)))
+        .where(eq(peregrina.modalidad, modalidad))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
 
   static async findByDiocesisLocalidad(
-    alcance: Alcance,
     diocesisLocalidadId: string,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
         .where(
-          conAlcance(
-            alcance,
-            eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
-          ),
+          eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
         )
         .orderBy(desc(peregrina.createdAt)),
     );
   }
 
   static async findByProvincia(
-    alcance: Alcance,
     provinciaId: string,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, eq(provincia.id, provinciaId)))
+        .where(eq(provincia.id, provinciaId))
         .orderBy(...POR_IDENTIFICACION),
     );
   }
 
   static async findByCreator(
-    alcance: Alcance,
     createdById: string,
   ): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, eq(peregrina.createdById, createdById)))
+        .where(eq(peregrina.createdById, createdById))
         .orderBy(desc(peregrina.createdAt)),
     );
   }
@@ -477,12 +418,10 @@ export class PeregrinaRepository {
    * Misionero, cada imagen que tiene un Matrimonio aparecería en el picker de
    * las libres y alguien la entregaría dos veces.
    */
-  static async findDisponibles(
-    alcance: Alcance,
-  ): Promise<PeregrinaConTerritorio[]> {
+  static async findDisponibles(): Promise<PeregrinaConTerritorio[]> {
     return leerVarias(
       conTerritorio()
-        .where(conAlcance(alcance, SIN_TENEDOR))
+        .where(SIN_TENEDOR)
         .orderBy(...POR_IDENTIFICACION),
     );
   }
@@ -494,8 +433,8 @@ export class PeregrinaRepository {
    * which is what made the old numbering unreliable: "Córdoba" and "cordoba "
    * each ran their own sequence and produced colliding Códigos.
    *
-   * Deliberately not scoped. A Código is globally unique and physically written
-   * on an image, wherever that image is filed.
+   * A Código is globally unique and physically written on an image, wherever
+   * that image is filed.
    */
   static async nextCodigoNum(
     provinciaId: string,
@@ -522,7 +461,7 @@ export class PeregrinaRepository {
   static async create(data: NewPeregrinaRow): Promise<PeregrinaConTerritorio> {
     const [row] = await db.insert(peregrina).values(data).returning();
     if (!row) throw new Error("Failed to insert peregrina");
-    const creada = await PeregrinaRepository.findByIdSinAlcance(row.id);
+    const creada = await PeregrinaRepository.findById(row.id);
     if (!creada) throw new Error(`Peregrina not found: ${row.id}`);
     return creada;
   }
@@ -546,7 +485,7 @@ export class PeregrinaRepository {
       .where(eq(peregrina.id, id))
       .returning();
     if (!row) throw new Error(`Peregrina not found: ${id}`);
-    const actualizada = await PeregrinaRepository.findByIdSinAlcance(row.id);
+    const actualizada = await PeregrinaRepository.findById(row.id);
     if (!actualizada) throw new Error(`Peregrina not found: ${row.id}`);
     return actualizada;
   }
@@ -573,8 +512,7 @@ export class PeregrinaRepository {
 
   /**
    * Whether a Código is already written on some image — the unique index covers
-   * every row, so this does too. Unscoped: a Código is unique across the
-   * country, whoever can see the other image.
+   * every row, so this does too: a Código is unique across the country.
    */
   static async existeCodigo(
     codigo: string,
@@ -624,42 +562,37 @@ export class PeregrinaRepository {
   // authoritative nor able to survive the Campaña growing: a count of what
   // happened to be fetched is a count of the page size.
   //
-  // Every one of these takes the Alcance first and the shared filters second, so
-  // there is no aggregate that can be asked a wider question than the list on
-  // the same screen.
+  // Every one of these takes the shared filters, so there is no aggregate that
+  // can be asked a different question than the list on the same screen.
 
   /** One number: how many images match, at all. */
   static async contarTotal(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<number> {
     const [row] = await agregando({}).where(
-      condiciones(alcance, filtros),
+      condiciones(filtros),
     );
     return row?.total ?? 0;
   }
 
   static async contarPorEstado(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<{ estado: PeregrinaEstado; total: number }[]> {
     return agregando({ estado: peregrina.estado })
-      .where(condiciones(alcance, filtros))
+      .where(condiciones(filtros))
       .groupBy(peregrina.estado);
   }
 
   static async contarPorModalidad(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<{ modalidad: Modalidad; total: number }[]> {
     return agregando({ modalidad: peregrina.modalidad })
-      .where(condiciones(alcance, filtros))
+      .where(condiciones(filtros))
       .groupBy(peregrina.modalidad);
   }
 
   /** The Diócesis side by side, biggest first, each with its Provincia. */
   static async contarPorDiocesisLocalidad(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<
     {
@@ -675,7 +608,7 @@ export class PeregrinaRepository {
       provincia: provincia.nombre,
     })
       .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      .where(condiciones(alcance, filtros))
+      .where(condiciones(filtros))
       .groupBy(diocesisLocalidad.id, diocesisLocalidad.nombre, provincia.nombre)
       .orderBy(desc(TOTAL), asc(diocesisLocalidad.nombre));
   }
@@ -688,12 +621,11 @@ export class PeregrinaRepository {
    * which every other figure shares and none of them needs it for.
    */
   static async contarPorProvincia(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<{ provinciaId: string; nombre: string; total: number }[]> {
     return agregando({ provinciaId: provincia.id, nombre: provincia.nombre })
       .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId))
-      .where(condiciones(alcance, filtros))
+      .where(condiciones(filtros))
       .groupBy(provincia.id, provincia.nombre)
       .orderBy(desc(TOTAL), asc(provincia.nombre));
   }
@@ -712,7 +644,6 @@ export class PeregrinaRepository {
    * como fila y no se descarta: es la respuesta a «¿cuántos datos faltan?».
    */
   static async contarPorQuinquenioDeConsagracion(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<{ desde: number | null; total: number }[]> {
     // The year of the Fecha de consagración (ADR 0013). `least` over two dates
@@ -721,7 +652,7 @@ export class PeregrinaRepository {
     const anio = sql`cast(extract(year from ${fechaDe}) as int)`;
     const desde = sql<number | null>`(${anio} / 5) * 5`;
     return agregando({ desde })
-      .where(and(condiciones(alcance, filtros), CON_TENEDOR))
+      .where(and(condiciones(filtros), CON_TENEDOR))
       .groupBy(desde)
       .orderBy(sql`${desde} asc nulls last`);
   }
@@ -735,10 +666,9 @@ export class PeregrinaRepository {
    * devuelta como capacidad ociosa que nunca se usó.
    */
   static async contarSinTenencia(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
   ): Promise<number> {
-    return PeregrinaRepository.contarTotal(alcance, {
+    return PeregrinaRepository.contarTotal({
       ...filtros,
       tenencia: "libre",
     });
@@ -759,12 +689,11 @@ export class PeregrinaRepository {
    * that ties is how an offset silently skips records.
    */
   static async findFiltradas(
-    alcance: Alcance,
     filtros: FiltrosDeInventario,
     paginacion?: { limit: number; offset: number },
   ): Promise<PeregrinaConTerritorio[]> {
     const consulta = conTerritorio()
-      .where(condiciones(alcance, filtros))
+      .where(condiciones(filtros))
       .orderBy(...POR_IDENTIFICACION);
 
     return leerVarias(

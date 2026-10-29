@@ -23,7 +23,7 @@ import { ConflictoError } from "@/lib/errors";
  */
 
 let territorio: TerritorioDePrueba;
-let referente: CurrentUser;
+let responsable: CurrentUser;
 let asesor: CurrentUser;
 
 let peregrina: { id: string; identificacion: string };
@@ -33,18 +33,15 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
   asesor = await crearActor({ rol: "asesor_nacional" });
-  referente = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
+  responsable = await crearActor({ rol: "responsable_diocesano" });
 
   peregrina = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
   });
   ana = await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     nombre: "Ana",
     apellido: "Álvarez",
   });
@@ -52,13 +49,13 @@ beforeEach(async () => {
 
 describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", () => {
   it("se rechaza y el mensaje nombra el Código pendiente — historias 13 y 14", async () => {
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
-    const intento = MisioneroService.darDeBaja(referente, ana.id);
+    const intento = MisioneroService.darDeBaja(responsable, ana.id);
 
     await expect(intento).rejects.toThrow(ConflictoError);
     // La imagen está físicamente con esa persona. Saber cuál es la diferencia
@@ -67,57 +64,57 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     await expect(intento).rejects.toThrow(/Ana Álvarez/);
 
     // Y sigue activa: el rechazo no dejó nada a medias.
-    const sigue = await MisioneroService.getById(referente, ana.id);
+    const sigue = await MisioneroService.getById(responsable, ana.id);
     expect(sigue.deBaja).toBe(false);
   });
 
   it("nombra las dos cuando tiene dos", async () => {
     const otra = await crearPeregrinaDirecta({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
     });
 
     for (const p of [peregrina, otra]) {
-      await AsignacionService.asignar(referente, {
+      await AsignacionService.asignar(responsable, {
         peregrinaId: p.id,
         tenedor: { tipo: "persona", id: ana.id },
         nota: null,
       });
     }
 
-    const intento = MisioneroService.darDeBaja(referente, ana.id);
+    const intento = MisioneroService.darDeBaja(responsable, ana.id);
     await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
     await expect(intento).rejects.toThrow(new RegExp(otra.identificacion));
   });
 
   it("se puede una vez registrada la devolución", async () => {
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
-    await AsignacionService.devolver(referente, {
+    await AsignacionService.devolver(responsable, {
       peregrinaId: peregrina.id,
       notaCierre: null,
     });
 
-    const deBaja = await MisioneroService.darDeBaja(referente, ana.id);
+    const deBaja = await MisioneroService.darDeBaja(responsable, ana.id);
     expect(deBaja.deBaja).toBe(true);
   });
 
   it("también se puede después de pasarla a otro Misionero", async () => {
     const beto = await crearMisioneroDirecto({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
       apellido: "Benítez",
     });
 
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
-    await AsignacionService.entregar(referente, {
+    await AsignacionService.entregar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: beto.id },
       notaCierre: null,
@@ -125,19 +122,19 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     });
 
     await expect(
-      MisioneroService.darDeBaja(referente, ana.id)
+      MisioneroService.darDeBaja(responsable, ana.id)
     ).resolves.toMatchObject({ deBaja: true });
     // Beto ahora la tiene, así que a él no.
-    await expect(MisioneroService.darDeBaja(referente, beto.id)).rejects.toThrow(
+    await expect(MisioneroService.darDeBaja(responsable, beto.id)).rejects.toThrow(
       ConflictoError
     );
   });
 
   it("una imagen que se mudó de Diócesis sigue frenando la baja", async () => {
-    // El guard es a propósito sin alcance: una Peregrina puede mudarse de Diócesis
-    // mientras el Misionero la sigue teniendo en su casa, y un guard que se
-    // equivoca del lado permisivo no es un guard.
-    await AsignacionService.asignar(referente, {
+    // El guard no mira el territorio de la imagen: una Peregrina puede mudarse
+    // de Diócesis mientras el Misionero la sigue teniendo en su casa, y un guard
+    // que se equivoca del lado permisivo no es un guard.
+    await AsignacionService.asignar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
@@ -146,7 +143,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
       diocesisLocalidadId: territorio.zapala.id,
     });
 
-    const intento = MisioneroService.darDeBaja(referente, ana.id);
+    const intento = MisioneroService.darDeBaja(responsable, ana.id);
 
     await expect(intento).rejects.toThrow(ConflictoError);
     await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
@@ -155,30 +152,30 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
 
 describe("un Misionero dado de baja", () => {
   beforeEach(async () => {
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: "Entregada en la jornada diocesana.",
     });
-    await AsignacionService.devolver(referente, {
+    await AsignacionService.devolver(responsable, {
       peregrinaId: peregrina.id,
       notaCierre: null,
     });
-    await MisioneroService.darDeBaja(referente, ana.id);
+    await MisioneroService.darDeBaja(responsable, ana.id);
   });
 
   it("desaparece de las listas activas — historia 12", async () => {
-    expect(await MisioneroService.listAll(referente)).toEqual([]);
-    expect(await MisioneroService.search(referente, "Álvarez")).toEqual([]);
-    expect(await MisioneroService.listByRegion(referente, "CENTRO")).toEqual([]);
-    expect(await MisioneroService.listFiltrados(referente, {})).toEqual([]);
+    expect(await MisioneroService.listAll(responsable)).toEqual([]);
+    expect(await MisioneroService.search(responsable, "Álvarez")).toEqual([]);
+    expect(await MisioneroService.listByRegion(responsable, "CENTRO")).toEqual([]);
+    expect(await MisioneroService.listFiltrados(responsable, {})).toEqual([]);
   });
 
   it("sigue resolviendo por nombre dentro del historial — historia 15", async () => {
     // Ésta es la razón de que la baja sea lógica. Si el borrado fuera físico, la
     // entrada del historial sería una fila de ids ilegibles.
     const historial = await AsignacionService.historialDePeregrina(
-      referente,
+      responsable,
       peregrina.id
     );
 
@@ -195,7 +192,7 @@ describe("un Misionero dado de baja", () => {
 
   it("su propio historial sigue leyéndose", async () => {
     const historial = await AsignacionService.historialDeMisionero(
-      referente,
+      responsable,
       ana.id
     );
     expect(historial).toHaveLength(1);
@@ -204,7 +201,7 @@ describe("un Misionero dado de baja", () => {
 
   it("no puede recibir una Peregrina nueva", async () => {
     await expect(
-      AsignacionService.asignar(referente, {
+      AsignacionService.asignar(responsable, {
         peregrinaId: peregrina.id,
         tenedor: { tipo: "persona", id: ana.id },
         nota: null,
@@ -213,22 +210,22 @@ describe("un Misionero dado de baja", () => {
   });
 
   it("se lo puede reactivar, y vuelve a las listas", async () => {
-    const reactivado = await MisioneroService.reactivar(referente, ana.id);
+    const reactivado = await MisioneroService.reactivar(responsable, ana.id);
     expect(reactivado.deBaja).toBe(false);
 
-    const lista = await MisioneroService.listAll(referente);
+    const lista = await MisioneroService.listAll(responsable);
     expect(lista.map((m) => m.id)).toEqual([ana.id]);
   });
 
   it("darlo de baja dos veces lo dice, en lugar de fingir que funcionó", async () => {
-    await expect(MisioneroService.darDeBaja(referente, ana.id)).rejects.toThrow(
+    await expect(MisioneroService.darDeBaja(responsable, ana.id)).rejects.toThrow(
       /ya estaba dado de baja/
     );
   });
 
   it("reactivar a quien no estaba de baja también lo dice", async () => {
-    await MisioneroService.reactivar(referente, ana.id);
-    await expect(MisioneroService.reactivar(referente, ana.id)).rejects.toThrow(
+    await MisioneroService.reactivar(responsable, ana.id);
+    await expect(MisioneroService.reactivar(responsable, ana.id)).rejects.toThrow(
       /no estaba dado de baja/
     );
   });

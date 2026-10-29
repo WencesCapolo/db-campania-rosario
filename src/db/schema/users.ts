@@ -6,7 +6,6 @@ import {
     index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 
 // -----------------------------------------------
 // Role enum — ordered from highest to lowest
@@ -58,22 +57,6 @@ export const users = pgTable(
 
         role: roleEnum("role").notNull(),
 
-        // The territory that bounds what this Usuario may see and change.
-        //
-        // Nullable, and it stays nullable: an admin and an Asesor Nacional are
-        // country-wide and legitimately have none. The invariant is about the
-        // *pair* — a responsable_diocesano or referente_local must have one — so
-        // it is enforced where the pair is known: in derivarAlcance(), which
-        // fails closed, and in UserService whenever a rol or territory is
-        // written. A column-level CHECK cannot express "unless the rol is
-        // nacional" without hardcoding enum values into SQL.
-        //
-        // Note that Referentes Locales share one login per territory (confirmed
-        // 2026-07-25), so this identifies a place and not a person.
-        diocesisLocalidadId: text("diocesis_localidad_id").references(
-            () => diocesisLocalidad.id
-        ),
-
         // Who created this user (null = seeded, or the system Actor)
         createdById: text("created_by_id"),
 
@@ -93,8 +76,7 @@ export const users = pgTable(
             .$onUpdate(() => new Date()),
     },
     (t) => [
-        // The user-management screen lists by territory and by rol.
-        index("users_diocesis_localidad_idx").on(t.diocesisLocalidadId),
+        // The user-management screen lists by rol.
         index("users_role_idx").on(t.role),
     ]
 );
@@ -103,10 +85,6 @@ export const usersRelations = relations(users, ({ one }) => ({
     createdBy: one(users, {
         fields: [users.createdById],
         references: [users.id],
-    }),
-    diocesisLocalidad: one(diocesisLocalidad, {
-        fields: [users.diocesisLocalidadId],
-        references: [diocesisLocalidad.id],
     }),
 }));
 

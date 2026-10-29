@@ -37,9 +37,9 @@ export const dynamic = "force-dynamic";
  * /sin-autorizacion when there is a session but no Usuario.
  *
  * Usuarios is reachable from here rather than from Inicio because Inicio is for
- * the three things a Referente does; administering accounts is not one of them,
+ * the three things somebody loading records does; administering accounts is not one of them,
  * and only some rols may do it at all. The tablero is here for the same reason and
- * is offered to everybody: every rol has figures, they are just their own.
+ * is offered to everybody: every rol has figures.
  */
 
 export default async function DashboardLayout({

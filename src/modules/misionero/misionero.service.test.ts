@@ -13,13 +13,7 @@ let actor: CurrentUser;
 
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
-  // A Referente Local now has to *have* a territory — a lower rol without one is
-  // refused rather than treated as country-wide. Córdoba, so the Neuquén
-  // fixtures stay out of reach and the scoping suite has something to prove.
-  actor = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.rioCuarto.id,
-  });
+  actor = await crearActor({ rol: "responsable_diocesano" });
 });
 
 const juan = {

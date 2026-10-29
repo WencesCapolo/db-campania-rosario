@@ -2,7 +2,6 @@ import {
   AsignacionRepository,
   esSegundaAsignacionAbierta,
   type AsignacionCompleta,
-  type TenedorConTerritorio,
 } from "./asignacion.repository";
 import type {
   AsignacionDTO,
@@ -27,13 +26,6 @@ import {
   type Tenedor,
 } from "@/modules/misionero/matrimonio.types";
 import { nombreDeTenedor } from "@/lib/formato";
-import {
-  dentroDelAlcance,
-  derivarAlcance,
-  exigirDentroDelAlcance,
-  exigirTerritorioDentroDelAlcance,
-  type Alcance,
-} from "@/lib/authorization/alcance";
 import { exigirModalidad } from "@/lib/authorization/capacidades";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
@@ -60,20 +52,15 @@ const MS_POR_DIA = 24 * 60 * 60 * 1000;
  * There is deliberately no matching rule on the Misionero side. A Misionero may
  * have several Peregrinas at once (settled with the Campaña on 2026-07-25).
  *
- * Every method takes the Actor first and derives its own scope — ADR 0001. An
- * Asignación has no territory of its own, so it is scoped through its Peregrina's;
- * see `condicionDeAlcance` in the repository for what that costs and why it is
- * still the right way round.
+ * Every method takes the Actor first — ADR 0001. Every write checks the
+ * Modalidad of the image it moves (ADR 0016); an Asignación has no Modalidad of
+ * its own, so it is its Peregrina's.
  */
 export class AsignacionService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private static registro(
-    usuarioId: string | null,
-    diocesis: string | null
-  ): RegistroDTO | null {
-    if (!usuarioId) return null;
-    return { usuarioId, diocesisLocalidad: diocesis };
+  private static registro(usuarioId: string | null): RegistroDTO | null {
+    return usuarioId ? { usuarioId } : null;
   }
 
   private static toDTO(row: AsignacionCompleta): AsignacionDTO {
@@ -96,68 +83,34 @@ export class AsignacionService {
         0,
         Math.floor((fin.getTime() - a.abiertaAt.getTime()) / MS_POR_DIA)
       ),
-      registradaPor: AsignacionService.registro(
-        a.registradaPorId,
-        row.registradaPorDiocesis
-      ) ?? { usuarioId: a.registradaPorId, diocesisLocalidad: null },
-      cerradaPor: AsignacionService.registro(
-        a.cerradaPorId,
-        row.cerradaPorDiocesis
-      ),
+      registradaPor: { usuarioId: a.registradaPorId },
+      cerradaPor: AsignacionService.registro(a.cerradaPorId),
       notaApertura: a.notaApertura,
       notaCierre: a.notaCierre,
       corregidaAt: a.corregidaAt,
-      corregidaPor: AsignacionService.registro(
-        a.corregidaPorId,
-        row.corregidaPorDiocesis
-      ),
+      corregidaPor: AsignacionService.registro(a.corregidaPorId),
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
     };
   }
 
-  /**
-   * The Peregrina this Actor is about to act on, or a refusal.
-   *
-   * Unscoped primary-key lookup, then the territory is compared — the shape every
-   * mutation in this codebase uses, so that "no existe" and "es de otro
-   * territorio" are different answers in the log and the same answer to the
-   * caller.
-   */
-  private static async exigirPeregrinaVisible(
-    actor: CurrentUser,
-    alcance: Alcance,
-    peregrinaId: string,
-    operacion: string
+  /** The Peregrina about to be acted on, or a refusal that says it does not exist. */
+  private static async exigirPeregrina(
+    peregrinaId: string
   ): Promise<PeregrinaConTerritorio> {
-    const row = await PeregrinaRepository.findByIdSinAlcance(peregrinaId);
+    const row = await PeregrinaRepository.findById(peregrinaId);
     if (!row) throw new NoEncontradoError("No existe esa Peregrina.");
-
-    exigirDentroDelAlcance(
-      actor,
-      alcance,
-      row.peregrina.diocesisLocalidadId,
-      operacion
-    );
-
     return row;
   }
 
   /**
    * El Tenedor sobre el que se va a escribir, o una negativa — una sola guarda
    * para las dos clases (ADR 0010).
-   *
-   * Un Matrimonio no tiene territorio propio: es el del cónyuge A, y está bien
-   * definido porque los dos comparten Diócesis por construcción. El repositorio
-   * ya lo aplanó, así que acá no hay ninguna rama por `tipo`.
    */
-  private static async exigirTenedorVisible(
-    actor: CurrentUser,
-    alcance: Alcance,
-    tenedor: Tenedor,
-    operacion: string
-  ): Promise<TenedorConTerritorio> {
-    const row = await AsignacionRepository.findTenedorSinAlcance(tenedor);
+  private static async exigirTenedor(
+    tenedor: Tenedor
+  ): Promise<TenedorResueltoDTO> {
+    const row = await AsignacionRepository.findTenedor(tenedor);
     if (!row) {
       throw new NoEncontradoError(
         tenedor.tipo === "persona"
@@ -165,24 +118,18 @@ export class AsignacionService {
           : "No existe ese Matrimonio."
       );
     }
-
-    // Both ends are checked, exactly as they are on a move: otherwise a Referente
-    // Local could hand one of their images to somebody in the next Diócesis and
-    // lose sight of it in the same motion.
-    exigirDentroDelAlcance(actor, alcance, row.diocesisLocalidadId, operacion);
-
     return row;
   }
 
   /** Quien se fue de la Campaña — o el Matrimonio que terminó — no recibe nada. */
-  private static exigirTenedorActivo(row: TenedorConTerritorio): void {
-    if (!row.tenedor.deBaja) return;
+  private static exigirTenedorActivo(tenedor: TenedorResueltoDTO): void {
+    if (!tenedor.deBaja) return;
 
     throw new ValidacionError(
-      row.tenedor.tipo === "persona"
-        ? `${nombreDeTenedor(row.tenedor)} está dado de baja, así que no puede ` +
+      tenedor.tipo === "persona"
+        ? `${nombreDeTenedor(tenedor)} está dado de baja, así que no puede ` +
           "tener una Peregrina a cargo. Reactivalo primero."
-        : `El Matrimonio de ${nombreDeTenedor(row.tenedor)} está dado de baja, ` +
+        : `El Matrimonio de ${nombreDeTenedor(tenedor)} está dado de baja, ` +
           "así que no puede tener una Peregrina a cargo."
     );
   }
@@ -203,25 +150,22 @@ export class AsignacionService {
    * porque es la puerta que se discutió, pero las dos abren un período: una
    * regla que cuida una sola de las dos puertas no es una regla.
    */
-  private static async exigirQueNoEsteCasado(
-    alcance: Alcance,
-    tenedor: Tenedor
-  ): Promise<void> {
+  private static async exigirQueNoEsteCasado(tenedor: Tenedor): Promise<void> {
     if (tenedor.tipo !== "persona") return;
 
-    const casado = await MatrimonioRepository.deMisionero(alcance, tenedor.id);
+    const casado = await MatrimonioRepository.deMisionero(tenedor.id);
     if (!casado) return;
 
     // El nombre de la pareja sale del repositorio propio, resuelto: la fila de
     // `matrimonio` tiene dos ids y ningún nombre, y la negativa tiene que decir
     // a quién elegir en lugar de a quién no.
-    const pareja = await AsignacionRepository.findTenedorSinAlcance({
+    const pareja = await AsignacionRepository.findTenedor({
       tipo: "matrimonio",
       id: casado.id,
     });
 
     const comoSeLlaman = pareja
-      ? `«${nombreDeTenedor(pareja.tenedor)}»`
+      ? `«${nombreDeTenedor(pareja)}»`
       : "que integra";
 
     throw new ValidacionError(
@@ -244,22 +188,11 @@ export class AsignacionService {
     actor: CurrentUser,
     peregrinaId: string
   ): Promise<AsignacionDTO[]> {
-    const operacion = "AsignacionService.historialDePeregrina";
-    const alcance = derivarAlcance(actor, operacion);
+    // Refused before it is empty: a Peregrina that does not exist has no
+    // historial, rather than an empty one.
+    await AsignacionService.exigirPeregrina(peregrinaId);
 
-    // Refused before it is empty: a history somebody may not see must not render
-    // as "sin historial", which would confirm the record exists.
-    await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      peregrinaId,
-      operacion
-    );
-
-    const rows = await AsignacionRepository.findHistorialDePeregrina(
-      alcance,
-      peregrinaId
-    );
+    const rows = await AsignacionRepository.findHistorialDePeregrina(peregrinaId);
     return rows.map(AsignacionService.toDTO);
   }
 
@@ -269,26 +202,15 @@ export class AsignacionService {
    * Incluye lo que tuvo su Matrimonio: la casa era la de los dos, y una página
    * de una persona a la que le falta justo lo del hogar tiene un agujero con la
    * forma de los años que estuvo casada. El repositorio lo resuelve; acá sólo se
-   * comprueba que la persona sea visible.
+   * comprueba que la persona exista.
    */
   static async historialDeMisionero(
     actor: CurrentUser,
     misioneroId: string
   ): Promise<AsignacionDTO[]> {
-    const operacion = "AsignacionService.historialDeMisionero";
-    const alcance = derivarAlcance(actor, operacion);
+    await AsignacionService.exigirTenedor({ tipo: "persona", id: misioneroId });
 
-    await AsignacionService.exigirTenedorVisible(
-      actor,
-      alcance,
-      { tipo: "persona", id: misioneroId },
-      operacion
-    );
-
-    const rows = await AsignacionRepository.findHistorialDeMisionero(
-      alcance,
-      misioneroId
-    );
+    const rows = await AsignacionRepository.findHistorialDeMisionero(misioneroId);
     return rows.map(AsignacionService.toDTO);
   }
 
@@ -297,20 +219,9 @@ export class AsignacionService {
     actor: CurrentUser,
     peregrinaId: string
   ): Promise<AsignacionDTO | null> {
-    const operacion = "AsignacionService.tenenciaActual";
-    const alcance = derivarAlcance(actor, operacion);
+    await AsignacionService.exigirPeregrina(peregrinaId);
 
-    await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      peregrinaId,
-      operacion
-    );
-
-    const row = await AsignacionRepository.findAbiertaDePeregrina(
-      alcance,
-      peregrinaId
-    );
+    const row = await AsignacionRepository.findAbiertaDePeregrina(peregrinaId);
     return row ? AsignacionService.toDTO(row) : null;
   }
 
@@ -318,9 +229,7 @@ export class AsignacionService {
     actor: CurrentUser,
     id: string
   ): Promise<AsignacionDTO> {
-    const operacion = "AsignacionService.getById";
-    const alcance = derivarAlcance(actor, operacion);
-    const row = await AsignacionService.exigirVisible(actor, alcance, id, operacion);
+    const row = await AsignacionService.exigirAsignacion(id);
     return AsignacionService.toDTO(row);
   }
 
@@ -340,33 +249,20 @@ export class AsignacionService {
    * Una consulta para la página entera y no una por fila: veinte filas serían
    * veinte viajes, y es la misma pregunta hecha veinte veces.
    *
-   * El repositorio scopea por el territorio del Tenedor, así que un id de otra
-   * Diócesis no devuelve nada — pasar ids ajenos no enseña si esa persona tiene
-   * una imagen. Lo que este método decide es lo otro: **nombrar** el Código. Sale
-   * sólo cuando la imagen está dentro del alcance; las demás se cuentan en
-   * `ajenas`, porque una imagen movida a otra Diócesis sigue estando en la casa de
-   * quien la tiene y decir «Ninguna» sería mentir en la dirección cómoda.
+   * Una imagen movida a otra Diócesis sigue estando en la casa de quien la tiene,
+   * así que se nombra igual: decir «Ninguna» sería mentir en la dirección cómoda.
    */
   static async tenenciasDeTenedores(
     actor: CurrentUser,
     tenedores: Tenedor[]
   ): Promise<TenenciaDeTenedorDTO[]> {
-    const alcance = derivarAlcance(
-      actor,
-      "AsignacionService.tenenciasDeTenedores"
-    );
-
-    const filas = await AsignacionRepository.findAbiertasDeTenedores(
-      alcance,
-      tenedores
-    );
+    const filas = await AsignacionRepository.findAbiertasDeTenedores(tenedores);
 
     const porTenedor = new Map<string, TenenciaDeTenedorDTO>();
     for (const t of tenedores) {
       porTenedor.set(valorDeTenedor(t), {
         tenedor: t,
         peregrinas: [],
-        ajenas: 0,
       });
     }
 
@@ -376,14 +272,10 @@ export class AsignacionService {
       const tenencia = porTenedor.get(valorDeTenedor(fila.tenedor));
       if (!tenencia) continue;
 
-      if (dentroDelAlcance(alcance, fila.peregrinaDiocesisLocalidadId)) {
-        tenencia.peregrinas.push({
-          id: fila.peregrinaId,
-          identificacion: fila.peregrinaIdentificacion,
-        });
-      } else {
-        tenencia.ajenas += 1;
-      }
+      tenencia.peregrinas.push({
+        id: fila.peregrinaId,
+        identificacion: fila.peregrinaIdentificacion,
+      });
     }
 
     return [...porTenedor.values()];
@@ -393,11 +285,8 @@ export class AsignacionService {
   static async listarNuncaAsignadas(
     actor: CurrentUser
   ): Promise<{ id: string; identificacion: string }[]> {
-    const alcance = derivarAlcance(
-      actor,
-      "AsignacionService.listarNuncaAsignadas"
-    );
-    return AsignacionRepository.findPeregrinasNuncaAsignadas(alcance);
+    void actor;
+    return AsignacionRepository.findPeregrinasNuncaAsignadas();
   }
 
   /**
@@ -409,7 +298,7 @@ export class AsignacionService {
    * compilando mientras contesta otra pregunta es exactamente el modo de falla de
    * este cambio.
    *
-   * Scoped by the *holder's* territory rather than by an image's, which is what
+   * Filtered by the *holder's* territory rather than by an image's, which is what
    * the question means: "who here could take one". A couple's territory is spouse
    * A's. The repository ignores the image's territory when deciding whether
    * somebody is free, so a Tenedor holding a Peregrina that has since moved
@@ -419,28 +308,22 @@ export class AsignacionService {
     actor: CurrentUser,
     filtros: FiltrosTerritoriales = {}
   ): Promise<TenedorResueltoDTO[]> {
-    const operacion = "AsignacionService.listarTenedoresSinPeregrina";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-    return AsignacionRepository.findTenedoresSinPeregrina(alcance, filtros);
+    return AsignacionRepository.findTenedoresSinPeregrina(filtros);
   }
 
   /**
    * Tenedores holding at least one image — the other half of the listado's
    * tenencia filter.
    *
-   * Same scope rule as its twin above, and the same reason: the question is about
-   * the holders of a territory, so it is their own Diócesis that bounds it. An
-   * image that has since moved elsewhere still counts as held.
+   * Same territory rule as its twin above, and the same reason: the question is
+   * about the holders of a territory, so it is their own Diócesis that filters
+   * it. An image that has since moved elsewhere still counts as held.
    */
   static async listarTenedoresConPeregrina(
     actor: CurrentUser,
     filtros: FiltrosTerritoriales = {}
   ): Promise<TenedorResueltoDTO[]> {
-    const operacion = "AsignacionService.listarTenedoresConPeregrina";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-    return AsignacionRepository.findTenedoresConPeregrina(alcance, filtros);
+    return AsignacionRepository.findTenedoresConPeregrina(filtros);
   }
 
   /**
@@ -455,10 +338,7 @@ export class AsignacionService {
     dias: number,
     filtros: FiltrosTerritoriales = {}
   ) {
-    const operacion = "AsignacionService.listarEstancadas";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-    return AsignacionRepository.findPeregrinasEstancadas(alcance, dias, filtros);
+    return AsignacionRepository.findPeregrinasEstancadas(dias, filtros);
   }
 
   // `dashboardStats` is gone. Tenencia is counted off the Peregrina's own
@@ -471,7 +351,7 @@ export class AsignacionService {
    * Gives a Peregrina nobody currently has to a Misionero — user stories 1 and 8.
    *
    * Refused if somebody already has it, rather than quietly closing their period.
-   * A Referente who did not know the image was out needs to be told, not obeyed —
+   * Somebody who did not know the image was out needs to be told, not obeyed —
    * and being told *who* has it is the point: it turns a refusal into the next
    * phone call.
    */
@@ -480,29 +360,15 @@ export class AsignacionService {
     input: AsignarInput
   ): Promise<AsignacionDTO> {
     const operacion = "AsignacionService.asignar";
-    const alcance = derivarAlcance(actor, operacion);
 
-    const peregrina = await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      input.peregrinaId,
-      operacion
-    );
+    const peregrina = await AsignacionService.exigirPeregrina(input.peregrinaId);
     exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
-    const tenedor = await AsignacionService.exigirTenedorVisible(
-      actor,
-      alcance,
-      input.tenedor,
-      operacion
-    );
+    const tenedor = await AsignacionService.exigirTenedor(input.tenedor);
     AsignacionService.exigirTenedorActivo(tenedor);
-    await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
+    await AsignacionService.exigirQueNoEsteCasado(input.tenedor);
 
-    const abierta = await AsignacionRepository.findAbiertaDePeregrina(
-      alcance,
-      input.peregrinaId
-    );
+    const abierta = await AsignacionRepository.findAbiertaDePeregrina(input.peregrinaId);
     if (abierta) {
       throw new ConflictoError(
         `La Peregrina ${identificacionDe(peregrina.peregrina)} ya está a cargo de ` +
@@ -536,29 +402,15 @@ export class AsignacionService {
     input: EntregarInput
   ): Promise<{ cerrada: AsignacionDTO; abierta: AsignacionDTO }> {
     const operacion = "AsignacionService.entregar";
-    const alcance = derivarAlcance(actor, operacion);
 
-    const peregrina = await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      input.peregrinaId,
-      operacion
-    );
+    const peregrina = await AsignacionService.exigirPeregrina(input.peregrinaId);
     exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
-    const tenedor = await AsignacionService.exigirTenedorVisible(
-      actor,
-      alcance,
-      input.tenedor,
-      operacion
-    );
+    const tenedor = await AsignacionService.exigirTenedor(input.tenedor);
     AsignacionService.exigirTenedorActivo(tenedor);
-    await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
+    await AsignacionService.exigirQueNoEsteCasado(input.tenedor);
 
-    const actual = await AsignacionRepository.findAbiertaDePeregrina(
-      alcance,
-      input.peregrinaId
-    );
+    const actual = await AsignacionRepository.findAbiertaDePeregrina(input.peregrinaId);
     if (!actual) {
       throw new ConflictoError(
         `La Peregrina ${identificacionDe(peregrina.peregrina)} no está a cargo de nadie, ` +
@@ -635,14 +487,8 @@ export class AsignacionService {
     input: DevolverInput
   ): Promise<AsignacionDTO> {
     const operacion = "AsignacionService.devolver";
-    const alcance = derivarAlcance(actor, operacion);
 
-    const peregrina = await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      input.peregrinaId,
-      operacion
-    );
+    const peregrina = await AsignacionService.exigirPeregrina(input.peregrinaId);
     exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const cerrada = await AsignacionRepository.cerrar(input.peregrinaId, {
@@ -673,20 +519,9 @@ export class AsignacionService {
     input: CorregirInput
   ): Promise<AsignacionDTO> {
     const operacion = "AsignacionService.corregir";
-    const alcance = derivarAlcance(actor, operacion);
 
-    const actual = await AsignacionService.exigirVisible(
-      actor,
-      alcance,
-      input.asignacionId,
-      operacion
-    );
-    const peregrina = await AsignacionService.exigirPeregrinaVisible(
-      actor,
-      alcance,
-      actual.asignacion.peregrinaId,
-      operacion
-    );
+    const actual = await AsignacionService.exigirAsignacion(input.asignacionId);
+    const peregrina = await AsignacionService.exigirPeregrina(actual.asignacion.peregrinaId);
     exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const seguiraAbierta =
@@ -695,12 +530,7 @@ export class AsignacionService {
         : actual.asignacion.cerradaAt === null;
 
     if (input.tenedor !== undefined) {
-      const tenedor = await AsignacionService.exigirTenedorVisible(
-        actor,
-        alcance,
-        input.tenedor,
-        operacion
-      );
+      const tenedor = await AsignacionService.exigirTenedor(input.tenedor);
       // A closed period may perfectly well name somebody who has since left the
       // Campaña — that is what history is. An open one may not: they would be
       // holding an image while being absent from every active list.
@@ -708,7 +538,7 @@ export class AsignacionService {
         AsignacionService.exigirTenedorActivo(tenedor);
         // Y tampoco por acá se cuela una imagen a nombre de un solo cónyuge:
         // corregir un período abierto es decir quién la tiene ahora.
-        await AsignacionService.exigirQueNoEsteCasado(alcance, input.tenedor);
+        await AsignacionService.exigirQueNoEsteCasado(input.tenedor);
       }
     }
 
@@ -751,22 +581,11 @@ export class AsignacionService {
 
   // ── Helpers privados ───────────────────────────────────────────────────────
 
-  private static async exigirVisible(
-    actor: CurrentUser,
-    alcance: Alcance,
-    id: string,
-    operacion: string
+  private static async exigirAsignacion(
+    id: string
   ): Promise<AsignacionCompleta> {
-    const row = await AsignacionRepository.findByIdSinAlcance(id);
+    const row = await AsignacionRepository.findById(id);
     if (!row) throw new NoEncontradoError("No existe esa Asignación.");
-
-    exigirDentroDelAlcance(
-      actor,
-      alcance,
-      row.peregrinaDiocesisLocalidadId,
-      operacion
-    );
-
     return row;
   }
 

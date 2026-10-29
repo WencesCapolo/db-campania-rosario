@@ -2,7 +2,6 @@ import { z } from "zod";
 import { roleEnum } from "@/db/schema/users";
 import type { Role } from "@/modules/user/user.schema";
 import type { InvitacionEstado } from "./invitacion.schema";
-import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 
 export type { ActionResult } from "@/lib/action-result";
 
@@ -13,8 +12,6 @@ export interface InvitacionDTO {
   email: string;
   rol: Role;
   estado: InvitacionEstado;
-  /** Null for the two country-wide rols. Resolved, so the UI can name it. */
-  diocesisLocalidad: DiocesisLocalidadDTO | null;
   invitadaPorId: string;
   usuarioId: string | null;
   createdAt: Date;
@@ -39,10 +36,6 @@ export const invitarSchema = z.object({
     .pipe(z.email("Escribí un email válido.")),
 
   rol: z.enum(roleEnum.enumValues, { message: "Elegí un rol válido." }),
-
-  // Absent for admin and asesor_nacional, required for the other two. The pair
-  // is checked in the service, where the hierarchy lives.
-  diocesisLocalidadId: z.string().min(1).nullish(),
 });
 
 export type InvitarInput = z.infer<typeof invitarSchema>;

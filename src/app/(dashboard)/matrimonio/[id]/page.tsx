@@ -196,8 +196,8 @@ export default async function MatrimonioPage({
                   </p>
                 )}
 
-                {/* Un territorio, nunca una persona: los Referentes Locales
-                    comparten un login por territorio. */}
+                {/* Un login, nunca una persona: un Buzón lo comparten todos
+                    los de una función. */}
                 <p className="text-base text-tinta-suave">{registro(a)}</p>
               </li>
             ))}

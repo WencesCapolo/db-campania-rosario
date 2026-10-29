@@ -18,7 +18,7 @@ import { fechaDeConsagracionSchema } from "@/lib/consagracion";
 // ── Estados ───────────────────────────────────────────────────────────────────
 
 /**
- * The Estados a Referente may choose. `inactiva` is missing on purpose: records
+ * The Estados a Usuario may choose. `inactiva` is missing on purpose: records
  * already carry it and keep displaying it, but nothing new is entered as
  * `inactiva`, so each one gets corrected knowingly rather than rewritten by a
  * migration that would have to guess what the person meant.
@@ -256,12 +256,6 @@ export const TENENCIA_LABELS: Record<Tenencia, string> = {
  * is excluded from *entry* and from the control, but a record carrying it has to
  * stay reachable — a filter that refused the value would make those records
  * unreadable rather than merely unwritable.
- *
- * `diocesisLocalidadId` narrows within the Actor's own scope and can never widen
- * it. That is not enforced here — a schema cannot know who is asking — but in
- * the service, which refuses an out-of-scope territory rather than quietly
- * falling back to the Actor's own. Falling back would relabel one Diócesis's
- * figures with another's name, which is worse than a refusal.
  */
 export const filtrosDeInventarioSchema = filtrosTerritorialesSchema.extend({
   /** The Código or the Numeración anterior — either one finds the image. */
@@ -304,10 +298,8 @@ export const CLAVES_DE_FILTRO = [
  *
  * A value that is not a member of its enum is *dropped*: `?estado=activva` is a
  * typo or a stale link, and refusing the whole screen over one is worse than
- * ignoring it. The one thing that is never dropped is a territory, because
- * dropping it would fall back to the Actor's own scope and show them their own
- * figures under somebody else's name — so it is passed through to the service,
- * which refuses it.
+ * ignoring it. A territory id is passed through as it came: an id that names no
+ * Diócesis simply matches nothing.
  *
  * The strict schema still runs at the router boundary. This narrows `unknown`
  * from a query string down to something the schema can accept; it is not a
@@ -325,8 +317,8 @@ export function filtrosDesdeParams(
   const candidato: Record<string, string | undefined> = {};
   for (const clave of CLAVES_DE_FILTRO) candidato[clave] = primero(clave);
 
-  // A territory is kept even when the rest of the shape is rejected, so the
-  // service gets the chance to refuse it rather than never seeing it.
+  // A territory is kept even when the rest of the shape is rejected: a typo
+  // elsewhere should not silently widen a Diócesis's figures to the country.
   const territorio = candidato.diocesisLocalidadId;
   const parsed = filtrosDeInventarioSchema.safeParse(candidato);
   if (parsed.success) return limpiar(parsed.data);

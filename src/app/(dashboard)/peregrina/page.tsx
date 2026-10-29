@@ -2,8 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { getPeregrinasPaginadasAction } from "@/modules/peregrina/peregrina.router";
 import { getDiocesisLocalidadesAction } from "@/modules/territorio/territorio.router";
-import { getCurrentUser } from "@/lib/get-current-user";
-import { esNacional } from "@/lib/authorization/alcance";
 import {
   ESTADO_LABELS,
   MODALIDAD_LABELS,
@@ -88,16 +86,11 @@ export default async function PeregrinaListaPage({
   const filtros = filtrosDesdeParams(params);
   const paginaPedida = paginaDesdeParams(params);
 
-  // El selector de territorio de los filtros es para los dos rols nacionales. Los
-  // registros de un Referente Local ya son una Diócesis, y ofrecerle las otras de
-  // su Provincia sería ofrecerle un control cuyo uso siempre termina en negativa.
-  const actor = await getCurrentUser();
-  const territorios = esNacional(actor.role)
-    ? (await getDiocesisLocalidadesAction()).map((d) => ({
-        id: d.id,
-        nombre: d.nombre,
-      }))
-    : null;
+  // El selector de territorio de los filtros es para todos: cada rol ve el país.
+  const territorios = (await getDiocesisLocalidadesAction()).map((d) => ({
+    id: d.id,
+    nombre: d.nombre,
+  }));
 
   const pagina = await getPeregrinasPaginadasAction(filtros, paginaPedida);
   const peregrinas = pagina.filas;
@@ -192,7 +185,7 @@ export default async function PeregrinaListaPage({
                   "20 imágenes" en la página uno de nueve sería un conteo del
                   tamaño de página, que es la cifra que este proyecto sacó. */}
               {pagina.total === 1 ? "1 imagen" : `${pagina.total} imágenes`}
-              {filtrado ? " con esos filtros" : " en tu territorio"}
+              {filtrado ? " con esos filtros" : " en total"}
             </p>
 
             {/* Los filtros van en la franja del título, pegados a lo que

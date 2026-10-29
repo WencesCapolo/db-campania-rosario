@@ -4,8 +4,8 @@ import type { CurrentUser } from "@/modules/user/user.types";
 /**
  * The system Actor — user story 18.
  *
- * Seeds, migrations and scheduled work are genuinely unscoped, and ADR 0001 asks
- * that this be visible at the call site rather than implied by a missing
+ * Seeds, migrations and scheduled work have no Usuario behind them, and ADR 0001
+ * asks that this be visible at the call site rather than implied by a missing
  * argument. So they pass this, and `seedTerritorio(ACTOR_DE_SISTEMA)` reads as
  * what it is: a deliberate bypass, greppable, one identifier.
  *
@@ -21,10 +21,6 @@ export const ACTOR_DE_SISTEMA: CurrentUser = {
   role: "admin",
   email: "sistema@campania.local",
   displayName: "Sistema",
-  // Country-wide by rol, which is what makes it unscoped. Nothing special-cases
-  // this id inside the scope derivation — it is unscoped for the same reason an
-  // Asesor Nacional is.
-  diocesisLocalidadId: null,
 };
 
 /**

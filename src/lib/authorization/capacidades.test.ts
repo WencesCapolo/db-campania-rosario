@@ -294,7 +294,7 @@ describe("quien carga no configura", () => {
     });
   }
 
-  it("un Asesor Nacional invita a los dos, sin territorio", async () => {
+  it("un Asesor Nacional invita a los dos", async () => {
     const a = await InvitacionService.invitar(asesor, {
       email: "dirigentes@ejemplo.test",
       rol: "dirigente_joven",
@@ -304,16 +304,6 @@ describe("quien carga no configura", () => {
       rol: "responsable_diocesano",
     });
 
-    expect([a.diocesisLocalidad, b.diocesisLocalidad]).toEqual([null, null]);
-  });
-
-  it("y uno de los dos con territorio se rechaza", async () => {
-    await expect(
-      InvitacionService.invitar(asesor, {
-        email: "dirigentes@ejemplo.test",
-        rol: "dirigente_joven",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow();
+    expect([a.rol, b.rol]).toEqual(["dirigente_joven", "responsable_diocesano"]);
   });
 });

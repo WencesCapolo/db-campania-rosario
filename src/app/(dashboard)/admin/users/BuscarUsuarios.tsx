@@ -18,7 +18,7 @@ export default function BuscarUsuarios({ buscar }: { buscar: string }) {
 
   return (
     <CampoDeBusqueda
-      etiqueta="Buscar por Buzón, nombre o territorio"
+      etiqueta="Buscar por Buzón o nombre"
       {...busqueda}
     />
   );

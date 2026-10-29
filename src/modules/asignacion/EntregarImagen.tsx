@@ -281,7 +281,7 @@ export function FormularioDeEntrega({
 
       {peregrinas.length === 0 ? (
         <p className="text-base leading-relaxed text-tinta-suave">
-          Todavía no hay Peregrinas en tu territorio. Registrala acá abajo y
+          Todavía no hay Peregrinas cargadas. Registrala acá abajo y
           después la entregás.
         </p>
       ) : (

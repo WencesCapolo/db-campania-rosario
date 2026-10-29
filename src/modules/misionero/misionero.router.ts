@@ -144,8 +144,7 @@ export async function reactivarMisioneroAction(
  *
  * Parsed here, at the boundary, so nothing invalid reaches the service. The
  * territorial half is the shared schema: the same `?diocesisLocalidadId=` that
- * filters the tablero filters this list, and an id outside the Actor's scope is
- * refused by the service rather than intersected away.
+ * filters the tablero filters this list.
  */
 export async function getMisionerosFiltradosAction(
   filtros: unknown

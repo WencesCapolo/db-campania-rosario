@@ -1,7 +1,5 @@
-import {
-  InvitacionRepository,
-  type InvitacionConTerritorio,
-} from "./invitacion.repository";
+import { InvitacionRepository } from "./invitacion.repository";
+import type { InvitacionRow } from "./invitacion.schema";
 import type {
   Identidad,
   InvitacionDTO,
@@ -9,19 +7,12 @@ import type {
 } from "./invitacion.types";
 import { UserRepository } from "@/modules/user/user.repository";
 import { UserService } from "@/modules/user/user.service";
-import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
-import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
 import {
   ROLE_HIERARCHY,
   superaEnRango,
   type Role,
 } from "@/modules/user/user.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
-import {
-  derivarAlcance,
-  esNacional,
-  exigirDentroDelAlcance,
-} from "@/lib/authorization/alcance";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   ConflictoError,
@@ -34,11 +25,10 @@ import {
  * InvitacionService
  *
  * Responsibility: provisioning. A Usuario exists because a Usuario of higher
- * rank invited them into a territory the inviter themselves can reach — nobody
- * self-registers, and nothing defaults an authenticated stranger into a rol.
+ * rank invited them — nobody self-registers, and nothing defaults an
+ * authenticated stranger into a rol.
  *
- * Every method takes the Actor first and derives its own scope (ADR 0001). The
- * one exception is `aceptarSiHayPendiente`, which by definition runs for someone
+ * Every method takes the Actor first (ADR 0001). The one exception is `aceptarSiHayPendiente`, which by definition runs for someone
  * who has no Actor yet; it takes an identity instead, and is bounded by the
  * invitation rather than by a rol. That asymmetry is the whole design: the
  * privilege to create a Usuario lives in the invitation record, issued earlier
@@ -47,24 +37,17 @@ import {
 export class InvitacionService {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  private static toDTO(row: InvitacionConTerritorio): InvitacionDTO {
+  private static toDTO(row: InvitacionRow): InvitacionDTO {
     return {
-      id: row.invitacion.id,
-      email: row.invitacion.email,
-      rol: row.invitacion.rol,
-      estado: row.invitacion.estado,
-      diocesisLocalidad:
-        row.diocesis && row.provincia
-          ? mapearDiocesisLocalidad({
-              diocesis: row.diocesis,
-              provincia: row.provincia,
-            })
-          : null,
-      invitadaPorId: row.invitacion.invitadaPorId,
-      usuarioId: row.invitacion.usuarioId,
-      createdAt: row.invitacion.createdAt,
-      aceptadaAt: row.invitacion.aceptadaAt,
-      revocadaAt: row.invitacion.revocadaAt,
+      id: row.id,
+      email: row.email,
+      rol: row.rol,
+      estado: row.estado,
+      invitadaPorId: row.invitadaPorId,
+      usuarioId: row.usuarioId,
+      createdAt: row.createdAt,
+      aceptadaAt: row.aceptadaAt,
+      revocadaAt: row.revocadaAt,
     };
   }
 
@@ -105,9 +88,8 @@ export class InvitacionService {
   /** User story 13 — who has been invited and has not signed in yet. */
   static async listarPendientes(actor: CurrentUser): Promise<InvitacionDTO[]> {
     InvitacionService.exigirPuedeInvitar(actor, "InvitacionService.listarPendientes");
-    const alcance = derivarAlcance(actor, "InvitacionService.listarPendientes");
 
-    const rows = await InvitacionRepository.findPendientes(alcance);
+    const rows = await InvitacionRepository.findPendientes();
     return rows.map(InvitacionService.toDTO);
   }
 
@@ -116,10 +98,8 @@ export class InvitacionService {
   /**
    * Invites somebody by email — user stories 7 through 11.
    *
-   * Two independent checks, and both have to pass. Rank: the invited rol must be
-   * one this Actor may hand out. Territory: the invited Usuario is placed inside
-   * the inviter's own scope, so the hierarchy is territorial as well as ranked
-   * and a Responsable Diocesano cannot seed a Referente into the next Diócesis.
+   * The invited rol must be one this Actor may hand out. Every rol covers the
+   * country (ADR 0016), so an invitation carries a rol and nothing else.
    */
   static async invitar(
     actor: CurrentUser,
@@ -146,12 +126,6 @@ export class InvitacionService {
       );
     }
 
-    const diocesisLocalidadId = await InvitacionService.resolverTerritorioInvitado(
-      actor,
-      input,
-      operacion
-    );
-
     // An invitation whose person already has access is not an invitation.
     const existente = await UserRepository.findPorEmail(email);
     if (existente) {
@@ -166,94 +140,32 @@ export class InvitacionService {
     const row = await InvitacionRepository.create({
       email,
       rol: input.rol,
-      diocesisLocalidadId,
       invitadaPorId: actor.id,
     });
 
-    const conTerritorio = await InvitacionRepository.findById(
-      derivarAlcance(actor, operacion),
-      row.id
-    );
-    if (!conTerritorio) throw new Error(`Invitación no legible: ${row.id}`);
-
-    return InvitacionService.toDTO(conTerritorio);
-  }
-
-  /**
-   * Checks the rol/territory pairing and that the destination is inside the
-   * Actor's scope.
-   *
-   * The pairing is a rule, not a convenience: `admin` and `asesor_nacional` are
-   * country-wide, so giving one a Diócesis would suggest a bound that does not
-   * exist, and leaving a `referente_local` without one would mean nobody can
-   * tell what they may see. `derivarAlcance` refuses that Usuario at login; this
-   * refuses to create them in the first place.
-   */
-  private static async resolverTerritorioInvitado(
-    actor: CurrentUser,
-    input: InvitarInput,
-    operacion: string
-  ): Promise<string | null> {
-    if (esNacional(input.rol)) {
-      if (input.diocesisLocalidadId) {
-        throw new ValidacionError(
-          "Un Asesor Nacional y un Administrador cubren todo el país, así que no se les asigna una Diócesis/Localidad."
-        );
-      }
-      return null;
-    }
-
-    if (!input.diocesisLocalidadId) {
-      throw new ValidacionError(
-        "Elegí la Diócesis/Localidad que va a tener a cargo."
-      );
-    }
-
-    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-      input.diocesisLocalidadId
-    );
-    if (!territorio) {
-      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-    }
-    if (territorio.diocesis.bajaAt !== null) {
-      throw new ValidacionError(
-        `«${territorio.diocesis.nombre}» está dada de baja.`
-      );
-    }
-
-    exigirDentroDelAlcance(
-      actor,
-      derivarAlcance(actor, operacion),
-      territorio.diocesis.id,
-      operacion
-    );
-
-    return territorio.diocesis.id;
+    return InvitacionService.toDTO(row);
   }
 
   /** User story 14 — a mistake must not be allowed to become an account. */
   static async revocar(actor: CurrentUser, id: string): Promise<InvitacionDTO> {
     const operacion = "InvitacionService.revocar";
     InvitacionService.exigirPuedeInvitar(actor, operacion);
-    const alcance = derivarAlcance(actor, operacion);
 
-    const actual = await InvitacionRepository.findById(alcance, id);
+    const actual = await InvitacionRepository.findById(id);
     if (!actual) {
-      // Either it does not exist or it belongs to another territory. The Actor
-      // is not told which, because being told would be the leak.
       registrarDenegacion({
         actor,
         operacion,
-        motivo: "invitación inexistente o fuera del territorio del Actor",
+        motivo: "invitación inexistente",
       });
       throw new NoEncontradoError("No existe esa invitación.");
     }
 
-    if (!InvitacionService.puedeInvitarRol(actor.role, actual.invitacion.rol)) {
+    if (!InvitacionService.puedeInvitarRol(actor.role, actual.rol)) {
       registrarDenegacion({
         actor,
         operacion,
-        motivo: `intento de revocar una invitación al rol ${actual.invitacion.rol}`,
+        motivo: `intento de revocar una invitación al rol ${actual.rol}`,
       });
       throw new NoAutorizadoError(
         "No podés revocar una invitación a un rol que no podés administrar."
@@ -267,7 +179,7 @@ export class InvitacionService {
       );
     }
 
-    return InvitacionService.toDTO({ ...actual, invitacion: row });
+    return InvitacionService.toDTO(row);
   }
 
   /**
@@ -275,7 +187,7 @@ export class InvitacionService {
    *
    * Returns null when there is nothing pending for that email — which is the
    * normal answer for a stranger, and what makes an unknown identity
-   * unauthorized instead of a Referente Local.
+   * unauthorized instead of a default rol.
    *
    * Accepting twice produces one Usuario, not two, and neither half of that
    * relies on this method's reasoning:
@@ -301,7 +213,6 @@ export class InvitacionService {
     await UserRepository.upsert({
       id: identidad.id,
       role: pendiente.rol,
-      diocesisLocalidadId: pendiente.diocesisLocalidadId,
       createdById: pendiente.invitadaPorId,
     });
 

@@ -37,7 +37,7 @@ export async function getIdentidadesSinUsuarioAction(): Promise<
     return UserService.listarIdentidadesSinUsuario(actor);
 }
 
-/** User story 16 — a real-world reassignment: new rol, new territory, or both. */
+/** User story 16 — a real-world reassignment: a new rol. */
 export async function actualizarUsuarioAction(
     targetId: string,
     input: unknown

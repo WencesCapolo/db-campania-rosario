@@ -14,13 +14,6 @@ import type {
 import type { CurrentUser } from "@/modules/user/user.types";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
 import type { Region } from "@/modules/territorio/territorio.schema";
-import {
-  dentroDelAlcance,
-  derivarAlcance,
-  exigirDentroDelAlcance,
-  exigirTerritorioDentroDelAlcance,
-  type Alcance,
-} from "@/lib/authorization/alcance";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   armarPagina,
@@ -46,10 +39,9 @@ import { MatrimonioRepository } from "./matrimonio.repository";
  *
  * Responsibility: business logic for misionero entities.
  *
- * Every method takes the Actor first and derives its own territorial scope —
- * ADR 0001. This is the module that made the leak concrete: a Misionero record
- * carries a name and a telephone number, including for the Campaña's youngest
- * branches, and until issue #2 any authenticated Usuario could list all of them.
+ * Every method takes the Actor first — ADR 0001. Every rol reads and writes any
+ * Misionero in the country (ADR 0016): a Misionero has no Modalidad, so there
+ * is nothing here for the Actor's rol to narrow.
  */
 export class MisioneroService {
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -71,38 +63,25 @@ export class MisioneroService {
       : { tipo: "matrimonio", matrimonio: mapearMatrimonio(fila.matrimonio) };
   }
 
-  /** The row this Actor may act on, or a logged refusal. */
-  private static async exigirVisible(
-    actor: CurrentUser,
-    alcance: Alcance,
-    id: string,
-    operacion: string
+  /** The row, given de baja or not, or a refusal that says it does not exist. */
+  private static async exigirExistente(
+    id: string
   ): Promise<MisioneroConTerritorio> {
-    const row = await MisioneroRepository.findByIdSinAlcance(id);
+    const row = await MisioneroRepository.findById(id, { incluirBajas: true });
     if (!row) throw new NoEncontradoError("No existe ese Misionero.");
-
-    exigirDentroDelAlcance(
-      actor,
-      alcance,
-      row.misionero.diocesisLocalidadId,
-      operacion
-    );
-
     return row;
   }
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   static async listAll(actor: CurrentUser): Promise<MisioneroDTO[]> {
-    const alcance = derivarAlcance(actor, "MisioneroService.listAll");
-    const rows = await MisioneroRepository.findAll(alcance);
+    void actor;
+    const rows = await MisioneroRepository.findAll();
     return rows.map(MisioneroService.toDTO);
   }
 
   static async getById(actor: CurrentUser, id: string): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.getById";
-    const alcance = derivarAlcance(actor, operacion);
-    const row = await MisioneroService.exigirVisible(actor, alcance, id, operacion);
+    const row = await MisioneroService.exigirExistente(id);
     return MisioneroService.toDTO(row);
   }
 
@@ -115,10 +94,8 @@ export class MisioneroService {
     actor: CurrentUser,
     id: string
   ): Promise<string | null> {
-    const operacion = "MisioneroService.matrimonioActivo";
-    const alcance = derivarAlcance(actor, operacion);
-    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
-    const fila = await MatrimonioRepository.deMisionero(alcance, id);
+    await MisioneroService.exigirExistente(id);
+    const fila = await MatrimonioRepository.deMisionero(id);
     return fila?.id ?? null;
   }
 
@@ -128,8 +105,7 @@ export class MisioneroService {
   ): Promise<MisioneroDTO[]> {
     if (!query.trim()) return MisioneroService.listAll(actor);
 
-    const alcance = derivarAlcance(actor, "MisioneroService.search");
-    const rows = await MisioneroRepository.search(alcance, query.trim());
+    const rows = await MisioneroRepository.search(query.trim());
     return rows.map(MisioneroService.toDTO);
   }
 
@@ -137,8 +113,7 @@ export class MisioneroService {
     actor: CurrentUser,
     region: Region
   ): Promise<MisioneroDTO[]> {
-    const alcance = derivarAlcance(actor, "MisioneroService.listByRegion");
-    const rows = await MisioneroRepository.findByRegion(alcance, region);
+    const rows = await MisioneroRepository.findByRegion(region);
     return rows.map(MisioneroService.toDTO);
   }
 
@@ -159,11 +134,7 @@ export class MisioneroService {
     actor: CurrentUser,
     filtros: FiltrosTerritoriales & { q?: string }
   ): Promise<TenedorDTO[]> {
-    const operacion = "MisioneroService.listFiltrados";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-
-    const rows = await MisioneroRepository.findFiltrados(alcance, filtros);
+    const rows = await MisioneroRepository.findFiltrados(filtros);
     return rows.map(MisioneroService.toTenedorDTO);
   }
 
@@ -181,15 +152,10 @@ export class MisioneroService {
     filtros: FiltrosTerritoriales & { q?: string },
     pagina = 1
   ): Promise<Pagina<TenedorDTO>> {
-    const operacion = "MisioneroService.listPagina";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-
-    const total = await MisioneroRepository.contarFiltrados(alcance, filtros);
+    const total = await MisioneroRepository.contarFiltrados(filtros);
     const actual = paginaExistente(pagina, cantidadDePaginas(total));
 
     const rows = await MisioneroRepository.findFiltrados(
-      alcance,
       filtros,
       {},
       rango(actual)
@@ -207,9 +173,6 @@ export class MisioneroService {
     actor: CurrentUser,
     input: CreateMisioneroInput
   ): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.create";
-    const alcance = derivarAlcance(actor, operacion);
-
     const territorio = await TerritorioRepository.findDiocesisLocalidadById(
       input.diocesisLocalidadId
     );
@@ -221,8 +184,6 @@ export class MisioneroService {
         `«${territorio.diocesis.nombre}» está dada de baja.`
       );
     }
-
-    exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
     const row = await MisioneroRepository.create({
       nombre: input.nombre,
@@ -246,10 +207,7 @@ export class MisioneroService {
     id: string,
     input: UpdateMisioneroInput
   ): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.update";
-    const alcance = derivarAlcance(actor, operacion);
-
-    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
+    await MisioneroService.exigirExistente(id);
 
     // A spouse's territory and Centro belong to the household (ADR 0010):
     // changing them for one of the two would split the couple across two
@@ -258,7 +216,7 @@ export class MisioneroService {
       input.diocesisLocalidadId !== undefined ||
       input.centroTipo !== undefined ||
       input.centroNombre !== undefined;
-    if (tocaLaCasa && (await MatrimonioRepository.deMisionero(alcance, id))) {
+    if (tocaLaCasa && (await MatrimonioRepository.deMisionero(id))) {
       throw new ValidacionError(
         "Es parte de un matrimonio: el territorio y el Centro se cambian " +
           "desde la ficha del matrimonio, para los dos a la vez."
@@ -272,8 +230,6 @@ export class MisioneroService {
       if (!territorio) {
         throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
       }
-
-      exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
     }
 
     const row = await MisioneroRepository.update(id, {
@@ -301,15 +257,7 @@ export class MisioneroService {
     actor: CurrentUser,
     input: AddResumenAnualInput
   ): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.addResumenAnual";
-    const alcance = derivarAlcance(actor, operacion);
-
-    await MisioneroService.exigirVisible(
-      actor,
-      alcance,
-      input.misioneroId,
-      operacion
-    );
+    await MisioneroService.exigirExistente(input.misioneroId);
 
     if (input.year > new Date().getFullYear()) {
       throw new ValidacionError("Año inválido.");
@@ -340,21 +288,13 @@ export class MisioneroService {
     actor: CurrentUser,
     id: string
   ): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.darDeBaja";
-    const alcance = derivarAlcance(actor, operacion);
-
-    const actual = await MisioneroService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
+    const actual = await MisioneroService.exigirExistente(id);
 
     const pendientes =
-      await AsignacionRepository.findAbiertasDeMisioneroSinAlcance(id);
+      await AsignacionRepository.findAbiertasDeMisionero(id);
     if (pendientes.length > 0) {
       throw new ConflictoError(
-        MisioneroService.mensajeDePendientes(actual, alcance, pendientes)
+        MisioneroService.mensajeDePendientes(actual, pendientes)
       );
     }
 
@@ -368,10 +308,7 @@ export class MisioneroService {
     actor: CurrentUser,
     id: string
   ): Promise<MisioneroDTO> {
-    const operacion = "MisioneroService.reactivar";
-    const alcance = derivarAlcance(actor, operacion);
-
-    await MisioneroService.exigirVisible(actor, alcance, id, operacion);
+    await MisioneroService.exigirExistente(id);
 
     const row = await MisioneroRepository.reactivar(id);
     if (!row) throw new ConflictoError("Ese Misionero no estaba dado de baja.");
@@ -382,53 +319,35 @@ export class MisioneroService {
   // ── Helpers privados ───────────────────────────────────────────────────────
 
   /**
-   * Says which Peregrina is outstanding — user story 14 — without saying it about
-   * a territory the Actor cannot see.
+   * Says which Peregrina is outstanding — user story 14 — so the refusal is a
+   * next step and not only a no.
    *
-   * The guard itself is deliberately unscoped, because an image can be moved to
-   * another Diócesis while this Misionero still physically holds it and a guard
-   * that missed that would let the person be closed out with the image in their
-   * house. But naming a Código from another territory would confirm a record the
-   * Actor is not allowed to read. So the Código appears when it was theirs to see
-   * anyway, and otherwise the refusal says what to do instead — which is what the
-   * story actually needs: a next step, not an identifier.
+   * The guard reads every open Asignación of this Misionero, wherever the image
+   * is filed: an image can be moved to another Diócesis while this Misionero
+   * still physically holds it, and a guard that missed that would let the person
+   * be closed out with the image in their house.
    */
   private static mensajeDePendientes(
     actual: MisioneroConTerritorio,
-    alcance: Alcance,
-    pendientes: { peregrinaIdentificacion: string; peregrinaDiocesisLocalidadId: string }[]
+    pendientes: { peregrinaIdentificacion: string }[]
   ): string {
     const nombre = `${actual.misionero.nombre} ${actual.misionero.apellido}`;
-    const visibles = pendientes.filter((p) =>
-      dentroDelAlcance(alcance, p.peregrinaDiocesisLocalidadId)
-    );
-
-    if (visibles.length === pendientes.length) {
-      const identificaciones = visibles.map((p) => p.peregrinaIdentificacion).join(", ");
-      const cuantas =
-        pendientes.length === 1
-          ? `la Peregrina ${identificaciones}`
-          : `${pendientes.length} Peregrinas a cargo: ${identificaciones}`;
-      return (
-        `No se puede dar de baja a ${nombre}: todavía tiene ${cuantas}. ` +
-        "Registrá primero que fue devuelta o que pasó a otro Misionero."
-      );
-    }
-
-    const ajenas = pendientes.length - visibles.length;
-    const detalle = visibles.length
-      ? `${visibles.map((p) => p.peregrinaIdentificacion).join(", ")}, y ${ajenas} de otro territorio`
-      : `${ajenas} de otro territorio`;
-
+    const identificaciones = pendientes
+      .map((p) => p.peregrinaIdentificacion)
+      .join(", ");
+    const cuantas =
+      pendientes.length === 1
+        ? `la Peregrina ${identificaciones}`
+        : `${pendientes.length} Peregrinas a cargo: ${identificaciones}`;
     return (
-      `No se puede dar de baja a ${nombre}: todavía tiene Peregrinas a cargo (${detalle}). ` +
-      "Pedile a un Asesor Nacional que registre la devolución de las que no podés ver."
+      `No se puede dar de baja a ${nombre}: todavía tiene ${cuantas}. ` +
+      "Registrá primero que fue devuelta o que pasó a otro Misionero."
     );
   }
 
-  /** Reads a row back after a write, by primary key, already scope-checked. */
+  /** Reads a row back after a write, by primary key. */
   private static async leerUno(id: string): Promise<MisioneroDTO> {
-    const row = await MisioneroRepository.findByIdSinAlcance(id);
+    const row = await MisioneroRepository.findById(id, { incluirBajas: true });
     if (!row) throw new NoEncontradoError("No existe ese Misionero.");
     return MisioneroService.toDTO(row);
   }

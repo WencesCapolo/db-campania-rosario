@@ -12,7 +12,6 @@ import { configura } from "@/lib/authorization/capacidades";
 import type { Role } from "@/modules/user/user.schema";
 import type { UserDTO } from "@/modules/user/user.types";
 import type { InvitacionDTO } from "@/modules/invitacion/invitacion.types";
-import type { DiocesisLocalidadDTO } from "@/modules/territorio/territorio.types";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
 import BuscarUsuarios from "./BuscarUsuarios";
@@ -28,16 +27,15 @@ import BajaDeUsuario from "./BajaDeUsuario";
  *
  * One table of everybody this Actor answers for: who has access, who lost it,
  * and who was invited and has not arrived yet — with a filter between them and
- * a search over Buzón, name and territory. It was cards for a while, and the
- * table came back because the screen is read far more than it is changed: the
- * question is nearly always "is X in, and where", and a column answers that at a
- * glance where a stack of cards makes somebody read every one.
+ * a search over Buzón and name. It was cards for a while, and the table came
+ * back because the screen is read far more than it is changed: the question is
+ * nearly always "is X in, and as what", and a column answers that at a glance where a stack of cards makes somebody read every one.
  *
  * What sent it to cards the first time was the phone: four columns needed
  * `overflow-x-auto`, which put the estado off-screen on the device most of these
  * people use, and there was nowhere to put a control. So the table gives up
  * columns rather than scrolling. Below `xl` the buttons sit under the name;
- * below `md` the rol and territory do too; below `sm` the estado. Each one is
+ * below `md` the rol does too; below `sm` the estado. Each one is
  * therefore rendered twice and shown once — a cell's content cannot move to
  * another cell, and a table that scrolls sideways is the bug this replaced.
  * Measured: nothing overflows at 390, 800, 1024 or 1280 px.
@@ -47,8 +45,8 @@ import BajaDeUsuario from "./BajaDeUsuario";
  *
  * Filter and search live in the address, like every list's filters, so a
  * filtered view survives a reload and can be sent to somebody. They narrow rows
- * this page already holds: both reads are already scoped by their services, and
- * the counts beside each filter are over those same rows.
+ * this page already holds, and the counts beside each filter are over those
+ * same rows.
  *
  * Whether a row carries controls is decided here, on the server, from the
  * hierarchy — `puedeAdministrar` is strictly-lower, except that an admin
@@ -123,7 +121,7 @@ export default async function UsuariosPage({
       tipo: "invitacion" as const,
       invitacion,
     })),
-  ].sort(porTerritorioYRango);
+  ].sort(porRangoYBuzon);
 
   const buscadas = buscar
     ? todas.filter((f) =>
@@ -168,7 +166,6 @@ export default async function UsuariosPage({
           id={u.id}
           email={u.email}
           rolActual={u.role}
-          diocesisLocalidadIdActual={u.diocesisLocalidad?.id ?? null}
           rolesDisponibles={asignables}
         />
 
@@ -185,8 +182,7 @@ export default async function UsuariosPage({
           <p className="mt-1 text-base text-tinta-suave">
             {usuarios.length === 1
               ? "1 usuario"
-              : `${usuarios.length} usuarios`}{" "}
-            en tu territorio
+              : `${usuarios.length} usuarios`}
           </p>
         </div>
 
@@ -195,7 +191,7 @@ export default async function UsuariosPage({
 
       {todas.length === 0 ? (
         <Vacio
-          titulo="Todavía no hay usuarios en tu territorio"
+          titulo="Todavía no hay usuarios"
           mensaje="Los accesos se dan de uno en uno, por invitación. Nadie se registra por su cuenta."
           accion={
             <BotonEnlace href="/admin/users/new">Invitar a alguien</BotonEnlace>
@@ -276,7 +272,7 @@ export default async function UsuariosPage({
                     Persona
                   </th>
                   <th scope="col" className={`${ENCABEZADO} max-md:hidden`}>
-                    Rol y territorio
+                    Rol
                   </th>
                   <th scope="col" className={`${ENCABEZADO} max-sm:hidden`}>
                     Estado
@@ -290,11 +286,6 @@ export default async function UsuariosPage({
                 {filas.map((f) => {
                   const rol =
                     f.tipo === "usuario" ? f.usuario.role : f.invitacion.rol;
-                  const lugar = territorio(
-                    f.tipo === "usuario"
-                      ? f.usuario.diocesisLocalidad
-                      : f.invitacion.diocesisLocalidad,
-                  );
                   const botones = acciones(f);
 
                   return (
@@ -316,7 +307,7 @@ export default async function UsuariosPage({
                       >
                         <Persona fila={f} />
                         <span className="mt-1 block text-tinta-suave md:hidden">
-                          {ROLE_LABELS[rol]} · {lugar}
+                          {ROLE_LABELS[rol]}
                         </span>
                         <span className="mt-2 block sm:hidden">
                           <Estado fila={f} />
@@ -326,8 +317,7 @@ export default async function UsuariosPage({
                         )}
                       </th>
                       <td className={`${CELDA} max-md:hidden`}>
-                        <span className="block">{ROLE_LABELS[rol]}</span>
-                        <span className="block text-tinta-suave">{lugar}</span>
+                        {ROLE_LABELS[rol]}
                       </td>
                       <td className={`${CELDA} max-sm:hidden`}>
                         <Estado fila={f} />
@@ -444,10 +434,6 @@ function grupoDe(f: Fila): Exclude<Mostrar, "todos"> {
   return f.usuario.deBaja || f.usuario.sinIdentidad ? "sin" : "con";
 }
 
-function territorio(d: DiocesisLocalidadDTO | null): string {
-  return d ? `${d.nombre}, ${d.provincia.nombre}` : "Todo el país";
-}
-
 const RANGO: Record<Role, number> = {
   admin: 0,
   asesor_nacional: 1,
@@ -455,34 +441,23 @@ const RANGO: Record<Role, number> = {
   dirigente_joven: 3,
 };
 
-// Country-wide first, then by place, then by rank inside a place. The email is
-// the last word so the order never depends on how the rows arrived.
-function porTerritorioYRango(a: Fila, b: Fila): number {
-  const lugar = (f: Fila) =>
-    f.tipo === "usuario"
-      ? f.usuario.diocesisLocalidad
-      : f.invitacion.diocesisLocalidad;
+// By rank, highest first, then by Buzón — the email is the last word so the
+// order never depends on how the rows arrived.
+function porRangoYBuzon(a: Fila, b: Fila): number {
   const rol = (f: Fila) =>
     f.tipo === "usuario" ? f.usuario.role : f.invitacion.rol;
   const email = (f: Fila) =>
     f.tipo === "usuario" ? f.usuario.email : f.invitacion.email;
 
-  const la = lugar(a),
-    lb = lugar(b);
-  if (!la !== !lb) return la ? 1 : -1;
   return (
-    (la && lb ? territorio(la).localeCompare(territorio(lb), "es") : 0) ||
-    RANGO[rol(a)] - RANGO[rol(b)] ||
-    email(a).localeCompare(email(b), "es")
+    RANGO[rol(a)] - RANGO[rol(b)] || email(a).localeCompare(email(b), "es")
   );
 }
 
 function textoBuscable(f: Fila): string {
-  if (f.tipo === "invitacion") {
-    return `${f.invitacion.email} ${territorio(f.invitacion.diocesisLocalidad)}`;
-  }
+  if (f.tipo === "invitacion") return f.invitacion.email;
   const u = f.usuario;
-  return `${u.email} ${u.displayName ?? ""} ${territorio(u.diocesisLocalidad)}`;
+  return `${u.email} ${u.displayName ?? ""}`;
 }
 
 /** «Río Cuarto» is found by «rio cuarto»: nobody types the accent on a phone. */

@@ -189,9 +189,9 @@ export default async function MisioneroPage({
                   </p>
                 )}
 
-                {/* A territory, never a person: Referentes Locales share one
-                    login per territory, so this is where it was registered and
-                    not who registered it. */}
+                {/* A login, never a person: a Buzón is shared by everybody
+                    who does one function, so this cannot say who registered
+                    it. */}
                 <p className="text-base text-tinta-suave">{registro(a)}</p>
               </li>
             ))}

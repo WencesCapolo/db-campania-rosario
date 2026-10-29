@@ -72,7 +72,7 @@ export const PROVINCIAS_SEED: readonly ProvinciaSeed[] = [
  *                   and Mercedes are R. PAM.
  *
  * The names are transcribed as the Campaña writes them, abbreviations and all
- * ("Arq. Salta", "Cdel EJE", "9 de julio/Pehuajo"). They are what a Referente
+ * ("Arq. Salta", "Cdel EJE", "9 de julio/Pehuajo"). They are what somebody
  * will look for in the picker, and tidying them into official diocesan titles
  * would make the list harder to use, not easier.
  *

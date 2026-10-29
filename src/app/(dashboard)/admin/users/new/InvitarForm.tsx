@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { invitarAction } from "@/modules/invitacion/invitacion.router";
 import { invitarSchema } from "@/modules/invitacion/invitacion.types";
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
@@ -10,24 +9,15 @@ import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
-import { ROLE_LABELS, llevaTerritorio } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/permissions";
 import type { Role } from "@/modules/user/user.schema";
 
 /**
  * Invitar a alguien — user stories 7 through 11.
  *
  * The rol list is the one the Actor may actually hand out, resolved on the
- * server, so the form cannot offer an escalation the service would refuse. The
- * territory picker appears only for the two territorial rols: an Asesor Nacional
- * covers the country and giving them a Diócesis would imply a bound that does not
- * exist.
- *
- * `llevaTerritorio` comes from `lib/permissions` now rather than from a
- * `CON_TERRITORIO` array in this file. `EditarUsuario` needs the same question
- * answered, and a rol added to the enum but missed in one of two copies of that
- * list produces a Usuario with no territory — which `derivarAlcance` then refuses
- * on every request. A form that successfully creates an account nobody can use is
- * a worse failure than one that will not submit.
+ * server, so the form cannot offer an escalation the service would refuse. There
+ * is no territory to choose: every rol covers the country (ADR 0016).
  *
  * On the primitives, and one thing that was wrong is fixed rather than restyled:
  * the failure and the confirmation were both `text-neutral-900` paragraphs, so
@@ -47,9 +37,6 @@ export default function InvitarForm({
   const [rol, setRol] = useState<Role>(
     rolesDisponibles[rolesDisponibles.length - 1] ?? "dirigente_joven",
   );
-  const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
-    null,
-  );
   const [error, setError] = useState<string | null>(null);
   const [invitado, setInvitado] = useState<string | null>(null);
 
@@ -58,19 +45,13 @@ export default function InvitarForm({
   // dot. Checked as the field is left, against the schema the router parses.
   const validacion = useValidacionAlSalir(invitarSchema);
 
-  const necesitaTerritorio = llevaTerritorio(rol);
-
   function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     setError(null);
     setInvitado(null);
 
     iniciar(async () => {
-      const resultado = await invitarAction({
-        email,
-        rol,
-        diocesisLocalidadId: necesitaTerritorio ? diocesisLocalidadId : null,
-      });
+      const resultado = await invitarAction({ email, rol });
 
       if (!resultado.ok) {
         setError(resultado.error);
@@ -139,19 +120,6 @@ export default function InvitarForm({
         }))}
         alElegir={(valor) => setRol(valor as Role)}
       />
-
-      {necesitaTerritorio ? (
-        <SelectorDeTerritorio
-          value={diocesisLocalidadId}
-          onChange={setDiocesisLocalidadId}
-        />
-      ) : (
-        <Mensaje tono="neutro">
-          <p>
-            Este rol cubre todo el país, así que no lleva Diócesis/Localidad.
-          </p>
-        </Mensaje>
-      )}
 
       <Boton type="submit" anchoCompleto disabled={enviando}>
         {enviando ? "Invitando…" : "Invitar"}

@@ -32,9 +32,11 @@ that reaches past the service is testing the plumbing rather than the rule.
 The `navegador` project is the one stated exception, and it is a different kind of
 question — see below and ADR 0006.
 
-**A scope filter change requires a test proving out-of-territory data stays
-invisible.** The negative half is the test: asserting that a Responsable
-Diocesano sees their own Diócesis passes just as well when they see everybody's.
+**A change to what a rol may write requires a test proving the write outside it
+is refused and leaves the record intact** — `src/lib/authorization/capacidades.test.ts`.
+The negative half is the test: asserting that a Dirigente Joven can load a `JOV`
+image passes just as well when they can load every Modalidad. There is no
+territorial scope to test any more: every rol reads the country (ADR 0016).
 
 ## How the harness works
 
@@ -90,44 +92,34 @@ const referente = await crearActor({
 
 `crearActor` inserts a real `users` row, because every entity carries
 `createdById` as a foreign key. `crearActorDeSistema()` is the explicit stand-in
-for genuinely unscoped work — seeds, migrations, cron — per ADR 0001.
+for work with no Usuario behind it — seeds, migrations, cron — per ADR 0001.
 
 `crearTerritorioDePrueba()` builds two Provincias in different Regiones, each
-with two Diócesis. Deliberately a country and not a single territory: a scoping
-test with only one Provincia in the database cannot prove the other one stays
-invisible. And two Diócesis *within* one Provincia, because data is scoped to the
-Diócesis while selection lists reach the whole Provincia — a suite that only ever
-looked at the other Provincia would pass on a provincial scope.
+with two Diócesis. Deliberately a country and not a single territory: a territory
+filter tested with only one Provincia in the database cannot prove it narrows
+anything.
 
 `crearActor` also inserts the identity Neon Auth would hold, so emails resolve.
 Pass `sinIdentidad` to build the orphan ADR 0002 describes, and `crearIdentidad`
 for the opposite case: somebody the provider knows and the Campaña does not.
 
-A lower rol with no `diocesisLocalidadId` is buildable on purpose. That pairing is
-what authorization has to fail closed on, and a factory that refused to construct
-it would make the rule untestable.
+## The capacidades matrix
 
-## The scoping matrix
+`src/lib/authorization/capacidades.test.ts` is the suite that must never be
+skipped: every rol, against every write a Modalidad bounds and every piece of
+configuration, asserting both halves — the write that is allowed, and the one that
+is refused *and leaves the record intact*. If a rule there changes and the file
+still passes unchanged, suspect the test rather than the change. It replaced the
+three `*.alcance.test.ts` files when ADR 0016 made every rol country-wide.
 
-`peregrina.alcance.test.ts`, `misionero.alcance.test.ts` and
-`asignacion.alcance.test.ts` are the suite issue #2 exists for: every rol, against
-every read and every write, asserting both halves. They must never be skipped. If a
-scope filter changes and these still pass unchanged, suspect the test rather than
-the change.
+`asignacion.matrimonio.test.ts` keeps the other negative that matters: every read
+that resolves a Tenedor reaches a Matrimonio's images, because a query that joins
+the Misionero leg and forgets the couple's returns fewer rows and no error.
 
-The Asignación matrix is a separate file rather than a section, because it is the
-one that can fail differently. An Asignación has no territory of its own and is
-scoped through its Peregrina's (ADR 0004), so the filter lands on a joined row and
-a Peregrina that moves Diócesis takes its history with it — asserted there as
-behaviour, not left as a surprise.
-
-`peregrina.paginacion.test.ts` and `misionero.paginacion.test.ts` extend that matrix to
-the two parameters pagination adds. Both run after the `Alcance`, so both are asserted
-as negatives: a Referente Local paging through their Diócesis reaches no row from the
-next one, in any page and not in the total either. The other three assertions are about
-the ways a paginated list lies — a row on two pages or on none (the pages are compared
-against the unpaginated read), a total that is really the page size, and a page past the
-end answered with an empty list instead of the last one.
+`peregrina.paginacion.test.ts` and `misionero.paginacion.test.ts` are about the ways a
+paginated list lies — a row on two pages or on none (the pages are compared against
+the unpaginated read), a total that is really the page size, and a page past the end
+answered with an empty list instead of the last one.
 
 ## The invariant
 

@@ -8,9 +8,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { users, roleEnum } from "@/db/schema/users";
-import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
-// ↑ One-way imports: invitacion → user, invitacion → territorio. Neither knows
-//   about invitations, which is what keeps Actor resolution free of a cycle.
+// ↑ One-way import: invitacion → user. It knows nothing about invitations,
+//   which is what keeps Actor resolution free of a cycle.
 
 // ── Estado ────────────────────────────────────────────────────────────────────
 // An invitation is a record with a life, not a boolean. `pendiente` is waiting
@@ -28,8 +27,7 @@ export type InvitacionEstado = (typeof invitacionEstadoEnum.enumValues)[number];
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 // Nobody self-registers. A Usuario exists because a Usuario of higher rank
-// invited them, and this table is the evidence: who invited whom, to what rol,
-// into which territory.
+// invited them, and this table is the evidence: who invited whom, to what rol.
 //
 // Note that the Rol enum is `roleEnum`, imported rather than redefined — one
 // hierarchy, one enum, so an invitation cannot offer a rol the users table
@@ -48,12 +46,6 @@ export const invitacion = pgTable(
     email: text("email").notNull(),
 
     rol: roleEnum("rol").notNull(),
-
-    // Null for the two country-wide rols, required for the other two. Enforced
-    // in the service, where the rol is known — see InvitacionService.invitar.
-    diocesisLocalidadId: text("diocesis_localidad_id").references(
-      () => diocesisLocalidad.id
-    ),
 
     estado: invitacionEstadoEnum("estado").notNull().default("pendiente"),
 
@@ -85,10 +77,8 @@ export const invitacion = pgTable(
       .on(t.email)
       .where(sql`${t.estado} = 'pendiente'`),
 
-    // The pending-invitations screen filters by estado, and a Responsable
-    // Diocesano's list is filtered by territory.
+    // The pending-invitations screen filters by estado.
     index("invitacion_estado_idx").on(t.estado),
-    index("invitacion_diocesis_localidad_idx").on(t.diocesisLocalidadId),
   ]
 );
 
@@ -104,10 +94,6 @@ export const invitacionRelations = relations(invitacion, ({ one }) => ({
     fields: [invitacion.usuarioId],
     references: [users.id],
     relationName: "invitacionUsuario",
-  }),
-  diocesisLocalidad: one(diocesisLocalidad, {
-    fields: [invitacion.diocesisLocalidadId],
-    references: [diocesisLocalidad.id],
   }),
 }));
 

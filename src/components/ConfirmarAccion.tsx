@@ -14,9 +14,9 @@ import type { ActionResult } from "@/lib/action-result";
  * `sujeto` is required: the Peregrina's Código, the Misionero's name, or — on the
  * account screens, and only there — the email an access belongs to.
  *
- * The distinction is worth keeping straight, because Referentes Locales share one
- * login per territory. A sentence that names an account while *attributing* an
- * action names a place and appears to name a person; that is why `registro()`
+ * The distinction is worth keeping straight, because a Buzón is shared by
+ * everybody who does one function (ADR 0016). A sentence that names an account
+ * while *attributing* an action names a function and appears to name a person; that is why `registro()`
  * exists and why `RegistroDTO` has no name in it. Administering the account is
  * the one case where the account genuinely is the subject, and the copy there
  * says "el acceso de …" rather than treating the email as somebody's name.

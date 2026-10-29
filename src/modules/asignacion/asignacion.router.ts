@@ -81,8 +81,9 @@ export async function getPeregrinasNuncaAsignadasAction(): Promise<
  * personas hasta que se lo rekeyeó, y entonces una pareja sin imagen figuraba dos
  * veces en una tarjeta que dice contar a quienes pueden recibir una.
  *
- * Scoped por el territorio del *Tenedor* y no por el de una imagen: la pregunta
- * es quién de acá podría recibir una. El de un matrimonio es el del esposo A.
+ * Filtrada por el territorio del *Tenedor* y no por el de una imagen: la
+ * pregunta es quién de acá podría recibir una. El de un matrimonio es el del
+ * esposo A.
  */
 export async function getTenedoresSinPeregrinaAction(): Promise<
   TenedorResueltoDTO[]
@@ -95,7 +96,7 @@ export async function getTenedoresSinPeregrinaAction(): Promise<
  * Los Tenedores que tienen alguna imagen a cargo — el filtro «sólo los que
  * tienen alguna» del listado.
  *
- * El mismo scope que su gemela: por el territorio del *Tenedor*. Una Peregrina
+ * El mismo filtro que su gemela: por el territorio del *Tenedor*. Una Peregrina
  * que se movió de Diócesis sigue estando en la casa donde está.
  */
 export async function getTenedoresConPeregrinaAction(): Promise<

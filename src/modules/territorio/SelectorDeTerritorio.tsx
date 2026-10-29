@@ -16,9 +16,8 @@ import type { DiocesisLocalidadDTO, ProvinciaDTO } from "./territorio.types";
  * and Región are shown, derived, read-only. There is no way to enter a
  * contradictory combination because there is nothing to enter.
  *
- * A Provincia select appears only when the Actor can see more than one — for a
- * Referente Local it would be a list of one, and a control with one option is
- * noise. An Asesor Nacional gets it, because their list is the country.
+ * A Provincia select appears only when there is more than one — a control with
+ * one option is noise. Every list is the country.
  *
  * Through `Eleccion`, which is our own dropdown since ADR 0015: typing a name's
  * first letters jumps to it, which is what a list of 25 Diócesis needs. On the
@@ -29,11 +28,9 @@ import type { DiocesisLocalidadDTO, ProvinciaDTO } from "./territorio.types";
  * `<dl>` associated by an id it built itself.
  *
  * The three states go through the shared components, and the distinction they
- * enforce is the one that matters here: the wide read this makes reaches one
- * level past the Actor's own territory, to their Provincia, so a picker is not a
- * list of one. A refusal is still a refusal — it lands on `PanelDeError` with a
- * retry, never on `Vacio`, because "no hay Diócesis en tu territorio" told to
- * somebody who was refused is a different sentence from the truth.
+ * enforce is the one that matters here: a refusal is a refusal — it lands on
+ * `PanelDeError` with a retry, never on `Vacio`, because "no hay Diócesis" told
+ * to somebody who was refused is a different sentence from the truth.
  */
 
 interface Props {
@@ -116,7 +113,7 @@ export default function SelectorDeTerritorio({
     return (
       <Vacio
         titulo="No hay Diócesis/Localidades cargadas"
-        mensaje="Todavía no hay ninguna en tu territorio. Pedile a un Asesor Nacional que agregue la tuya."
+        mensaje="Todavía no hay ninguna. Pedile a un Asesor Nacional que agregue la tuya."
       />
     );
   }

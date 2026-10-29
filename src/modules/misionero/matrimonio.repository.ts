@@ -10,7 +10,6 @@ import {
   diocesisLocalidad,
   provincia,
 } from "@/modules/territorio/territorio.schema";
-import type { Alcance } from "@/lib/authorization/alcance";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import type {
   MisioneroConTerritorio,
@@ -100,34 +99,21 @@ function armar(fila: {
   };
 }
 
-/**
- * The Actor's territorial filter, as SQL.
- *
- * A Matrimonio has no `diocesis_localidad_id` of its own — ADR 0010 — so the
- * scope lands on spouse A, who supplies the couple's territory. That is well
- * defined only because both spouses share a Diócesis by construction: the form
- * enters it once, and `MatrimonioService.create` writes it to both rows in the
- * same transaction.
- */
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(esposoA.diocesisLocalidadId, alcance.diocesisLocalidadId);
-}
-
-function conAlcance(
-  alcance: Alcance,
-  opts: OpcionesDeLectura,
-  ...extras: (SQL | undefined)[]
-) {
-  const filtros = [
-    condicionDeAlcance(alcance),
+/** The baja exclusion, unless asked for, plus whatever the read narrows by. */
+function vigentes(opts: OpcionesDeLectura, ...extras: (SQL | undefined)[]) {
+  return and(
     opts.incluirBajas ? undefined : isNull(matrimonio.bajaAt),
-    ...extras,
-  ].filter((f) => f !== undefined);
-  return filtros.length ? and(...filtros) : undefined;
+    ...extras
+  );
 }
 
+/**
+ * The territorial filters, as SQL. A Matrimonio has no `diocesis_localidad_id`
+ * of its own — ADR 0010 — so they land on spouse A, who supplies the couple's
+ * territory. That is well defined only because both spouses share a Diócesis by
+ * construction: the form enters it once, and `MatrimonioService.create` writes
+ * it to both rows in the same transaction.
+ */
 function condicionDeFiltros(
   filtros: FiltrosTerritoriales
 ): (SQL | undefined)[] {
@@ -140,7 +126,7 @@ function condicionDeFiltros(
 }
 
 /**
- * The couple's whole predicate: Alcance, territory, and a search that has to hit
+ * The couple's whole predicate: baja, territory, and a search that has to hit
  * **either** spouse.
  *
  * Searching only spouse A would mean "Benítez" never finds "Ana Álvarez y Juan
@@ -148,13 +134,11 @@ function condicionDeFiltros(
  * was entered first — which is the confusion this whole feature exists to end.
  */
 function condicionDeListado(
-  alcance: Alcance,
   filtros: FiltrosTerritoriales & { q?: string },
   opts: OpcionesDeLectura
 ) {
   const termino = filtros.q?.trim();
-  return conAlcance(
-    alcance,
+  return vigentes(
     opts,
     ...condicionDeFiltros(filtros),
     termino
@@ -178,36 +162,21 @@ const TOTAL = sql<number>`cast(count(*) as int)`;
  * Responsibility: raw database access for the `matrimonio` table.
  * No business logic. No permission checks. Excludes couples given de baja by
  * default.
- *
- * Every read takes an `Alcance` first, required, so a read added later cannot
- * quietly omit the scope — it fails to compile instead.
  */
 export class MatrimonioRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Pass `incluirBajas` to reach one given de baja — a Matrimonio that has
+   * ended is still a row a write may have just touched.
+   */
   static async findById(
-    alcance: Alcance,
     id: string,
     opts: OpcionesDeLectura = {}
   ): Promise<MatrimonioConEsposos | undefined> {
     const [row] = await conEsposos()
-      .where(conAlcance(alcance, opts, eq(matrimonio.id, id)))
+      .where(vigentes(opts, eq(matrimonio.id, id)))
       .limit(1);
-    return row ? armar(row) : undefined;
-  }
-
-  /**
-   * The row regardless of territory, so a mutation can tell "does not exist"
-   * apart from "not yours" before refusing. A primary-key lookup, named to make
-   * the bypass visible; its callers compare the territory immediately.
-   *
-   * Includes couples given de baja — a Matrimonio that has ended is still a row
-   * a write may have just touched.
-   */
-  static async findByIdSinAlcance(
-    id: string
-  ): Promise<MatrimonioConEsposos | undefined> {
-    const [row] = await conEsposos().where(eq(matrimonio.id, id)).limit(1);
     return row ? armar(row) : undefined;
   }
 
@@ -229,16 +198,13 @@ export class MatrimonioRepository {
    * here — no code has to do it on purpose.
    */
   static async deMisionero(
-    alcance: Alcance,
     misioneroId: string
   ): Promise<MatrimonioRow | null> {
     const [row] = await db
       .select({ matrimonio })
       .from(matrimonio)
-      .innerJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
       .where(
-        conAlcance(
-          alcance,
+        vigentes(
           {},
           or(
             eq(matrimonio.misioneroAId, misioneroId),
@@ -252,31 +218,27 @@ export class MatrimonioRepository {
 
   /**
    * Hydration for the roster's marriage leg — the ids come from a union that has
-   * already applied the Alcance, and the order comes from there too, so this
-   * read neither scopes nor sorts on its own account. The Alcance is still taken
-   * and still applied: a read that could be called with an unscoped intent is a
-   * read somebody will call that way.
+   * already applied the filters, and the order comes from there too, so this
+   * read neither filters nor sorts on its own account.
    */
   static async findByIds(
-    alcance: Alcance,
     ids: string[],
     opts: OpcionesDeLectura = {}
   ): Promise<MatrimonioConEsposos[]> {
     if (ids.length === 0) return [];
     const filas = await conEsposos().where(
-      conAlcance(alcance, opts, inArray(matrimonio.id, ids))
+      vigentes(opts, inArray(matrimonio.id, ids))
     );
     return filas.map(armar);
   }
 
   static async findFiltrados(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales & { q?: string },
     opts: OpcionesDeLectura = {},
     paginacion?: { limit: number; offset: number }
   ): Promise<MatrimonioConEsposos[]> {
     const consulta = conEsposos()
-      .where(condicionDeListado(alcance, filtros, opts))
+      .where(condicionDeListado(filtros, opts))
       .orderBy(asc(esposoA.apellido), asc(esposoA.nombre), asc(matrimonio.id));
 
     const filas = await (paginacion
@@ -288,7 +250,6 @@ export class MatrimonioRepository {
 
   /** The same predicate as `findFiltrados`, counted in the database. */
   static async contarFiltrados(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales & { q?: string },
     opts: OpcionesDeLectura = {}
   ): Promise<number> {
@@ -298,7 +259,7 @@ export class MatrimonioRepository {
       .innerJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
       .innerJoin(diocesisA, eq(diocesisA.id, esposoA.diocesisLocalidadId))
       .innerJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId))
-      .where(condicionDeListado(alcance, filtros, opts));
+      .where(condicionDeListado(filtros, opts));
     return row?.total ?? 0;
   }
 

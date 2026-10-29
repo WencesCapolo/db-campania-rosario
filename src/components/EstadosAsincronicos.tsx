@@ -9,12 +9,10 @@ import Boton from "./Boton";
  *
  *   **A refusal is an error, never an empty list.**
  *
- * That is the sharpest collision between this work and issue #2. Reads throw
- * rather than returning `[]`, so a `NoAutorizadoError` arrives on the error
- * path. Rendering it as "no hay Peregrinas" would be two lies at once: it tells
- * somebody whose Actor was refused that their territory is empty, and it
- * confirms to somebody probing another territory that the territory exists and
- * has nothing in it — which issue #2 deliberately declined to confirm.
+ * Reads throw rather than returning `[]`, so a `NoAutorizadoError` arrives on
+ * the error path. Rendering it as "no hay Peregrinas" would be a lie: it tells
+ * somebody whose Actor was refused that there is nothing there, when there is
+ * something they may not do.
  *
  * The trap is not this file, it is the call site. A `try/catch` around a server
  * component read that falls back to `[]` collapses the distinction before these
@@ -61,12 +59,11 @@ export function Cargando({
  * The wording stays general on purpose. This renders authorization refusals as
  * well as genuine failures, and it cannot reliably tell them apart — Next
  * replaces a server error's message with a digest in production. Copy that
- * guessed would be wrong as often as right, and a wrong guess here is the
- * disclosure issue #2 refused to make.
+ * guessed would be wrong as often as right.
  */
 export function PanelDeError({
   titulo = "No se pudo mostrar",
-  mensaje = "Puede ser que eso pertenezca a otro territorio, o que algo haya fallado al buscarlo. Si es de tu Diócesis/Localidad y sigue sin aparecer, avisale a un Asesor Nacional.",
+  mensaje = "Puede ser que eso ya no exista, o que algo haya fallado al buscarlo. Si sigue sin aparecer, avisale a un Asesor Nacional.",
   alReintentar,
   referencia,
 }: {

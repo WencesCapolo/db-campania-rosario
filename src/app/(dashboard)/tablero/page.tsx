@@ -1,7 +1,5 @@
 import { Suspense, cache } from "react";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/get-current-user";
-import { esNacional } from "@/lib/authorization/alcance";
 import { getTableroAction } from "@/modules/tablero/tablero.router";
 import { getDiocesisLocalidadesAction } from "@/modules/territorio/territorio.router";
 import {
@@ -39,10 +37,9 @@ import {
  * `Suspense` is what makes story 25 true: the shell, the heading and the filters
  * paint immediately and the figures stream in behind a skeleton.
  *
- * The read is deliberately not wrapped in a try. A refusal — a rol with no
- * territory, or a crafted `?diocesisLocalidadId=` — reaches `error.tsx`. A
- * tablero of zeros in its place would say "your Campaña is empty" to somebody who
- * was refused.
+ * The read is deliberately not wrapped in a try. A failure reaches `error.tsx`.
+ * A tablero of zeros in its place would say "your Campaña is empty" to somebody
+ * whose read failed.
  */
 
 export const dynamic = "force-dynamic";
@@ -60,15 +57,10 @@ export default async function TableroPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filtros = filtrosDesdeParams(await searchParams);
-  const actor = await getCurrentUser();
-  const nacional = esNacional(actor.role);
-
-  const territorios = nacional
-    ? (await getDiocesisLocalidadesAction()).map((d) => ({
-        id: d.id,
-        nombre: d.nombre,
-      }))
-    : null;
+  const territorios = (await getDiocesisLocalidadesAction()).map((d) => ({
+    id: d.id,
+    nombre: d.nombre,
+  }));
 
   return (
     <div className="flex-1 bg-lienzo">
@@ -78,7 +70,7 @@ export default async function TableroPage({
             Tablero
           </h1>
           <p className="mt-1 text-lg text-tinta-suave">
-            {nacional ? "Toda la Campaña" : "Tu territorio"}
+            Toda la Campaña
             <Suspense key={comoQueryString(filtros)} fallback={null}>
               <Total filtros={filtros} />
             </Suspense>
@@ -143,40 +135,36 @@ async function Cifras({ filtros }: { filtros: Filtros }) {
         vacio="Ninguna imagen coincide con los filtros."
       />
 
-      {tablero.porProvincia && (
+      <Barras
+        titulo="Por Provincia"
+        nota="La Provincia sale de la Diócesis de cada imagen."
+        total={total}
+        barras={tablero.porProvincia.map((fila) => ({
+          etiqueta: fila.nombre,
+          valor: fila.total,
+        }))}
+        vacio="Ninguna imagen coincide con los filtros."
+      />
+
+      <div className="sm:col-span-2">
         <Barras
-          titulo="Por Provincia"
-          nota="La Provincia sale de la Diócesis de cada imagen."
+          titulo="Por Diócesis/Localidad"
+          nota={
+            tablero.porDiocesis.length === 1
+              ? "Una con imágenes."
+              : `${tablero.porDiocesis.length} con imágenes.`
+          }
           total={total}
-          barras={tablero.porProvincia.map((fila) => ({
+          visibles={FILAS_DE_ENTRADA}
+          barras={tablero.porDiocesis.map((fila) => ({
             etiqueta: fila.nombre,
+            detalle: fila.provincia,
             valor: fila.total,
+            href: enlace({ diocesisLocalidadId: fila.diocesisLocalidadId }),
           }))}
           vacio="Ninguna imagen coincide con los filtros."
         />
-      )}
-
-      {tablero.porDiocesis && (
-        <div className="sm:col-span-2">
-          <Barras
-            titulo="Por Diócesis/Localidad"
-            nota={
-              tablero.porDiocesis.length === 1
-                ? "Una con imágenes."
-                : `${tablero.porDiocesis.length} con imágenes.`
-            }
-            total={total}
-            visibles={FILAS_DE_ENTRADA}
-            barras={tablero.porDiocesis.map((fila) => ({
-              etiqueta: fila.nombre,
-              detalle: fila.provincia,
-              valor: fila.total,
-              href: enlace({ diocesisLocalidadId: fila.diocesisLocalidadId }),
-            }))}
-            vacio="Ninguna imagen coincide con los filtros."
-          />
-        </div>
-      )}
+      </div>
     </div>
   );
 }

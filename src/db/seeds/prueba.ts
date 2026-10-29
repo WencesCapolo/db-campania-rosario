@@ -31,7 +31,7 @@ import type { Modalidad } from "@/modules/peregrina/peregrina.schema";
  * las reglas mienten sobre las pantallas que se querían mirar.
  *
  * Corre como `ACTOR_DE_SISTEMA` (ADR 0001), que es lo que hace visible que un
- * seed es trabajo genuinamente sin alcance territorial.
+ * seed es trabajo sin un Usuario detrás.
  *
  *   pnpm db:seed:prueba          # sembrar
  *   pnpm db:seed:prueba:borrar   # borrar todo lo sembrado
@@ -214,7 +214,7 @@ export async function seedPrueba(actor: CurrentUser): Promise<void> {
   // tarjeta «Sin cambiar de manos» tenga algo que mostrar. Se corrige la fecha
   // de apertura con `corregir`, que es la única manera de fabricar antigüedad
   // sin escribir la tabla por fuera del servicio — y deja su marca de corrección,
-  // que es exactamente lo que haría un Referente arreglando una fecha mal puesta.
+  // que es exactamente lo que haría un Responsable arreglando una fecha mal puesta.
   const antiguedades: [number, number][] = [
     [6, 420],
     [9, 260],

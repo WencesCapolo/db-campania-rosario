@@ -2,64 +2,19 @@ import { db } from "@/db";
 import { and, asc, eq } from "drizzle-orm";
 import { invitacion } from "./invitacion.schema";
 import type { InvitacionRow, NewInvitacionRow } from "./invitacion.schema";
-import {
-  diocesisLocalidad,
-  provincia,
-} from "@/modules/territorio/territorio.schema";
-import type {
-  DiocesisLocalidadRow,
-  ProvinciaRow,
-} from "@/modules/territorio/territorio.schema";
-import type { Alcance } from "@/lib/authorization/alcance";
-
-/**
- * An invitation travels with its territory resolved, when it has one, so the
- * pending-invitations list can name the Diócesis instead of showing an id.
- * `diocesis` is null for the two country-wide rols — hence a left join.
- */
-export interface InvitacionConTerritorio {
-  invitacion: InvitacionRow;
-  diocesis: DiocesisLocalidadRow | null;
-  provincia: ProvinciaRow | null;
-}
-
-function conTerritorio() {
-  return db
-    .select({ invitacion, diocesis: diocesisLocalidad, provincia })
-    .from(invitacion)
-    .leftJoin(
-      diocesisLocalidad,
-      eq(diocesisLocalidad.id, invitacion.diocesisLocalidadId)
-    )
-    .leftJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
-}
-
-/**
- * The territorial filter, as SQL.
- *
- * A scoped Actor sees invitations into their own Diócesis. Invitations with no
- * territory belong to the two nacional rols, which a scoped Actor can neither
- * issue nor manage, so they stay out of the list.
- */
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(invitacion.diocesisLocalidadId, alcance.diocesisLocalidadId);
-}
 
 /**
  * InvitacionRepository
  *
  * Responsibility: raw database access for the `invitacion` table.
- * No business logic. No permission checks — the scope it filters by is derived
- * by the service and handed in.
+ * No business logic. No permission checks.
  */
 export class InvitacionRepository {
   /**
    * The live invitation for an email, if there is one.
    *
-   * Not scoped, and deliberately so: this is the lookup that runs when somebody
-   * signs in for the first time, before they have a rol or a territory at all.
+   * This is the lookup that runs when somebody signs in for the first time,
+   * before they have a rol at all.
    */
   static async findPendientePorEmail(
     email: string
@@ -72,31 +27,21 @@ export class InvitacionRepository {
     return row;
   }
 
-  static async findById(
-    alcance: Alcance,
-    id: string
-  ): Promise<InvitacionConTerritorio | undefined> {
-    const filtros = [eq(invitacion.id, id), condicionDeAlcance(alcance)].filter(
-      (f) => f !== undefined
-    );
-
-    const [row] = await conTerritorio()
-      .where(and(...filtros))
+  static async findById(id: string): Promise<InvitacionRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(invitacion)
+      .where(eq(invitacion.id, id))
       .limit(1);
     return row;
   }
 
   /** Every invitation still waiting for a first sign-in — user story 13. */
-  static async findPendientes(
-    alcance: Alcance
-  ): Promise<InvitacionConTerritorio[]> {
-    const filtros = [
-      eq(invitacion.estado, "pendiente"),
-      condicionDeAlcance(alcance),
-    ].filter((f) => f !== undefined);
-
-    return conTerritorio()
-      .where(and(...filtros))
+  static async findPendientes(): Promise<InvitacionRow[]> {
+    return db
+      .select()
+      .from(invitacion)
+      .where(eq(invitacion.estado, "pendiente"))
       .orderBy(asc(invitacion.createdAt));
   }
 

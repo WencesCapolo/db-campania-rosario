@@ -41,7 +41,7 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 
 The baseline's geography and vocabulary are better researched than `agents.md` was, and were adopted. Four gaps were found that it does not cover:
 
-1. ~~**No territorial scoping.**~~ Closed by issue 2: every service takes the Actor first, every repository read takes the derived `Alcance` first, and both lower rols are bounded by their Diócesis/Localidad.
+1. ~~**No territorial scoping.**~~ Closed by issue 2: every service takes the Actor first, every repository read takes the derived `Alcance` first, and both lower rols are bounded by their Diócesis/Localidad. Superseded by ADR 0016: every rol reads the country, the Modalidad bounds writes, and `Alcance` was removed.
 2. ~~**Self-provisioning.**~~ Closed by issue 2: an identity with no application record is refused, and Usuarios come into existence only by accepting an invitation — ADR 0003.
 3. ~~**No history.**~~ Closed by issue 3: an Asignación is a period, the chain of custody accumulates, and a Peregrina has at most one open Asignación — in the service and in the database (ADR 0004).
 4. ~~**Physical deletion.**~~ Closed by issue 3: soft delete on Peregrina, Misionero and Usuario, refused while an Asignación is open.

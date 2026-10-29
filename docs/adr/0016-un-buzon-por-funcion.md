@@ -34,6 +34,7 @@ Dos Buzones compartidos, uno por función:
 - **«Registrada por» deja de decir dónde.** Una Asignación muestra el territorio del Usuario que la registró, y estos cuatro rols no tienen. Se aceptó a sabiendas: con un Buzón compartido, el registro no podía decir *quién* y ahora tampoco dice *dónde*. Las Asignaciones viejas siguen resolviendo.
 - **El registro de denegaciones** anota rol y operación. El territorio del Actor queda siempre en null.
 - **El filtro territorial queda sin rol que lo use.** La rama `diocesis` de `Alcance`, el fail-closed por falta de territorio y el par rol↔territorio de las Invitaciones siguen en el código, pero ningún rol llega a ellos. Sacarlos es un paso aparte, para que este cambio de permisos se lea limpio.
+- **Y después se sacó.** En el paso siguiente se borró `Alcance` entero (`derivarAlcance`, `exigirDentroDelAlcance` y compañía): ningún repositorio recibe un alcance, ningún servicio lo deriva, y las listas de selección son el país. Se fueron también el motivo `sin-territorio`, las columnas `diocesis_localidad_id` de `users` y de `invitacion` (migración 0015), los campos de territorio del registro de denegaciones y los selectores de territorio de Usuarios. Un territorio es sólo un filtro que alguien elige; la autorización que queda vive entera en `lib/authorization/capacidades.ts`.
 
 ## Opciones consideradas
 

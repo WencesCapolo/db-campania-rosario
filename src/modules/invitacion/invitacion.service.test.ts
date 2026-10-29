@@ -95,7 +95,7 @@ describe("quién puede invitar a quién — historias 7 a 11", () => {
 });
 
 describe("aceptar una invitación", () => {
-  it("crea el Usuario con el rol invitado, sin territorio", async () => {
+  it("crea el Usuario con el rol invitado", async () => {
     await InvitacionService.invitar(asesor, {
       email: "recien.llegado@ejemplo.test",
       rol: "dirigente_joven",
@@ -107,7 +107,6 @@ describe("aceptar una invitación", () => {
     const actor = await InvitacionService.aceptarSiHayPendiente(identidad);
 
     expect(actor?.role).toBe("dirigente_joven");
-    expect(actor?.diocesisLocalidadId).toBeNull();
   });
 
   it("el id del Usuario es el de la identidad, así que la sesión lo encuentra", async () => {

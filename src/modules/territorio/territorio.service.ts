@@ -15,7 +15,6 @@ import type {
   UsoTerritorio,
 } from "./territorio.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import { esNacional } from "@/lib/authorization/alcance";
 import { configura } from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
@@ -30,24 +29,12 @@ import {
  *
  * Responsibility: the Campaña's territorial reference data.
  *
- * Every method takes the Actor first and derives its own scope — ADR 0001.
- * There is no signature here that permits an unscoped listing.
+ * Every method takes the Actor first — ADR 0001.
  *
  * Reads are available to every authenticated Actor, because everyone needs the
- * selection lists to enter a record at all. What differs is *how much* of the
- * list they get. Writes are Asesor Nacional and above, so the canonical list
- * cannot drift.
- *
- * **A deliberate divergence, decided in issue #2 rather than inherited from
- * issue #1.** Peregrina and Misionero data is scoped to the Actor's own
- * Diócesis/Localidad. The *selection lists* here are scoped one level wider, to
- * their Provincia. Two reasons, and neither is laziness: a picker containing
- * exactly one entry is not a picker, and a Referente Local registering a
- * Misionero venerating an image in the next town needs to be able to name that
- * town. What the wider list does *not* do is widen anything: the Diócesis a
- * Referente Local can *see in a list* is not a Diócesis whose records they can
- * read — `derivarAlcance` decides that, separately, and it stops at their own.
- * The PRD's scope table governs data; this governs vocabulary.
+ * selection lists to enter a record at all, and every list is the whole country
+ * (ADR 0016). Writes are Asesor Nacional and above, so the canonical list cannot
+ * drift.
  *
  * Región is deliberately absent from the write surface. The seven pastoral
  * regions are structure, not reference data — there is no method to add,
@@ -81,30 +68,14 @@ export class TerritorioService {
     throw new NoAutorizadoError(NO_AUTORIZADO_TERRITORIO);
   }
 
-  /**
-   * The Provincia a selection list is narrowed to, or null for a country-wide
-   * Actor. See the divergence note on the class.
-   */
-  private static async provinciaDelActor(
-    actor: CurrentUser
-  ): Promise<string | null> {
-    if (esNacional(actor.role)) return null;
-    if (!actor.diocesisLocalidadId) return null;
-
-    const propia = await TerritorioRepository.findDiocesisLocalidadById(
-      actor.diocesisLocalidadId
-    );
-    return propia?.provincia.id ?? null;
-  }
-
   // ── Reads ───────────────────────────────────────────────────────────────────
 
   /**
    * The seven pastoral regions. Fixed structure, identical for every Actor.
    *
    * The Actor is still the first parameter, even though the answer does not
-   * depend on it: ADR 0001 asks for no signature that permits an unscoped
-   * query, and an exception here would be one more shape to remember.
+   * depend on it: ADR 0001 asks that every service method take one, and an
+   * exception here would be one more shape to remember.
    */
   static listarRegiones(actor: CurrentUser): readonly Region[] {
     void actor;
@@ -112,61 +83,37 @@ export class TerritorioService {
   }
 
   static async listarProvincias(actor: CurrentUser): Promise<ProvinciaDTO[]> {
-    const provinciaId = await TerritorioService.provinciaDelActor(actor);
+    void actor;
     const rows = await TerritorioRepository.findProvincias();
-
-    const visibles = provinciaId
-      ? rows.filter((r) => r.id === provinciaId)
-      : rows;
-
-    return visibles.map(TerritorioService.toProvinciaDTO);
+    return rows.map(TerritorioService.toProvinciaDTO);
   }
 
   /**
    * The selection list a Usuario picks a territory from. Excludes anything
-   * given de baja, and never reaches outside the Actor's own Provincia.
+   * given de baja.
    */
   static async listarDiocesisLocalidades(
     actor: CurrentUser,
     filtros: { provinciaId?: string } = {}
   ): Promise<DiocesisLocalidadDTO[]> {
-    const propia = await TerritorioService.provinciaDelActor(actor);
-
-    // A scoped Actor asking for someone else's Provincia gets nothing, not
-    // everything — the filter narrows, it never widens.
-    if (propia && filtros.provinciaId && filtros.provinciaId !== propia) {
-      return [];
-    }
-
+    void actor;
     const rows = await TerritorioRepository.findDiocesisLocalidades({
-      provinciaId: propia ?? filtros.provinciaId,
+      provinciaId: filtros.provinciaId,
     });
 
     return rows.map(mapearDiocesisLocalidad);
   }
 
   /**
-   * Resolves one Diócesis/Localidad to its Provincia and Región.
-   *
-   * Narrowed to what the Actor may see, which it was not in issue #1: back then
-   * Peregrina and Misionero reads were open, so a record's territory had to
-   * resolve for anybody. Those reads are closed now, and a record an Actor can
-   * see arrives with its territory already joined in — so nothing legitimate
-   * needs this method to reach outside the Actor's Provincia, and it no longer
-   * does. Returns null for a Diócesis outside it, exactly as for one that does
-   * not exist.
+   * Resolves one Diócesis/Localidad to its Provincia and Región, or null for
+   * one that does not exist.
    */
   static async obtenerDiocesisLocalidad(
     actor: CurrentUser,
     id: string
   ): Promise<DiocesisLocalidadDTO | null> {
     const row = await TerritorioRepository.findDiocesisLocalidadById(id);
-    if (!row) return null;
-
-    const propia = await TerritorioService.provinciaDelActor(actor);
-    if (propia && row.provincia.id !== propia) return null;
-
-    return mapearDiocesisLocalidad(row);
+    return row ? mapearDiocesisLocalidad(row) : null;
   }
 
   /**
@@ -205,21 +152,6 @@ export class TerritorioService {
       diocesisBuscada
     );
     if (!encontrada) {
-      throw new NoEncontradoError(
-        `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`
-      );
-    }
-
-    // Same narrowing as obtenerDiocesisLocalidad: a name is a lookup key, and a
-    // lookup that reaches outside the Actor's Provincia is still a read.
-    const propia = await TerritorioService.provinciaDelActor(actor);
-    if (propia && encontrada.provincia.id !== propia) {
-      registrarDenegacion({
-        actor,
-        operacion: "TerritorioService.buscarPorNombre",
-        territorioSolicitado: encontrada.diocesis.id,
-        motivo: "búsqueda por nombre fuera de la Provincia del Actor",
-      });
       throw new NoEncontradoError(
         `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`
       );

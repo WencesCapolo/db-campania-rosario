@@ -104,7 +104,7 @@ export default function FlujoDeAsignacion({
   if (tenedores.length === 0) {
     return (
       <Vacio
-        titulo="Todavía no hay Misioneros en tu territorio"
+        titulo="Todavía no hay Misioneros cargados"
         mensaje="Una imagen se entrega a un Misionero o a un Matrimonio, así que hay que cargarlos primero."
         accion={
           <BotonEnlace href="/misionero/new">Cargar un Misionero</BotonEnlace>
@@ -116,7 +116,7 @@ export default function FlujoDeAsignacion({
   if (peregrinas.length === 0) {
     return (
       <Vacio
-        titulo="Todavía no hay Peregrinas en tu territorio"
+        titulo="Todavía no hay Peregrinas cargadas"
         mensaje="Registrá la imagen y su Código se genera solo. Después vas a poder entregarla."
         accion={
           <BotonEnlace href="/peregrina/new">
@@ -191,7 +191,7 @@ export default function FlujoDeAsignacion({
             opciones={opcionesDeTenedor}
             alElegir={setValor}
             sinCoincidencias={(b) =>
-              `Nadie se llama «${b}» en tu territorio. Revisá lo que escribiste, o cargalo desde «Cargar un Misionero».`
+              `Nadie se llama «${b}». Revisá lo que escribiste, o cargalo desde «Cargar un Misionero».`
             }
           />
 
@@ -220,7 +220,7 @@ export default function FlujoDeAsignacion({
             opciones={peregrinas.map((p) => opcionDePeregrina(p))}
             alElegir={setPeregrinaId}
             sinCoincidencias={(b) =>
-              `Ninguna Peregrina de tu territorio coincide con «${b}». Revisá lo que escribiste, o registrala desde «Registrar una Peregrina».`
+              `Ninguna Peregrina coincide con «${b}». Revisá lo que escribiste, o registrala desde «Registrar una Peregrina».`
             }
           />
 

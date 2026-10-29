@@ -1,18 +1,15 @@
 import Link from "next/link";
 import Mensaje from "@/components/Mensaje";
 import { auth } from "@/lib/auth/server";
-import {
-  CUENTA_DADA_DE_BAJA,
-  SIN_AUTORIZACION,
-  SIN_TERRITORIO_ASIGNADO,
-} from "@/lib/errors";
+import { CUENTA_DADA_DE_BAJA, SIN_AUTORIZACION } from "@/lib/errors";
+import type { MotivoDeRefusa } from "@/modules/user/user.service";
 
 /**
  * Where an authenticated person lands when they have no Usuario.
  *
  * This page exists because the alternative was worse: the baseline used to
- * create a `referente_local` row for anybody Neon Auth would issue a session
- * for, so authentication was enough to be authorized. Now they get told, in
+ * create a Usuario with the lowest rol for anybody Neon Auth would issue a
+ * session for, so authentication was enough to be authorized. Now they get told, in
  * Spanish, that provisioning is deliberate and who to ask.
  *
  * Outside the (dashboard) group on purpose — that layout calls getCurrentUser(),
@@ -39,10 +36,9 @@ import {
  * pantalla sobre no tener Actor no puede pedir uno.
  */
 
-const MENSAJES: Record<string, string> = {
+const MENSAJES: Record<MotivoDeRefusa, string> = {
   "sin-usuario": SIN_AUTORIZACION,
   "dado-de-baja": CUENTA_DADA_DE_BAJA,
-  "sin-territorio": SIN_TERRITORIO_ASIGNADO,
 };
 
 export const dynamic = "force-dynamic";
@@ -53,7 +49,10 @@ export default async function SinAutorizacionPage({
   searchParams: Promise<{ motivo?: string }>;
 }) {
   const { motivo } = await searchParams;
-  const mensaje = MENSAJES[motivo ?? ""] ?? SIN_AUTORIZACION;
+  const mensaje =
+    motivo === "sin-usuario" || motivo === "dado-de-baja"
+      ? MENSAJES[motivo]
+      : SIN_AUTORIZACION;
 
   const { data: sesion } = await auth.getSession();
   const direccion = sesion?.user?.email ?? null;

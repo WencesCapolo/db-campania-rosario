@@ -879,7 +879,7 @@ export default function CrearMisioneroForm({
           (disponibles.length === 0 ? (
             <Mensaje tono="aviso">
               <p>
-                No hay imágenes libres en tu territorio. Registrá una nueva acá
+                No hay imágenes libres. Registrá una nueva acá
                 arriba, o entregale una que esté en otra casa desde «Entregar
                 una imagen», que cierra el período de quien la tiene.
               </p>

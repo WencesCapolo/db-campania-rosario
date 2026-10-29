@@ -25,8 +25,8 @@ import { peregrina } from "@/modules/peregrina/peregrina.schema";
 // on closes one row and opens another, so the chain of custody accumulates.
 //
 // It carries no territory of its own, on purpose. A Peregrina is the thing that
-// lives somewhere, so every scoped read joins through `peregrina` — see
-// `AsignacionRepository`. The consequence is deliberate: moving a Peregrina to
+// lives somewhere, so every read filtered by territory joins through
+// `peregrina` — see `AsignacionRepository`. The consequence is deliberate: moving a Peregrina to
 // another Diócesis takes its whole history with it, because the chain of custody
 // belongs to the image and not to whoever happened to file the paperwork.
 
@@ -53,8 +53,8 @@ export const asignacion = pgTable(
      * The price, named so nobody has to rediscover it: a read that joins the
      * misionero leg and forgets the matrimonio leg returns **fewer rows and no
      * error**. A couple's images just vanish from a list. That is why the
-     * matrimonio visibility suite exists beside the alcance suites — the failure
-     * mode is silence, and silence needs a test rather than a reviewer.
+     * matrimonio visibility suite exists — the failure mode is silence, and
+     * silence needs a test rather than a reviewer.
      */
     misioneroId: text("misionero_id").references(() => misionero.id),
 
@@ -70,9 +70,9 @@ export const asignacion = pgTable(
     /**
      * Who registered the period — user story 5.
      *
-     * Referentes Locales share one login per territory (settled 2026-07-25), so
-     * this resolves to *which territory* registered it, not to a person. No UI
-     * copy may imply individual accountability.
+     * A Buzón is shared by everybody who does one function (ADR 0016), so this
+     * resolves to a login, not to a person. No UI copy may imply individual
+     * accountability.
      */
     registradaPorId: text("registrada_por_id")
       .notNull()
@@ -123,8 +123,8 @@ export const asignacion = pgTable(
       .on(t.peregrinaId)
       .where(sql`${t.cerradaAt} is null`),
 
-    // Every scoped read joins peregrina, including the ones that only want a
-    // count, so this one is load-bearing rather than speculative.
+    // Every read filtered by territory joins peregrina, including the ones that
+    // only want a count, so this one is load-bearing rather than speculative.
     index("asignacion_peregrina_idx").on(t.peregrinaId),
     // "Every Peregrina this Misionero has ever had" — user story 7 — and the
     // guard that refuses to give a Misionero de baja while one is open.

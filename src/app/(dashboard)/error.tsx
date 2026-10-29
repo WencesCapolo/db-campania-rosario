@@ -5,9 +5,8 @@ import { PanelDeError } from "@/components/EstadosAsincronicos";
 /**
  * The dashboard's error boundary.
  *
- * Reads throw now. A Referente Local who opens a record from another territory
- * gets a refusal rather than an empty list, because a blank table where a
- * refusal belongs is a lie — and without a boundary that refusal would render as
+ * Reads throw now. Somebody whose read is refused gets a refusal rather than an
+ * empty list, because a blank table where a refusal belongs is a lie — and without a boundary that refusal would render as
  * Next's default error page.
  *
  * The message is generic on purpose, and not by omission: Next replaces a server

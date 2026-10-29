@@ -1,4 +1,4 @@
-import type { AsignacionDTO, RegistroDTO } from "@/modules/asignacion/asignacion.types";
+import type { AsignacionDTO } from "@/modules/asignacion/asignacion.types";
 
 /**
  * How dates, durations and attribution are worded, in one place.
@@ -92,25 +92,16 @@ export function nombreDeTenedorEnLista(t: TenedorConNombre): string {
 }
 
 /**
- * A territory, never a person.
+ * A login, never a person.
  *
- * Referentes Locales share one login per territory (settled 2026-07-25), so the
- * record answers *which territory* registered a period of charge and cannot
- * answer *who*. This function exists so that no screen has to remember that:
- * there is nothing here that could render a name, because there is no name in
- * `RegistroDTO` to render.
+ * A Buzón is shared by everybody who does one function (ADR 0016), so the
+ * record cannot answer *who* registered a period of charge. This function exists
+ * so that no screen has to remember that: there is nothing here that could
+ * render a name, because there is no name in `RegistroDTO` to render. Every
+ * Buzón covers the country, so the record says so rather than naming a place.
  */
-function desde(r: RegistroDTO, verbo: string): string {
-  return r.diocesisLocalidad
-    ? `${verbo} desde ${r.diocesisLocalidad}`
-    : `${verbo} a nivel nacional`;
-}
-
 export function registro(a: AsignacionDTO): string {
-  const entrega = desde(a.registradaPor, "Entrega registrada");
+  const entrega = "Entrega registrada a nivel nacional";
   if (!a.cerradaPor) return `${entrega}.`;
-  // The second clause is lowercased by writing it that way, not by
-  // `.toLowerCase()` on the result — which would also lowercase the territory
-  // and give "devolución desde villa maría".
-  return `${entrega}; ${desde(a.cerradaPor, "devolución")}.`;
+  return `${entrega}; devolución a nivel nacional.`;
 }

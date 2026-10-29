@@ -19,15 +19,12 @@ import { ConflictoError, ValidacionError } from "@/lib/errors";
 
 let territorio: TerritorioDePrueba;
 let asesor: CurrentUser;
-let referente: CurrentUser;
+let responsable: CurrentUser;
 
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
   asesor = await crearActor({ rol: "asesor_nacional" });
-  referente = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
+  responsable = await crearActor({ rol: "responsable_diocesano" });
 });
 
 function nueva(actor: CurrentUser, extra: { numero?: number } = {}) {
@@ -105,7 +102,7 @@ describe("el número del Código, tipeado", () => {
       numero: 9,
     });
 
-    await expect(nueva(referente, { numero: 9 })).rejects.toThrow(ConflictoError);
+    await expect(nueva(responsable, { numero: 9 })).rejects.toThrow(ConflictoError);
   });
 
   it("se le puede tipear a una imagen vieja al ponerle su Código", async () => {
@@ -225,9 +222,9 @@ describe("editar una Peregrina", () => {
 
 describe("borrar una Peregrina", () => {
   it("borra la que nunca estuvo a cargo de nadie", async () => {
-    const creada = await nueva(referente);
+    const creada = await nueva(responsable);
 
-    await PeregrinaService.borrar(referente, creada.id);
+    await PeregrinaService.borrar(responsable, creada.id);
 
     await expect(PeregrinaService.getById(asesor, creada.id)).rejects.toThrow(
       /No existe/
@@ -237,33 +234,33 @@ describe("borrar una Peregrina", () => {
   it("borra también la que tuvo historial, y la que alguien tiene ahora", async () => {
     const ana = await crearMisioneroDirecto({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
     });
-    const devuelta = await nueva(referente);
-    await AsignacionService.asignar(referente, {
+    const devuelta = await nueva(responsable);
+    await AsignacionService.asignar(responsable, {
       peregrinaId: devuelta.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
-    await AsignacionService.devolver(referente, {
+    await AsignacionService.devolver(responsable, {
       peregrinaId: devuelta.id,
       notaCierre: null,
     });
-    const enCasa = await nueva(referente);
-    await AsignacionService.asignar(referente, {
+    const enCasa = await nueva(responsable);
+    await AsignacionService.asignar(responsable, {
       peregrinaId: enCasa.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
-    await PeregrinaService.borrar(referente, devuelta.id);
-    await PeregrinaService.borrar(referente, enCasa.id);
+    await PeregrinaService.borrar(responsable, devuelta.id);
+    await PeregrinaService.borrar(responsable, enCasa.id);
 
     for (const id of [devuelta.id, enCasa.id]) {
       await expect(PeregrinaService.getById(asesor, id)).rejects.toThrow(/No existe/);
     }
     // Su historial se fue con ella: la ficha de Ana ya no la nombra.
-    const historial = await AsignacionService.historialDeMisionero(referente, ana.id);
+    const historial = await AsignacionService.historialDeMisionero(responsable, ana.id);
     expect(historial).toEqual([]);
   });
   it("libera su Código: se puede volver a cargar con el mismo número", async () => {

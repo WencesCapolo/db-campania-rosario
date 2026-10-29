@@ -222,13 +222,14 @@ export default async function MisioneroPage({
    *
    * Without the tenencia filter the page comes from the database, one page of rows
    * and a count over the same predicate. With it, the set is the intersection of
-   * two scoped reads — and the second, `findTenedoresSinPeregrina` or its twin,
+   * two reads — and the second, `findTenedoresSinPeregrina` or its twin,
    * deliberately ignores the *image's* territory, so it cannot be expressed as a
    * filter on this query. The intersection therefore has to be computed before it
    * can be cut, which means fetching both in full and slicing here.
    *
-   * That is a real limit and it is written down rather than hidden: it is bounded
-   * by the Actor's territory, so a Diócesis's worth of people, and the honest fix
+   * That is a real limit and it is written down rather than hidden: since every
+   * rol reads the country (ADR 0016) it is the country's worth of people, no
+   * longer one Diócesis's, and the honest fix
    * is the join inside the filtered query — a change to `AsignacionRepository`,
    * not something this page should fake. It cannot live in `MisioneroRepository`
    * either: the import chain runs misionero → peregrina → asignación, one way, so
@@ -264,7 +265,7 @@ export default async function MisioneroPage({
   // Una consulta para las filas de esta página, no una por fila: veinte filas
   // serían veinte viajes por la misma pregunta. Con el filtro de tenencia puesto la
   // respuesta gruesa ya se sabe, pero se pide igual, porque la celda dice *cuál*
-  // imagen y porque «ninguna dentro de tu territorio» y «ninguna» no son lo mismo.
+  // imagen.
   // Las imágenes libres, para el alta de arriba: cargar a una persona y dejar
   // asentado qué se llevó es lo mismo que hace el flujo de Asignación, y hacerlo
   // acá evita volver a buscar por apellido a quien se acaba de tipear.
@@ -332,7 +333,7 @@ export default async function MisioneroPage({
               {pagina.total === 1
                 ? "1 persona o matrimonio"
                 : `${pagina.total} personas y matrimonios`}
-              {filtrado ? " con esos filtros" : " en tu territorio"}
+              {filtrado ? " con esos filtros" : " en total"}
             </p>
           </div>
 
@@ -511,11 +512,9 @@ export default async function MisioneroPage({
 /**
  * Qué imagen tiene esta persona, dicho en una celda.
  *
- * Tres respuestas y no dos, y la tercera es la que importa: una Peregrina que se
- * movió a otra Diócesis mientras alguien la tiene en la casa sigue estando en esa
- * casa, pero nombrar su Código sería confirmar un registro que este Actor no puede
- * leer. Entonces se dice que hay una y no cuál — que además es lo que alguien
- * necesita para saber que esa persona no está libre.
+ * Todas las que tiene, aunque alguna se haya movido a otra Diócesis mientras
+ * está en la casa: sigue estando en esa casa, y es lo que alguien necesita para
+ * saber que esa persona no está libre.
  *
  * El Código es un link a la imagen, en mono: es la cadena que se compara contra lo
  * que está escrito en la Peregrina, y `whitespace-nowrap` para que «CBA JOV 0001»
@@ -523,9 +522,8 @@ export default async function MisioneroPage({
  */
 function Tenencia({ tenencia }: { tenencia?: TenenciaDeTenedorDTO }) {
   const propias = tenencia?.peregrinas ?? [];
-  const ajenas = tenencia?.ajenas ?? 0;
 
-  if (propias.length === 0 && ajenas === 0) {
+  if (propias.length === 0) {
     return <span className="text-tinta-suave">Ninguna</span>;
   }
 
@@ -540,14 +538,6 @@ function Tenencia({ tenencia }: { tenencia?: TenenciaDeTenedorDTO }) {
           {p.identificacion}
         </Link>
       ))}
-
-      {ajenas > 0 && (
-        <span className="text-sm text-tinta-suave">
-          {ajenas === 1
-            ? "1 imagen de otro territorio"
-            : `${ajenas} imágenes de otro territorio`}
-        </span>
-      )}
     </span>
   );
 }

@@ -6,7 +6,7 @@ import { filtroPropio } from "@/lib/authorization/capacidades";
 /**
  * Inicio — tres botones, y nada más.
  *
- * The home screen is a hub, not a dashboard. Everything a Referente opens this
+ * The home screen is a hub, not a dashboard. Everything somebody opens this
  * system to do is one of three things, and each one gets a target big enough to
  * hit with a thumb without reading first. Counts, charts and filtering are
  * issue #5's tablero; putting a summary here would push the three things below

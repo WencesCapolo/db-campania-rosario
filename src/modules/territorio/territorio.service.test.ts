@@ -77,10 +77,7 @@ describe("las listas de selección", () => {
 
 describe("una Región no es editable", () => {
   it("expone las siete Regiones de la Campaña, iguales para todo Actor", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     expect(TerritorioService.listarRegiones(asesor)).toEqual([
       "NOA",
@@ -91,7 +88,7 @@ describe("una Región no es editable", () => {
       "R. PAM",
       "R. PAT",
     ]);
-    expect(TerritorioService.listarRegiones(referente)).toEqual(REGIONES);
+    expect(TerritorioService.listarRegiones(responsable)).toEqual(REGIONES);
   });
 
   it("no ofrece ningún método para crear, renombrar o dar de baja una Región", () => {
@@ -204,10 +201,7 @@ describe("autorización de escritura", () => {
   });
 
   it("un Responsable Diocesano NO puede crear una Provincia", async () => {
-    const responsable = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
       TerritorioService.crearProvincia(responsable, entradaProvincia)
@@ -218,13 +212,10 @@ describe("autorización de escritura", () => {
   });
 
   it("un Dirigente Joven NO puede crear una Diócesis/Localidad", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
-      TerritorioService.crearDiocesisLocalidad(referente, {
+      TerritorioService.crearDiocesisLocalidad(responsable, {
         nombre: "Alta Gracia",
         provinciaId: territorio.cordoba.id,
         region: "CENTRO",
@@ -233,10 +224,7 @@ describe("autorización de escritura", () => {
   });
 
   it("un Responsable Diocesano NO puede renombrar ni dar de baja un territorio", async () => {
-    const responsable = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
       TerritorioService.renombrarDiocesisLocalidad(responsable, {

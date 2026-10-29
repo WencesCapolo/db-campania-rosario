@@ -59,8 +59,8 @@ export const regionSchema = z.enum(REGIONES as unknown as [Region, ...Region[]],
  * definition would be unreachable from Misionero, and a second copy there is how
  * "my Diócesis" would come to mean two things.
  *
- * Both fields narrow within the Actor's `Alcance` and neither can widen it. The
- * refusal for an out-of-scope id belongs to the services, which know who asked.
+ * Both are user-chosen filters over the whole country, never a boundary on what
+ * the Actor may see.
  */
 export const filtrosTerritorialesSchema = z.object({
   diocesisLocalidadId: z.string().min(1).optional(),

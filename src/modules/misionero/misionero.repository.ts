@@ -25,7 +25,6 @@ import type {
   ProvinciaRow,
   Region,
 } from "@/modules/territorio/territorio.schema";
-import type { Alcance } from "@/lib/authorization/alcance";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   MatrimonioRepository,
@@ -78,27 +77,15 @@ function conTerritorio() {
     .innerJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
 }
 
-/** The Actor's territorial filter, as SQL. Derived elsewhere; applied here. */
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId);
-}
-
-function conAlcance(
-  alcance: Alcance,
-  opts: OpcionesDeLectura,
-  ...extras: (SQL | undefined)[]
-) {
-  const filtros = [
-    condicionDeAlcance(alcance),
+/** The baja exclusion, unless asked for, plus whatever the read narrows by. */
+function vigentes(opts: OpcionesDeLectura, ...extras: (SQL | undefined)[]) {
+  return and(
     opts.incluirBajas ? undefined : isNull(misionero.bajaAt),
-    ...extras,
-  ].filter((f) => f !== undefined);
-  return filtros.length ? and(...filtros) : undefined;
+    ...extras
+  );
 }
 
-/** The territorial filters, as SQL. Composed with the Alcance, never instead. */
+/** The territorial filters, as SQL — a Diócesis/Localidad or a Región chosen. */
 function condicionDeFiltros(
   filtros: FiltrosTerritoriales
 ): (SQL | undefined)[] {
@@ -188,14 +175,12 @@ export function sinMatrimonioActivo(persona: PgColumn): SQL {
  * the polymorphic pointer.
  */
 function condicionDeRoster(
-  alcance: Alcance,
   filtros: FiltrosTerritoriales & { q?: string },
   opts: OpcionesDeLectura
 ): { personas: SQL | undefined; matrimonios: SQL | undefined } {
   const termino = filtros.q?.trim();
 
   const personas = [
-    condicionDeAlcance(alcance),
     opts.incluirBajas ? undefined : isNull(misionero.bajaAt),
     ...condicionDeFiltros(filtros),
     termino
@@ -207,14 +192,11 @@ function condicionDeRoster(
     sinMatrimonioActivo(misionero.id),
   ].filter((f) => f !== undefined);
 
-  // The couple's Alcance, territory and Región all land on spouse A, who
+  // The couple's territory and Región both land on spouse A, who
   // supplies them because the table has none of its own. The search is the one
   // thing that reaches spouse B: "Benítez" has to find "Ana Álvarez y Juan
   // Benítez", and nobody typing a surname knows which half was entered first.
   const matrimonios = [
-    alcance.tipo === "nacional"
-      ? undefined
-      : eq(conyugeA.diocesisLocalidadId, alcance.diocesisLocalidadId),
     opts.incluirBajas ? undefined : isNull(matrimonio.bajaAt),
     filtros.diocesisLocalidadId
       ? eq(conyugeA.diocesisLocalidadId, filtros.diocesisLocalidadId)
@@ -245,11 +227,10 @@ function condicionDeRoster(
  * are hydrated afterwards, by primary key, in `findFiltrados`.
  */
 function roster(
-  alcance: Alcance,
   filtros: FiltrosTerritoriales & { q?: string },
   opts: OpcionesDeLectura
 ) {
-  const condicion = condicionDeRoster(alcance, filtros, opts);
+  const condicion = condicionDeRoster(filtros, opts);
 
   const individuos = db
     .select({
@@ -317,76 +298,54 @@ const ORDEN_DEL_ROSTER = sql`apellido asc, nombre asc, id asc`;
  * Responsibility: raw database access for the `misionero` table.
  * No business logic. No permission checks. Excludes records given de baja by
  * default.
- *
- * Every read takes an `Alcance` first, required, so a read added later cannot
- * quietly omit the scope — it fails to compile instead (user story 20).
  */
 export class MisioneroRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
+  /** Pass `incluirBajas` to reach one given de baja — reactivating is a write too. */
   static async findById(
-    alcance: Alcance,
     id: string,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio | undefined> {
     const [row] = await conTerritorio()
-      .where(conAlcance(alcance, opts, eq(misionero.id, id)))
+      .where(vigentes(opts, eq(misionero.id, id)))
       .limit(1);
     return row;
   }
 
-  /**
-   * The row regardless of territory, so a mutation can tell "does not exist"
-   * apart from "not yours" before refusing. A primary-key lookup, named to make
-   * the bypass visible; its callers compare the territory immediately.
-   *
-   * Includes records given de baja — reactivating one is a mutation too.
-   */
-  static async findByIdSinAlcance(
-    id: string
-  ): Promise<MisioneroConTerritorio | undefined> {
-    const [row] = await conTerritorio().where(eq(misionero.id, id)).limit(1);
-    return row;
-  }
-
   static async findAll(
-    alcance: Alcance,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts))
+      .where(vigentes(opts))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByEstado(
-    alcance: Alcance,
     estado: MisioneroEstado,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(misionero.estado, estado)))
+      .where(vigentes(opts, eq(misionero.estado, estado)))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByRegion(
-    alcance: Alcance,
     region: Region,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(diocesisLocalidad.region, region)))
+      .where(vigentes(opts, eq(diocesisLocalidad.region, region)))
       .orderBy(desc(misionero.createdAt));
   }
 
   static async findByDiocesisLocalidad(
-    alcance: Alcance,
     diocesisLocalidadId: string,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
       .where(
-        conAlcance(
-          alcance,
+        vigentes(
           opts,
           eq(misionero.diocesisLocalidadId, diocesisLocalidadId)
         )
@@ -396,15 +355,13 @@ export class MisioneroRepository {
 
   /** ilike, not like: someone searching "gomez" means Gómez. */
   static async search(
-    alcance: Alcance,
     query: string,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     const term = `%${query}%`;
     return conTerritorio()
       .where(
-        conAlcance(
-          alcance,
+        vigentes(
           opts,
           or(
             ilike(misionero.nombre, term),
@@ -417,21 +374,18 @@ export class MisioneroRepository {
   }
 
   static async findByCreator(
-    alcance: Alcance,
     createdById: string,
     opts: OpcionesDeLectura = {}
   ): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, opts, eq(misionero.createdById, createdById)))
+      .where(vigentes(opts, eq(misionero.createdById, createdById)))
       .orderBy(desc(misionero.createdAt));
   }
 
   /** Alphabetical, for the first step of the assignment flow. */
-  static async findParaElegir(
-    alcance: Alcance
-  ): Promise<MisioneroConTerritorio[]> {
+  static async findParaElegir(): Promise<MisioneroConTerritorio[]> {
     return conTerritorio()
-      .where(conAlcance(alcance, {}))
+      .where(vigentes({}))
       .orderBy(asc(misionero.apellido), asc(misionero.nombre));
   }
 
@@ -440,7 +394,9 @@ export class MisioneroRepository {
   static async create(data: NewMisioneroRow): Promise<MisioneroConTerritorio> {
     const [row] = await db.insert(misionero).values(data).returning();
     if (!row) throw new Error("Failed to insert misionero");
-    const creado = await MisioneroRepository.findByIdSinAlcance(row.id);
+    const creado = await MisioneroRepository.findById(row.id, {
+      incluirBajas: true,
+    });
     if (!creado) throw new Error(`Misionero not found: ${row.id}`);
     return creado;
   }
@@ -457,7 +413,9 @@ export class MisioneroRepository {
       .where(eq(misionero.id, id))
       .returning();
     if (!row) throw new Error(`Misionero not found: ${id}`);
-    const actualizado = await MisioneroRepository.findByIdSinAlcance(row.id);
+    const actualizado = await MisioneroRepository.findById(row.id, {
+      incluirBajas: true,
+    });
     if (!actualizado) throw new Error(`Misionero not found: ${row.id}`);
     return actualizado;
   }
@@ -481,7 +439,9 @@ export class MisioneroRepository {
       .where(eq(misionero.id, id))
       .returning();
     if (!row) throw new Error(`Misionero not found: ${id}`);
-    const actualizado = await MisioneroRepository.findByIdSinAlcance(row.id);
+    const actualizado = await MisioneroRepository.findById(row.id, {
+      incluirBajas: true,
+    });
     if (!actualizado) throw new Error(`Misionero not found: ${row.id}`);
     return actualizado;
   }
@@ -526,21 +486,19 @@ export class MisioneroRepository {
   // than over `misionero` directly.
 
   static async contarTotal(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales,
     opts: OpcionesDeLectura = {}
   ): Promise<number> {
-    const tenedores = roster(alcance, filtros, opts).as("tenedores");
+    const tenedores = roster(filtros, opts).as("tenedores");
     const [row] = await db.select({ total: TOTAL }).from(tenedores);
     return row?.total ?? 0;
   }
 
   static async contarPorEstado(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales,
     opts: OpcionesDeLectura = {}
   ): Promise<{ estado: MisioneroEstado; total: number }[]> {
-    const tenedores = roster(alcance, filtros, opts).as("tenedores");
+    const tenedores = roster(filtros, opts).as("tenedores");
     return db
       .select({ estado: tenedores.estado, total: TOTAL })
       .from(tenedores)
@@ -548,11 +506,10 @@ export class MisioneroRepository {
   }
 
   static async contarPorRegion(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales,
     opts: OpcionesDeLectura = {}
   ): Promise<{ region: Region; total: number }[]> {
-    const tenedores = roster(alcance, filtros, opts).as("tenedores");
+    const tenedores = roster(filtros, opts).as("tenedores");
     return db
       .select({ region: tenedores.region, total: TOTAL })
       .from(tenedores)
@@ -564,22 +521,18 @@ export class MisioneroRepository {
    * in one order and one page.
    *
    * Two steps rather than one, on purpose. The union decides *which* Tenedores
-   * and in what order — that is where the Alcance, the filters, the search and
-   * the `offset` all live. The second step fetches the twenty rows it named, by
+   * and in what order — that is where the filters, the search and the `offset`
+   * all live. The second step fetches the twenty rows it named, by
    * primary key. Widening the union to carry every column of both kinds would
    * have meant padding each leg with the other's nulls, and a Misionero and a
    * Matrimonio have almost nothing in common to unify.
-   *
-   * The hydration reads are not scoped again, and do not need to be: an id only
-   * reaches them by coming out of a union that already applied the Alcance.
    */
   static async findFiltrados(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales & { q?: string },
     opts: OpcionesDeLectura = {},
     paginacion?: { limit: number; offset: number }
   ): Promise<FilaDeRoster[]> {
-    const consulta = roster(alcance, filtros, opts).orderBy(ORDEN_DEL_ROSTER);
+    const consulta = roster(filtros, opts).orderBy(ORDEN_DEL_ROSTER);
 
     const claves = await (paginacion
       ? consulta.limit(paginacion.limit).offset(paginacion.offset)
@@ -596,7 +549,7 @@ export class MisioneroRepository {
       idsDePersonas.length
         ? conTerritorio().where(inArray(misionero.id, idsDePersonas))
         : Promise.resolve([] as MisioneroConTerritorio[]),
-      MatrimonioRepository.findByIds(alcance, idsDeMatrimonios, {
+      MatrimonioRepository.findByIds(idsDeMatrimonios, {
         incluirBajas: true,
       }),
     ]);
@@ -623,11 +576,10 @@ export class MisioneroRepository {
    * offer pages that do not exist.
    */
   static async contarFiltrados(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales & { q?: string },
     opts: OpcionesDeLectura = {}
   ): Promise<number> {
-    const tenedores = roster(alcance, filtros, opts).as("tenedores");
+    const tenedores = roster(filtros, opts).as("tenedores");
     const [row] = await db.select({ total: TOTAL }).from(tenedores);
     return row?.total ?? 0;
   }

@@ -3,29 +3,17 @@ import { users } from "@/db/schema/users";
 import { identidades, identidadIdComoTexto } from "@/db/schema/neon-auth";
 import { and, asc, eq, isNull, isNotNull, sql } from "drizzle-orm";
 import type { User, NewUser, Role } from "./user.schema";
-import {
-  diocesisLocalidad,
-  provincia,
-} from "@/modules/territorio/territorio.schema";
-import type {
-  DiocesisLocalidadRow,
-  ProvinciaRow,
-} from "@/modules/territorio/territorio.schema";
-import type { Alcance } from "@/lib/authorization/alcance";
 
 /**
- * A Usuario as the management screen needs it: the application row, the identity
- * Neon Auth holds for it, and the territory resolved.
+ * A Usuario as the management screen needs it: the application row and the
+ * identity Neon Auth holds for it.
  *
  * `identidad` is null when the application row has no matching identity — an
- * orphan, which ADR 0002 says the screen must surface rather than hide. The
- * territory is null for the two country-wide rols.
+ * orphan, which ADR 0002 says the screen must surface rather than hide.
  */
 export interface UsuarioConIdentidad {
   usuario: User;
   identidad: { email: string | null; name: string | null } | null;
-  diocesis: DiocesisLocalidadRow | null;
-  provincia: ProvinciaRow | null;
 }
 
 /** Emails are compared case-insensitively; Neon Auth does not normalise them. */
@@ -36,19 +24,9 @@ function conIdentidad() {
     .select({
       usuario: users,
       identidad: { email: identidades.email, name: identidades.name },
-      diocesis: diocesisLocalidad,
-      provincia,
     })
     .from(users)
-    .leftJoin(identidades, eq(identidadIdComoTexto, users.id))
-    .leftJoin(diocesisLocalidad, eq(diocesisLocalidad.id, users.diocesisLocalidadId))
-    .leftJoin(provincia, eq(provincia.id, diocesisLocalidad.provinciaId));
-}
-
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(users.diocesisLocalidadId, alcance.diocesisLocalidadId);
+    .leftJoin(identidades, eq(identidadIdComoTexto, users.id));
 }
 
 /**
@@ -91,42 +69,27 @@ export class UserRepository {
     return row?.usuario;
   }
 
-  /**
-   * One Usuario, but only if the given scope can reach them.
-   *
-   * The scope is part of the lookup rather than something the caller checks
-   * afterwards: a row that comes back is a row this Actor may act on, and
-   * `undefined` covers both "does not exist" and "not yours" — which is what the
-   * service wants, because telling those two apart is itself a disclosure.
-   */
+  /** One Usuario with their identity, excluding a baja unless asked for. */
   static async findConIdentidadById(
-    alcance: Alcance,
     id: string,
     opts: { incluirBajas?: boolean } = {}
   ): Promise<UsuarioConIdentidad | undefined> {
-    const filtros = [
-      eq(users.id, id),
-      opts.incluirBajas ? undefined : isNull(users.bajaAt),
-      condicionDeAlcance(alcance),
-    ].filter((f) => f !== undefined);
-
     const [row] = await conIdentidad()
-      .where(and(...filtros))
+      .where(
+        and(
+          eq(users.id, id),
+          opts.incluirBajas ? undefined : isNull(users.bajaAt)
+        )
+      )
       .limit(1);
     return row;
   }
 
   static async findAllConIdentidad(
-    alcance: Alcance,
     opts: { incluirBajas?: boolean } = {}
   ): Promise<UsuarioConIdentidad[]> {
-    const filtros = [
-      opts.incluirBajas ? undefined : isNull(users.bajaAt),
-      condicionDeAlcance(alcance),
-    ].filter((f) => f !== undefined);
-
     return conIdentidad()
-      .where(filtros.length ? and(...filtros) : undefined)
+      .where(opts.incluirBajas ? undefined : isNull(users.bajaAt))
       .orderBy(asc(users.role), asc(users.createdAt));
   }
 
@@ -184,7 +147,7 @@ export class UserRepository {
 
   static async update(
     id: string,
-    data: Partial<Pick<User, "role" | "diocesisLocalidadId" | "bajaAt">>
+    data: Partial<Pick<User, "role" | "bajaAt">>
   ): Promise<User | undefined> {
     const [row] = await db
       .update(users)

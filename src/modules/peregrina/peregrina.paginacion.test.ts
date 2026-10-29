@@ -22,10 +22,7 @@ import type { PeregrinaDTO } from "./peregrina.types";
  *  - **A total that is the page size.** The figure in the header is the count of
  *    everything matching, from an aggregate; if it ever comes from `filas.length`
  *    the list says "20 imágenes" forever.
- *  - **A page that widens the scope.** Pagination adds two parameters to a scoped
- *    read, and both of them run after the `Alcance`. The negative is asserted, not
- *    inferred: a Referente Local paging through their Diócesis must never reach a
- *    row from the next one.
+ *  - **A page past the end answered with nothing.** It is clamped to the last.
  */
 
 let territorio: TerritorioDePrueba;

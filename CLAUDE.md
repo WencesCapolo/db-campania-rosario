@@ -26,7 +26,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 Router–service–repository, one module per entity under `src/modules/<entity>/`:
 
 - **`*.router.ts`** — Next.js server actions. Resolves the Actor, delegates, revalidates cache. No business logic.
-- **`*.service.ts`** — all business rules. Takes an `Actor` as its first parameter, always. Derives its own territorial scope filter.
+- **`*.service.ts`** — all business rules. Takes an `Actor` as its first parameter, always, and asks `capacidades` what that Actor's rol may write.
 - **`*.repository.ts`** — Drizzle queries only. No rules, no permission checks. Excludes soft-deleted rows by default.
 - **`*.schema.ts`** — Drizzle table and enum definitions.
 - **`*.types.ts`** — DTOs and input types. Never leak Drizzle row types past the service.
@@ -51,10 +51,10 @@ The two loading rols share a rank (`superaEnRango` in `src/db/schema/users.ts`, 
 
 Two rules hold everywhere (ADR 0001 and ADR 0003):
 
-- **Every service method takes an `Actor` first**, and every repository read takes the derived `Alcance` first. Where a genuinely unscoped operation is needed — seeds, migrations, cron — pass `ACTOR_DE_SISTEMA` so the intent is visible.
+- **Every service method takes an `Actor` first.** The Actor carries the rol the Modalidad and `configura` checks need. Where an operation has no Usuario behind it — seeds, migrations, cron — pass `ACTOR_DE_SISTEMA` so the intent is visible.
 - **A Usuario with no application-level record is unauthorized.** Never default an unknown authenticated user into a role — `users.role` has no default. Provisioning is invitation-only and hierarchy-respecting; nobody self-registers.
 
-Scope derivation lives in exactly one place, `derivarAlcance` in `src/lib/authorization/alcance.ts`. Every rol derives `nacional` today; the `diocesis` branch, its fail-closed refusal and the rol↔territory pairing are unreachable since ADR 0016 and are due to be removed.
+There is no territorial scope: no repository read is bounded by the Actor, and no Usuario or Invitación carries a Diócesis/Localidad. Every selection list is the whole country. A territory is only ever a filter somebody chose. All of the live authorization is in `src/lib/authorization/capacidades.ts`.
 
 Misioneros are data entities. They have no credentials and never sign in.
 
@@ -89,7 +89,7 @@ The primary users are often older adults, entering every record by hand — ther
 - **Indexes:** queries backing dashboard filters must be covered — and covered by *measurement*. `src/modules/tablero/tablero.planes.test.ts` seeds volume and asserts the plan of the SQL the repositories actually emit. Three of the five indexes written for issue 5 were deleted because the planner never chose them; do not add one without a plan that names it (ADR 0007).
 - **Lists are paginated, and the page lives in the address too.** `FILAS_POR_PAGINA` and `?pagina=` are declared once in `src/lib/paginacion.ts`; the reads are `listPagina` on each service, and the control is `Paginador`. The total is always an aggregate over the *same* predicate as the rows — never `filas.length` — and a page past the end is clamped in the service, never answered with an empty list. An `order by` that can tie needs a unique tiebreaker before it gets an `offset` (ADR 0008).
 - **A form tells somebody as they leave a field, not only on submit.** `useValidacionAlSalir(schema)` validates one field on blur against the same Zod schema the router parses, clears the message when the value changes, and renders through `Campo`'s `error` prop. Never write a second copy of a rule for the client (ADR 0008).
-- **Filters are one schema, and it lives in the address.** `filtrosDeInventarioSchema` (Estado, Modalidad, Tipo, tenencia, territorio, Región, Identificación) is shared by the tablero and every list; its territorial half is in `territorio.types` because the import chain runs one way. A filter naming a territory outside the Actor's scope is **refused**, never intersected away — the intersection would relabel one Diócesis's figures with another's name. An unrecognised enum value is dropped, because that is a typo rather than an escalation.
+- **Filters are one schema, and it lives in the address.** `filtrosDeInventarioSchema` (Estado, Modalidad, Tipo, tenencia, territorio, Región, Identificación) is shared by the tablero and every list; its territorial half is in `territorio.types` because the import chain runs one way. A territory in it is a filter somebody chose, never a boundary on what they may see. An unrecognised enum value is dropped, because that is a typo rather than an escalation.
 - **Counts are aggregate queries.** Never fetch rows to count them, and never derive a figure on the client: that is what the previous dashboard did, and it made every number a count of the page size.
 - **Errors:** throw typed domain errors from `src/lib/errors.ts`; routers map them with `aResultado`, which is the one translation from error to response. Log every authorization denial with `registrarDenegacion` — and never a person: a Buzón is shared by everybody doing one function.
 - **Tests:** any change to what a rol may write requires a test proving the write outside it is refused and leaves the record intact — `src/lib/authorization/capacidades.test.ts`. The negative half is the test. This is the one suite that must never be skipped.

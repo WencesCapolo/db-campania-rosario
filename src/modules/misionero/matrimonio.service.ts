@@ -10,15 +10,7 @@ import type {
 } from "./matrimonio.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
-import {
-  dentroDelAlcance,
-  derivarAlcance,
-  exigirDentroDelAlcance,
-  exigirTerritorioDentroDelAlcance,
-  type Alcance,
-} from "@/lib/authorization/alcance";
 import { nombreDeTenedor } from "@/lib/formato";
-import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   AsignacionRepository,
   type AsignacionCompleta,
@@ -48,24 +40,17 @@ import {
  * of a Peregrina together, and who are **one** Tenedor rather than two people
  * (ADR 0010).
  *
- * Every method takes the Actor first and derives its own territorial scope, like
- * every other service here. The wrinkle this one has and the others do not: a
- * Matrimonio has no territory column, so its scope is spouse A's — which is only
- * well defined because `create` writes the same Diócesis/Localidad to both
- * spouses, in the same transaction. That invariant is this file's to keep.
+ * Every method takes the Actor first, like every other service here. The wrinkle
+ * this one has and the others do not: a Matrimonio has no territory column, so
+ * its territory is spouse A's — which is only well defined because `create`
+ * writes the same Diócesis/Localidad to both spouses, in the same transaction.
+ * That invariant is this file's to keep.
  */
 export class MatrimonioService {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   static async get(actor: CurrentUser, id: string): Promise<MatrimonioDTO> {
-    const operacion = "MatrimonioService.get";
-    const alcance = derivarAlcance(actor, operacion);
-    const row = await MatrimonioService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
+    const row = await MatrimonioService.exigirExistente(id);
     return mapearMatrimonio(row);
   }
 
@@ -86,15 +71,10 @@ export class MatrimonioService {
     filtros: FiltrosTerritoriales & { q?: string },
     pagina = 1
   ): Promise<Pagina<MatrimonioDTO>> {
-    const operacion = "MatrimonioService.listPagina";
-    const alcance = derivarAlcance(actor, operacion);
-    exigirTerritorioDentroDelAlcance(actor, alcance, filtros, operacion);
-
-    const total = await MatrimonioRepository.contarFiltrados(alcance, filtros);
+    const total = await MatrimonioRepository.contarFiltrados(filtros);
     const actual = paginaExistente(pagina, cantidadDePaginas(total));
 
     const rows = await MatrimonioRepository.findFiltrados(
-      alcance,
       filtros,
       {},
       rango(actual)
@@ -117,8 +97,8 @@ export class MatrimonioService {
    *
    * **Both spouses get the same `diocesisLocalidadId`, and this is the only
    * place that is true by construction.** Everything downstream leans on it: the
-   * couple's Alcance, its Región on the tablero and its place in the listado are
-   * all read off spouse A. Two spouses in two Diócesis would make "the couple's
+   * couple's Diócesis filter, its Región on the tablero and its place in the
+   * listado are all read off spouse A. Two spouses in two Diócesis would make "the couple's
    * territory" a coin flip.
    *
    * Each spouse's `telefono` is their own and both are optional. It was a single
@@ -129,9 +109,6 @@ export class MatrimonioService {
     actor: CurrentUser,
     input: CreateMatrimonioInput
   ): Promise<MatrimonioDTO> {
-    const operacion = "MatrimonioService.create";
-    const alcance = derivarAlcance(actor, operacion);
-
     const territorio = await TerritorioRepository.findDiocesisLocalidadById(
       input.diocesisLocalidadId
     );
@@ -143,8 +120,6 @@ export class MatrimonioService {
         `«${territorio.diocesis.nombre}» está dada de baja.`
       );
     }
-
-    exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
 
     // What the household shares, and only that: the territory is the invariant
     // spouse A's row is read for, and the Centro is one place. The teléfono is
@@ -191,23 +166,15 @@ export class MatrimonioService {
    *
    * Moving the household moves **both** spouses, in one transaction — the shared
    * territory is the invariant `create` establishes, and an edit that moved one
-   * of them would break it quietly, leaving the couple visible from one Diócesis
-   * and scoped to another.
+   * of them would break it quietly, leaving the couple filed under one Diócesis
+   * and half of it under another.
    */
   static async update(
     actor: CurrentUser,
     id: string,
     input: UpdateMatrimonioInput
   ): Promise<MatrimonioDTO> {
-    const operacion = "MatrimonioService.update";
-    const alcance = derivarAlcance(actor, operacion);
-
-    const actual = await MatrimonioService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
+    const actual = await MatrimonioService.exigirExistente(id);
 
     let destino: string | undefined;
     if (input.diocesisLocalidadId !== undefined) {
@@ -217,7 +184,6 @@ export class MatrimonioService {
       if (!territorio) {
         throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
       }
-      exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
       destino = territorio.diocesis.id;
     }
 
@@ -292,28 +258,18 @@ export class MatrimonioService {
    * done exactly this for its own baja since issue 3. Only the *schema* imports
    * run one way.
    *
-   * Unscoped on purpose, like the Misionero guard it mirrors: the image can have
-   * moved Diócesis while it sat in the couple's house, and a guard that reads
-   * only what the Actor can see would err permissive — it would let a couple be
-   * ended because the evidence against it was out of view. The *message* is
-   * scoped instead, naming only the Códigos this Actor may know about.
+   * Every open Asignación counts, wherever the image is filed, like the
+   * Misionero guard it mirrors: the image can have moved Diócesis while it sat
+   * in the couple's house.
    */
   static async baja(actor: CurrentUser, id: string): Promise<MatrimonioDTO> {
-    const operacion = "MatrimonioService.baja";
-    const alcance = derivarAlcance(actor, operacion);
-
-    const actual = await MatrimonioService.exigirVisible(
-      actor,
-      alcance,
-      id,
-      operacion
-    );
+    const actual = await MatrimonioService.exigirExistente(id);
 
     const pendientes =
-      await AsignacionRepository.findAbiertasDeMatrimonioSinAlcance(id);
+      await AsignacionRepository.findAbiertasDeMatrimonio(id);
     if (pendientes.length > 0) {
       throw new ConflictoError(
-        MatrimonioService.mensajeDePendientes(actual, alcance, pendientes)
+        MatrimonioService.mensajeDePendientes(actual, pendientes)
       );
     }
 
@@ -326,43 +282,31 @@ export class MatrimonioService {
   // ── Helpers privados ───────────────────────────────────────────────────────
 
   /**
-   * The couple this Actor may act on, or a logged refusal.
+   * The couple, given de baja or not, or a refusal that says it does not exist.
    *
-   * Read without the scope first, so "does not exist" and "not yours" stay
-   * different answers, and then compared — against **spouse A's** territory,
-   * because that is the couple's. What is logged is the territory and never a
-   * person: Referentes Locales share one login per territory.
+   * The two spouses are supposed to share a Diócesis, and everything about the
+   * couple's territory is read off spouse A. If that ever stops being true the
+   * couple is half-filed, so it is worth a line in the log rather than a
+   * silently wrong Región on the tablero.
    */
-  private static async exigirVisible(
-    actor: CurrentUser,
-    alcance: Alcance,
-    id: string,
-    operacion: string
+  private static async exigirExistente(
+    id: string
   ): Promise<MatrimonioConEsposos> {
-    const row = await MatrimonioRepository.findByIdSinAlcance(id);
+    const row = await MatrimonioRepository.findById(id, { incluirBajas: true });
     if (!row) throw new NoEncontradoError("No existe ese Matrimonio.");
 
-    exigirDentroDelAlcance(
-      actor,
-      alcance,
-      row.esposoA.misionero.diocesisLocalidadId,
-      operacion
-    );
-
-    // The two spouses are supposed to share a Diócesis, and everything about the
-    // couple's scope is read off spouse A. If that ever stops being true the
-    // couple is half-visible, so it is worth a line in the log rather than a
-    // silently wrong Región on the tablero.
     if (
       row.esposoB.misionero.diocesisLocalidadId !==
       row.esposoA.misionero.diocesisLocalidadId
     ) {
-      registrarDenegacion({
-        actor,
-        operacion,
-        territorioSolicitado: row.esposoB.misionero.diocesisLocalidadId,
-        motivo: "los dos esposos de un Matrimonio están en Diócesis distintas",
-      });
+      console.warn(
+        "[matrimonio-partido]",
+        JSON.stringify({
+          matrimonioId: row.matrimonio.id,
+          diocesisA: row.esposoA.misionero.diocesisLocalidadId,
+          diocesisB: row.esposoB.misionero.diocesisLocalidadId,
+        })
+      );
     }
 
     return row;
@@ -370,21 +314,12 @@ export class MatrimonioService {
 
   /**
    * Why a Matrimonio cannot be ended yet, in the words of somebody who has to
-   * act on it.
+   * act on it: every Código still in the house, so the refusal has a way out.
    *
-   * The guard reads unscoped, so this message has to do the scoping the guard
-   * deliberately did not: a Código from a Diócesis this Actor cannot see is
-   * counted but not named. Saying "3 Peregrinas: CBA JOV 0007, …" where one of
-   * them belongs to another territory would leak an image's Código to somebody
-   * with no business knowing it, and saying nothing at all would leave a refusal
-   * with no way out of it.
-   *
-   * Deliberately parallel to `MisioneroService.mensajeDePendientes`, down to the
-   * two branches — a Referente who has read one of these has read both.
+   * Deliberately parallel to `MisioneroService.mensajeDePendientes`.
    */
   private static mensajeDePendientes(
     actual: MatrimonioConEsposos,
-    alcance: Alcance,
     pendientes: AsignacionCompleta[]
   ): string {
     const nombre = nombreDeTenedor({
@@ -395,36 +330,22 @@ export class MatrimonioService {
       },
     });
 
-    const visibles = pendientes.filter((p) =>
-      dentroDelAlcance(alcance, p.peregrinaDiocesisLocalidadId)
-    );
-
-    if (visibles.length === pendientes.length) {
-      const identificaciones = visibles.map((p) => p.peregrinaIdentificacion).join(", ");
-      const cuantas =
-        pendientes.length === 1
-          ? `la Peregrina ${identificaciones}`
-          : `${pendientes.length} Peregrinas a cargo: ${identificaciones}`;
-      return (
-        `No se puede dar de baja al matrimonio ${nombre}: todavía tiene ${cuantas}. ` +
-        "Registrá primero que fue devuelta o que pasó a otro Misionero."
-      );
-    }
-
-    const ajenas = pendientes.length - visibles.length;
-    const detalle = visibles.length
-      ? `${visibles.map((p) => p.peregrinaIdentificacion).join(", ")}, y ${ajenas} de otro territorio`
-      : `${ajenas} de otro territorio`;
-
+    const identificaciones = pendientes
+      .map((p) => p.peregrinaIdentificacion)
+      .join(", ");
+    const cuantas =
+      pendientes.length === 1
+        ? `la Peregrina ${identificaciones}`
+        : `${pendientes.length} Peregrinas a cargo: ${identificaciones}`;
     return (
-      `No se puede dar de baja al matrimonio ${nombre}: todavía tiene Peregrinas a cargo (${detalle}). ` +
-      "Pedile a un Asesor Nacional que registre la devolución de las que no podés ver."
+      `No se puede dar de baja al matrimonio ${nombre}: todavía tiene ${cuantas}. ` +
+      "Registrá primero que fue devuelta o que pasó a otro Misionero."
     );
   }
 
-  /** Reads a couple back after a write, by primary key, already scope-checked. */
+  /** Reads a couple back after a write, by primary key. */
   private static async leerUno(id: string): Promise<MatrimonioDTO> {
-    const row = await MatrimonioRepository.findByIdSinAlcance(id);
+    const row = await MatrimonioRepository.findById(id, { incluirBajas: true });
     if (!row) throw new NoEncontradoError("No existe ese Matrimonio.");
     return mapearMatrimonio(row);
   }

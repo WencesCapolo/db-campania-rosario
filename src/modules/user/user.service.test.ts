@@ -55,62 +55,52 @@ describe("resolver el Actor de una identidad autenticada — historia 12", () =>
     expect(await UserService.motivoDeRefusa(asesor.id)).toBeNull();
   });
 
-  it("resuelve sin territorio, porque todo rol cubre el país", async () => {
+  it("resuelve el rol de su fila", async () => {
     const actor = await UserService.resolverActor({
       id: asesor.id,
       email: asesor.email,
     });
 
     expect(actor.role).toBe("asesor_nacional");
-    expect(actor.diocesisLocalidadId).toBeNull();
   });
 });
 
 describe("dar de baja un Usuario — historia 15", () => {
   it("le quita el acceso", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
-    await UserService.darDeBaja(asesor, referente.id);
+    await UserService.darDeBaja(asesor, responsable.id);
 
     expect(
       await UserService.resolverActorSiExiste({
-        id: referente.id,
-        email: referente.email,
+        id: responsable.id,
+        email: responsable.email,
       })
     ).toBeNull();
   });
 
   it("y deja intactas sus atribuciones anteriores", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    const registrada = await PeregrinaService.create(referente, {
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
+    const registrada = await PeregrinaService.create(responsable, {
       tipo: "peregrina",
       modalidad: "JOV",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
-    await UserService.darDeBaja(asesor, referente.id);
+    await UserService.darDeBaja(asesor, responsable.id);
 
     // El registro sigue apuntando a una fila real: por eso es baja y no borrado.
     const releida = await PeregrinaService.getById(asesor, registrada.id);
-    expect(releida.createdById).toBe(referente.id);
+    expect(releida.createdById).toBe(responsable.id);
   });
 
   it("no se puede dar de baja dos veces", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
-    await UserService.darDeBaja(asesor, referente.id);
+    await UserService.darDeBaja(asesor, responsable.id);
 
     await expect(
-      UserService.darDeBaja(asesor, referente.id)
+      UserService.darDeBaja(asesor, responsable.id)
     ).rejects.toThrow(/ya estaba dado de baja/);
   });
 
@@ -121,18 +111,15 @@ describe("dar de baja un Usuario — historia 15", () => {
   });
 
   it("una reactivación devuelve el acceso", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
-    await UserService.darDeBaja(asesor, referente.id);
-    await UserService.reactivar(asesor, referente.id);
+    await UserService.darDeBaja(asesor, responsable.id);
+    await UserService.reactivar(asesor, responsable.id);
 
     expect(
       await UserService.resolverActorSiExiste({
-        id: referente.id,
-        email: referente.email,
+        id: responsable.id,
+        email: responsable.email,
       })
     ).not.toBeNull();
   });
@@ -147,14 +134,8 @@ describe("el rango acota la administración de Usuarios", () => {
     );
   });
   it("un Responsable Diocesano NO puede ascender a nadie por encima suyo", async () => {
-    const propio = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    const diocesano = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const propio = await crearActor({ rol: "responsable_diocesano" });
+    const diocesano = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
       UserService.actualizar(diocesano, propio.id, { rol: "asesor_nacional" })
@@ -171,67 +152,32 @@ describe("el rango acota la administración de Usuarios", () => {
     expect(actualizado.role).toBe("dirigente_joven");
   });
   it("un Asesor Nacional NO puede ascender a nadie a su propio rango", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     // Estrictamente inferior significa estrictamente: si un Asesor Nacional
     // pudiera nombrar Asesores Nacionales, el rango dejaría de acotar nada.
     await expect(
-      UserService.actualizar(asesor, referente.id, { rol: "asesor_nacional" })
+      UserService.actualizar(asesor, responsable.id, { rol: "asesor_nacional" })
     ).rejects.toThrow(NoAutorizadoError);
-  });
-
-  it("no le pone territorio a un rol nacional", async () => {
-    const admin = await crearActor({ rol: "admin" });
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(
-      UserService.actualizar(admin, referente.id, {
-        rol: "asesor_nacional",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow(/cubren todo el país/);
-  });
-
-  it("ascender a un rol nacional le quita el territorio", async () => {
-    const admin = await crearActor({ rol: "admin" });
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const ascendido = await UserService.actualizar(admin, referente.id, {
-      rol: "asesor_nacional",
-      diocesisLocalidadId: null,
-    });
-
-    expect(ascendido.diocesisLocalidad).toBeNull();
   });
 });
 
 describe("los emails salen de neon_auth, no de un guión", () => {
   it("la lista de Usuarios trae el email real de cada uno", async () => {
-    const referente = await crearActor({
+    const responsable = await crearActor({
       rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-      email: "referente.villamaria@ejemplo.test",
+      email: "responsable.villamaria@ejemplo.test",
     });
 
     const lista = await UserService.listarUsuarios(asesor);
-    const encontrado = lista.find((u) => u.id === referente.id);
+    const encontrado = lista.find((u) => u.id === responsable.id);
 
-    expect(encontrado?.email).toBe("referente.villamaria@ejemplo.test");
+    expect(encontrado?.email).toBe("responsable.villamaria@ejemplo.test");
   });
 
   it("marca al Usuario cuya identidad ya no existe en el proveedor — ADR 0002", async () => {
     const huerfano = await crearActor({
       rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
       sinIdentidad: true,
     });
 
@@ -253,10 +199,7 @@ describe("los emails salen de neon_auth, no de un guión", () => {
   });
 
   it("sólo un rol nacional ve esa advertencia", async () => {
-    const diocesano = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const diocesano = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
       UserService.listarIdentidadesSinUsuario(diocesano)
@@ -266,34 +209,28 @@ describe("los emails salen de neon_auth, no de un guión", () => {
 
 describe("un Usuario dado de baja sale de las listas", () => {
   it("no aparece salvo que se lo pida explícitamente", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    await UserService.darDeBaja(asesor, referente.id);
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
+    await UserService.darDeBaja(asesor, responsable.id);
 
     const activos = await UserService.listarUsuarios(asesor);
     const conBajas = await UserService.listarUsuarios(asesor, {
       incluirBajas: true,
     });
 
-    expect(activos.map((u) => u.id)).not.toContain(referente.id);
-    expect(conBajas.find((u) => u.id === referente.id)?.deBaja).toBe(true);
+    expect(activos.map((u) => u.id)).not.toContain(responsable.id);
+    expect(conBajas.find((u) => u.id === responsable.id)?.deBaja).toBe(true);
   });
 
   it("y sigue habiendo una fila detrás de sus registros", async () => {
-    const referente = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
     const registrada = await crearPeregrinaDirecta({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
     });
-    await UserService.darDeBaja(asesor, referente.id);
+    await UserService.darDeBaja(asesor, responsable.id);
 
     const releida = await PeregrinaService.getById(asesor, registrada.id);
-    expect(releida.createdById).toBe(referente.id);
+    expect(releida.createdById).toBe(responsable.id);
   });
 });
 
@@ -303,7 +240,6 @@ describe("un admin administra a otros admins — 2026-07-25", () => {
 
     const actualizado = await UserService.actualizar(admin, asesor.id, {
       rol: "admin",
-      diocesisLocalidadId: null,
     });
 
     expect(actualizado.role).toBe("admin");

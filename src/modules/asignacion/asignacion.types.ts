@@ -10,15 +10,12 @@ import type { TenedorResueltoDTO } from "@/lib/tenedor";
 /**
  * The login that registered a period of charge — user story 5.
  *
- * Referentes Locales share one login per territory (settled 2026-07-25), so this
- * answers *which territory* registered it and not *who*. Copy built on top of it
- * must not imply individual accountability: "Registrada por Villa María" is
- * true, "Registrada por María Pérez" is not.
+ * A Buzón is one per function, shared by everybody who does it (ADR 0016), so
+ * this cannot answer *who*. Copy built on top of it must not imply individual
+ * accountability: "Registrada por María Pérez" is not true of a shared login.
  */
 export interface RegistroDTO {
   usuarioId: string;
-  /** The Diócesis/Localidad of that login. Null for the two nacional rols. */
-  diocesisLocalidad: string | null;
 }
 
 /**
@@ -49,20 +46,12 @@ export interface PeregrinaDeAsignacionDTO {
  *
  * La clave es el `Tenedor` entero y no el id solo: un id de persona y uno de
  * pareja son dos espacios de ids distintos, y comparar sólo el id haría de una
- * persona y un Matrimonio la misma fila si alguna vez colisionaran. `ajenas`
- * existe porque la pregunta se contesta sin scopear por el territorio de la
- * imagen: una Peregrina movida a otra Diócesis mientras alguien la tiene en la
- * casa sigue estando en esa casa. Su Código no se puede nombrar — sería confirmar
- * un registro que el Actor no puede leer — así que se cuenta y se dice que hay una
- * imagen de otro territorio. Es la misma distinción que hace la negativa al dar de
- * baja a un Misionero.
+ * persona y un Matrimonio la misma fila si alguna vez colisionaran.
  */
 export interface TenenciaDeTenedorDTO {
   tenedor: Tenedor;
-  /** Las que el Actor podría haber leído igual, ordenadas por Identificación. */
+  /** Las que tiene abiertas, ordenadas por Identificación. */
   peregrinas: { id: string; identificacion: string }[];
-  /** Cuántas tiene abiertas fuera del alcance del Actor. */
-  ajenas: number;
 }
 
 export interface AsignacionDTO {
@@ -133,7 +122,7 @@ export const asignarSchema = z.object({
  *
  * Deliberately not the same operation as `asignar`. Assigning a Peregrina that
  * somebody already has is refused rather than silently closing their period,
- * because a Referente who did not know it was out needs to be told, not obeyed.
+ * because somebody who did not know it was out needs to be told, not obeyed.
  */
 export const entregarSchema = z.object({
   peregrinaId: id("una Peregrina"),

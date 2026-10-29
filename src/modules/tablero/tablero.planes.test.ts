@@ -14,7 +14,6 @@ import {
   crearDiocesisLocalidad,
   crearProvincia,
 } from "@/test/factories";
-import type { Alcance } from "@/lib/authorization/alcance";
 
 /**
  * Los planes de las consultas del tablero, con volumen.
@@ -73,8 +72,13 @@ const ESTADOS: PeregrinaEstado[] = [
 ];
 const MODALIDADES: Modalidad[] = ["JOV", "FAM", "MAT", "MIS", "SAL"];
 
-let alcance: Alcance;
-const alcanceNacional: Alcance = { tipo: "nacional" };
+/**
+ * Una Diócesis elegida en el filtro — la pregunta que estos índices existen para
+ * responder sin leer el país entero. Antes de ADR 0016 era el alcance de un rol
+ * territorial y emitía el mismo predicado; ahora es un filtro que cualquiera
+ * elige, y el plan que se mide es el mismo.
+ */
+let unaDiocesis: { diocesisLocalidadId: string };
 
 beforeEach(async () => {
   const provincia = await crearProvincia({
@@ -125,7 +129,7 @@ beforeEach(async () => {
    * cónyuge A, y eso sólo está bien definido si los dos comparten Diócesis
    * (ADR 0010). El corrimiento `k % DIOCESIS` reparte los hogares por las seis
    * en lugar de amontonarlos en la primera, que es justamente la que el
-   * `alcance` de estas pruebas mira.
+   * filtro de estas pruebas mira.
    */
   const parejas: string[] = [];
   const esConyuge = new Set<string>();
@@ -232,7 +236,7 @@ beforeEach(async () => {
   await db.execute(sql`analyze matrimonio`);
   await db.execute(sql`analyze asignacion`);
 
-  alcance = { tipo: "diocesis", diocesisLocalidadId: diocesis[0]! };
+  unaDiocesis = { diocesisLocalidadId: diocesis[0]! };
 });
 
 describe("los planes del tablero, con volumen", () => {
@@ -246,28 +250,29 @@ describe("los planes del tablero, con volumen", () => {
 
   it("las agregaciones entran por un índice y no por la tabla", async () => {
     const porEstado = await explicar(() =>
-      PeregrinaRepository.contarPorEstado(alcance, {})
+      PeregrinaRepository.contarPorEstado(unaDiocesis)
     );
     const porModalidad = await explicar(() =>
-      PeregrinaRepository.contarPorModalidad(alcance, {})
+      PeregrinaRepository.contarPorModalidad(unaDiocesis)
     );
     const totalFiltrado = await explicar(() =>
-      PeregrinaRepository.contarTotal(alcance, {
+      PeregrinaRepository.contarTotal({
+        ...unaDiocesis,
         estado: "activa",
         modalidad: "JOV",
       })
     );
     const listado = await explicar(() =>
-      PeregrinaRepository.findFiltradas(alcance, { estado: "activa" })
+      PeregrinaRepository.findFiltradas({ ...unaDiocesis, estado: "activa" })
     );
     const libres = await explicar(() =>
-      PeregrinaRepository.contarSinTenencia(alcance, {})
+      PeregrinaRepository.contarSinTenencia(unaDiocesis)
     );
     const porConsagracion = await explicar(() =>
-      PeregrinaRepository.contarPorQuinquenioDeConsagracion(alcance, {})
+      PeregrinaRepository.contarPorQuinquenioDeConsagracion(unaDiocesis)
     );
     const personas = await explicar(() =>
-      MisioneroRepository.contarTotal(alcance, {})
+      MisioneroRepository.contarTotal(unaDiocesis)
     );
 
     // El desglose por Estado y por Modalidad es la razón del índice compuesto:
@@ -307,25 +312,18 @@ describe("los planes del tablero, con volumen", () => {
   });
 
   it("los listados ordenados tampoco recorren la tabla", async () => {
-    const disponibles = await explicar(() =>
-      PeregrinaRepository.findDisponibles(alcance)
-    );
-
     // El listado colapsado es lo que `/misionero` carga, y lo carga **paginado**
     // (`listPagina`, ADR 0008). Se mide así y no sin paginar porque la lectura
     // ahora son tres consultas y las dos últimas dependen de cuántas filas trajo
     // la primera: pedir la Diócesis entera mide una pantalla que no existe.
     const gente = await planes(() =>
       MisioneroRepository.findFiltrados(
-        alcance,
-        {},
+        unaDiocesis,
         {},
         { limit: FILAS_POR_PAGINA, offset: 0 }
       )
     );
     const [union, ...hidrataciones] = gente;
-
-    expect.soft(disponibles).not.toContain("Seq Scan on peregrina");
 
     // La unión: las dos patas entran por el índice del territorio y **ordenan**,
     // que es el mismo resultado que antes del Matrimonio. Se escribieron dos
@@ -349,10 +347,10 @@ describe("los planes del tablero, con volumen", () => {
 
   it("las listas cruzadas no recorren la historia", async () => {
     const estancadas = await explicar(() =>
-      AsignacionRepository.findPeregrinasEstancadas(alcance, 180)
+      AsignacionRepository.findPeregrinasEstancadas(180, unaDiocesis)
     );
     const sinPeregrina = await planes(() =>
-      AsignacionRepository.findTenedoresSinPeregrina(alcance)
+      AsignacionRepository.findTenedoresSinPeregrina(unaDiocesis)
     );
     const [personasLibres, parejasLibres] = sinPeregrina;
 
@@ -394,10 +392,23 @@ describe("los planes del tablero, con volumen", () => {
     // índice acá sería más lento, y exigirlo convertiría este archivo en una
     // regla de estilo en lugar de una medición.
     const plan = await explicar(() =>
-      PeregrinaRepository.contarPorProvincia(alcanceNacional, {})
+      PeregrinaRepository.contarPorProvincia({})
     );
 
     expect(plan).toContain("Aggregate");
+  });
+
+  it("las imágenes libres del país también la recorren, y también está bien", async () => {
+    // El picker de imágenes libres se medía acotado a una Diócesis y ahí no
+    // recorría la tabla. Desde ADR 0016 cada rol lee el país, y lo que trae es
+    // un tercio de las imágenes: leerlas todas es el plan correcto, igual que el
+    // desglose de arriba, y no se le exige un índice. Lo que sí se exige es que
+    // «libre» sean las dos columnas en null (ADR 0010), o una imagen de un
+    // Matrimonio aparecería para entregarse dos veces.
+    const plan = await explicar(() => PeregrinaRepository.findDisponibles());
+
+    expect(plan).toContain("misionero_actual_id IS NULL");
+    expect(plan).toContain("matrimonio_actual_id IS NULL");
   });
 });
 

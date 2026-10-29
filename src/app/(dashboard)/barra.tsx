@@ -50,9 +50,9 @@ type Props = {
 function destinos({ puedeAdministrar, filtroPropio }: Props) {
   return [
     // El tablero se llega desde acá y no desde Inicio: Inicio son las tres cosas
-    // que un Referente vino a hacer, y las cifras no son una de ellas — pero son
-    // la primera cosa que abre un Responsable Diocesano o un Asesor Nacional, así
-    // que tienen que estar a un toque desde cualquier pantalla.
+    // que alguien vino a cargar, y las cifras no son una de ellas — pero son la
+    // primera cosa que abre un Asesor Nacional, así que tienen que estar a un
+    // toque desde cualquier pantalla.
     // Quien carga una sola Modalidad llega con ella filtrada, y la puede sacar:
     // el filtro es una comodidad, no un límite (ADR 0016).
     { ruta: "/tablero", href: `/tablero${filtroPropio}`, texto: "Tablero" },

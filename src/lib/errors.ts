@@ -33,7 +33,7 @@ export class ErrorDeDominio extends Error {
 }
 
 /**
- * The Actor may not do this, or may not do it here.
+ * The Actor may not do this.
  *
  * Every construction of this error is logged by the caller that raises it — see
  * `registrarDenegacion`. A refusal nobody can find in a log is a
@@ -72,19 +72,12 @@ export class ConflictoError extends ErrorDeDominio {
 export const SIN_PERMISOS =
   "No tenés permisos para hacer esto. Si necesitás hacerlo, pedíselo a quien te dio el acceso.";
 
-export const FUERA_DE_TERRITORIO =
-  "Ese registro es de otro territorio, así que no podés verlo ni modificarlo.";
-
 export const SIN_AUTORIZACION =
   "Tu cuenta todavía no está autorizada para usar el sistema. " +
-  "Pedile a un Asesor Nacional o a tu Responsable Diocesano que te invite.";
+  "Pedile a un Asesor Nacional que te invite.";
 
 export const CUENTA_DADA_DE_BAJA =
   "Tu acceso fue dado de baja. Si esto es un error, pedíselo a un Asesor Nacional.";
-
-export const SIN_TERRITORIO_ASIGNADO =
-  "Tu usuario no tiene una Diócesis/Localidad asignada, así que no se puede " +
-  "determinar qué te corresponde ver. Pedile a un Asesor Nacional que la asigne.";
 
 // ── La única traducción de error a respuesta ───────────────────────────────────
 

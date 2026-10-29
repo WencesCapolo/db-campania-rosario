@@ -3,7 +3,6 @@ import { MatrimonioService } from "./matrimonio.service";
 import { MisioneroService } from "./misionero.service";
 import { MatrimonioRepository } from "./matrimonio.repository";
 import { MisioneroRepository } from "./misionero.repository";
-import { derivarAlcance } from "@/lib/authorization/alcance";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -80,7 +79,7 @@ describe("un matrimonio se entra de una vez", () => {
     expect(pareja.misioneroA.apellido).toBe("Álvarez");
     expect(pareja.misioneroB.apellido).toBe("Benítez");
 
-    // The invariant everything downstream leans on: the couple's Alcance, its
+    // The invariant everything downstream leans on: the couple's Diócesis, its
     // Región and its place in the listado are all read off spouse A, and that is
     // only well defined because both spouses carry the same Diócesis.
     expect(pareja.misioneroA.diocesisLocalidad.id).toBe(
@@ -123,10 +122,9 @@ describe("el listado colapsa el hogar en una fila", () => {
   it("la cifra vale lo mismo que las filas que hay detrás del enlace", async () => {
     await crearAlvarezBenitez(territorio.villaMaria.id);
 
-    const alcance = derivarAlcance(asesor, "prueba");
-    const total = await MisioneroRepository.contarTotal(alcance, {});
-    const porRegion = await MisioneroRepository.contarPorRegion(alcance, {});
-    const porEstado = await MisioneroRepository.contarPorEstado(alcance, {});
+    const total = await MisioneroRepository.contarTotal({});
+    const porRegion = await MisioneroRepository.contarPorRegion({});
+    const porEstado = await MisioneroRepository.contarPorEstado({});
 
     // Two people, one Tenedor. A figure that counted the spouses would say two
     // and the list behind it would show one.
@@ -168,11 +166,9 @@ describe("el listado colapsa el hogar en una fila", () => {
 describe("deMisionero — el guardia de «casado nunca solo»", () => {
   it("encuentra el Matrimonio desde cualquiera de los dos esposos", async () => {
     const pareja = await crearAlvarezBenitez(territorio.villaMaria.id);
-    const alcance = derivarAlcance(asesor, "prueba");
 
     for (const esposo of [pareja.misioneroA, pareja.misioneroB]) {
       const encontrado = await MatrimonioRepository.deMisionero(
-        alcance,
         esposo.id
       );
       // Keying on `misionero_a_id` alone is the bug the feature exists to kill:
@@ -187,15 +183,14 @@ describe("deMisionero — el guardia de «casado nunca solo»", () => {
       createdById: asesor.id,
     });
     const pareja = await crearAlvarezBenitez(territorio.villaMaria.id);
-    const alcance = derivarAlcance(asesor, "prueba");
 
     expect(
-      await MatrimonioRepository.deMisionero(alcance, soltera.id)
+      await MatrimonioRepository.deMisionero(soltera.id)
     ).toBeNull();
 
     await MatrimonioService.baja(asesor, pareja.id);
     expect(
-      await MatrimonioRepository.deMisionero(alcance, pareja.misioneroA.id)
+      await MatrimonioRepository.deMisionero(pareja.misioneroA.id)
     ).toBeNull();
   });
 });

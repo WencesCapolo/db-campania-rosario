@@ -69,7 +69,7 @@ export default function CorregirAsignacion({
   tenedores,
 }: {
   asignacion: AsignacionDTO;
-  /** El roster colapsado del alcance del Actor: solteros y matrimonios. */
+  /** El roster colapsado del país: solteros y matrimonios. */
   tenedores: TenedorDTO[];
 }) {
   const router = useRouter();
@@ -167,7 +167,7 @@ export default function CorregirAsignacion({
               opciones={opcionesDeTenedor}
               alElegir={(valor) => editar("tenedor", valor)}
               sinCoincidencias={(b) =>
-                `Nadie se llama «${b}» en tu territorio. Revisá lo que escribiste.`
+                `Nadie se llama «${b}». Revisá lo que escribiste.`
               }
             />
 

@@ -25,15 +25,12 @@ import { ConflictoError } from "@/lib/errors";
 
 let territorio: TerritorioDePrueba;
 let asesor: CurrentUser;
-let referente: CurrentUser;
+let responsable: CurrentUser;
 
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
   asesor = await crearActor({ rol: "asesor_nacional" });
-  referente = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
+  responsable = await crearActor({ rol: "responsable_diocesano" });
 });
 
 function nueva(
@@ -52,17 +49,17 @@ function nueva(
 async function misionero() {
   return crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
   });
 }
 
 describe("Extraviada es un Estado", () => {
   it("una extraviada que nadie tiene sigue en el listado y en su filtro", async () => {
-    const perdida = await nueva(referente, 23);
-    await PeregrinaService.update(referente, perdida.id, { estado: "extraviada" });
+    const perdida = await nueva(responsable, 23);
+    await PeregrinaService.update(responsable, perdida.id, { estado: "extraviada" });
 
-    const todas = await PeregrinaService.listPagina(referente, {});
-    const extraviadas = await PeregrinaService.listPagina(referente, {
+    const todas = await PeregrinaService.listPagina(responsable, {});
+    const extraviadas = await PeregrinaService.listPagina(responsable, {
       estado: "extraviada",
     });
 
@@ -73,14 +70,14 @@ describe("Extraviada es un Estado", () => {
 
   it("una extraviada a cargo de alguien conserva a quien la tuvo", async () => {
     const ana = await misionero();
-    const perdida = await nueva(referente, 23);
-    await AsignacionService.asignar(referente, {
+    const perdida = await nueva(responsable, 23);
+    await AsignacionService.asignar(responsable, {
       peregrinaId: perdida.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
 
-    const cambiada = await PeregrinaService.update(referente, perdida.id, {
+    const cambiada = await PeregrinaService.update(responsable, perdida.id, {
       estado: "extraviada",
     });
 
@@ -100,10 +97,10 @@ describe("Extraviada es un Estado", () => {
     expect(lista.total).toBe(1);
   });
   it("su Código sigue ocupado, y la negativa dice cómo encontrarla", async () => {
-    const perdida = await nueva(referente, 23);
-    await PeregrinaService.update(referente, perdida.id, { estado: "extraviada" });
+    const perdida = await nueva(responsable, 23);
+    await PeregrinaService.update(responsable, perdida.id, { estado: "extraviada" });
 
-    const intento = nueva(referente, 23);
+    const intento = nueva(responsable, 23);
     await expect(intento).rejects.toThrow(ConflictoError);
     await expect(intento).rejects.toThrow(/CBA JOV 0023.*buscala por su Código/);
   });
@@ -112,26 +109,26 @@ describe("Extraviada es un Estado", () => {
 describe("borrar una Peregrina", () => {
   it("se va con su historial, y su Código vuelve a quedar libre", async () => {
     const ana = await misionero();
-    const borrada = await nueva(referente, 23);
-    await AsignacionService.asignar(referente, {
+    const borrada = await nueva(responsable, 23);
+    await AsignacionService.asignar(responsable, {
       peregrinaId: borrada.id,
       tenedor: { tipo: "persona", id: ana.id },
       nota: null,
     });
-    await AsignacionService.devolver(referente, {
+    await AsignacionService.devolver(responsable, {
       peregrinaId: borrada.id,
       notaCierre: null,
     });
 
-    await PeregrinaService.borrar(referente, borrada.id);
+    await PeregrinaService.borrar(responsable, borrada.id);
 
     await expect(PeregrinaService.getById(asesor, borrada.id)).rejects.toThrow(
       /No existe/,
     );
-    expect(await AsignacionService.historialDeMisionero(referente, ana.id)).toEqual(
+    expect(await AsignacionService.historialDeMisionero(responsable, ana.id)).toEqual(
       [],
     );
-    const otraVez = await nueva(referente, 23);
+    const otraVez = await nueva(responsable, 23);
     expect(otraVez.codigo).toBe("CBA JOV 0023");
   });
 });
@@ -139,9 +136,9 @@ describe("borrar una Peregrina", () => {
 describe("el uso de un territorio", () => {
   it("cuenta cada Peregrina, extraviada o no, hasta que se la mueve o se la borra", async () => {
     const ana = await misionero();
-    await MisioneroService.darDeBaja(referente, ana.id);
-    const perdida = await nueva(referente, 23);
-    await PeregrinaService.update(referente, perdida.id, { estado: "extraviada" });
+    await MisioneroService.darDeBaja(responsable, ana.id);
+    const perdida = await nueva(responsable, 23);
+    await PeregrinaService.update(responsable, perdida.id, { estado: "extraviada" });
 
     expect(
       await TerritorioService.usoDeDiocesisLocalidad(asesor, territorio.villaMaria.id),
@@ -150,7 +147,7 @@ describe("el uso de un territorio", () => {
       TerritorioService.darDeBajaDiocesisLocalidad(asesor, territorio.villaMaria.id),
     ).rejects.toThrow();
 
-    await PeregrinaService.borrar(referente, perdida.id);
+    await PeregrinaService.borrar(responsable, perdida.id);
 
     const retirada = await TerritorioService.darDeBajaDiocesisLocalidad(
       asesor,

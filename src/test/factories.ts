@@ -49,7 +49,7 @@ function nuevoIdDeIdentidad(): string {
  *
  * This is the shape of a person who has signed in and is not authorized: the
  * provider knows them, the Campaña does not. Tests use it to prove that such an
- * identity resolves to nothing rather than to a Referente Local.
+ * identity resolves to nothing rather than to a default rol.
  */
 export async function crearIdentidad(
   opts: { email?: string; nombre?: string | null; id?: string } = {}
@@ -78,14 +78,9 @@ export async function crearIdentidad(
  * user-management screen reads emails out of `neon_auth."user"`, so a Usuario
  * with no identity is the *orphan* case and should be built on purpose, not by
  * accident — pass `sinIdentidad` for that.
- *
- * A lower rol with no `diocesisLocalidadId` is buildable on purpose too: that
- * pairing is the one authorization has to fail closed on, and a factory that
- * refused to construct it would make the rule untestable.
  */
 export async function crearActor(opts: {
   rol: Role;
-  diocesisLocalidadId?: string | null;
   email?: string;
   sinIdentidad?: boolean;
 }): Promise<CurrentUser> {
@@ -98,24 +93,14 @@ export async function crearActor(opts: {
     await db.insert(identidades).values({ id, email, name: null });
   }
 
-  await db.insert(users).values({
-    id,
-    role: opts.rol,
-    diocesisLocalidadId: opts.diocesisLocalidadId ?? null,
-  });
+  await db.insert(users).values({ id, role: opts.rol });
 
-  return {
-    id,
-    role: opts.rol,
-    email,
-    displayName: null,
-    diocesisLocalidadId: opts.diocesisLocalidadId ?? null,
-  };
+  return { id, role: opts.rol, email, displayName: null };
 }
 
 /**
- * The system actor: an explicit, visible stand-in for the operations that are
- * genuinely unscoped — seeds, migrations, cron. ADR 0001 requires the intent to
+ * The system actor: an explicit, visible stand-in for the operations that have
+ * no Usuario behind them — seeds, migrations, cron. ADR 0001 requires the intent to
  * be legible rather than implied by an absent parameter.
  *
  * Delegates to `src/`, so the suite exercises the same Actor production seeds

@@ -52,11 +52,8 @@ import { CLAVE_DE_PAGINA } from "@/lib/paginacion";
  * first reopening the thing that caused it. That is also why it opens already
  * expanded when the address arrives with filters in it.
  *
- * The territory picker appears only for the two nacional rols. A Referente Local's
- * selection list legitimately reaches their whole Provincia — that is what makes a
- * picker a picker — but *reading* another Diócesis is refused, so offering it here
- * would be offering a control that produces a refusal. Their data is one Diócesis
- * already; the filter would narrow nothing.
+ * The territory picker appears whenever there is more than one Diócesis to
+ * choose from. Every rol sees the whole country, so it is offered to everybody.
  */
 
 const OPCIONES_DE_MODALIDAD = MODALIDADES.map((m) => ({
@@ -96,7 +93,7 @@ export default function FiltrosDeInventario({
   filtros: FiltrosDeInventario;
   /** Where the filters apply — `/peregrina`, `/tablero`. */
   destino: string;
-  /** The Diócesis on offer, for a nacional rol. Null for everybody else. */
+  /** The Diócesis on offer. Without them there is no territory filter. */
   territorios?: TerritorioParaFiltrar[] | null;
   /**
    * The two typed searches — Código, and the name of whoever has the image.

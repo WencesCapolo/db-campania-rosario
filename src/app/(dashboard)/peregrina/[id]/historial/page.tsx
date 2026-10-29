@@ -22,9 +22,8 @@ import CorregirAsignacion from "./CorregirAsignacion";
  * knew only the fourth of four holders.
  *
  * Read oldest first, because a chain reads forwards. Neither read is wrapped in a
- * try: an authorization refusal belongs to the (dashboard) error boundary, and a
- * history somebody may not see rendering as "sin historial" would confirm the
- * record exists.
+ * try: a refusal belongs to the (dashboard) error boundary, and a Peregrina that
+ * does not exist must not render as one with "sin historial".
  *
  * On the primitives, and the three helper functions that used to sit at the bottom
  * of this file are gone. `fecha`, `dias` and `registro` live in
@@ -32,7 +31,7 @@ import CorregirAsignacion from "./CorregirAsignacion";
  * page needed the same three, and this copy was the one left behind to drift.
  * `registro` is the one that matters: it takes a `RegistroDTO`, which has no name
  * field in it at all, so no screen can render "registrada por María Pérez" about
- * a login that a whole territory shares.
+ * a Buzón that everybody in one function shares.
  *
  * Every period carries a Corregir control — story 17. This is the right screen for
  * it and the only one: a correction is made while reading the chain and noticing
@@ -52,9 +51,7 @@ export default async function HistorialPage({
 
   // The Tenedor list is read here, alongside the history, because every period
   // carries a correction dialog and each of those needs the same picker. One read
-  // for the page rather than one per period, and it is the Actor's own scoped list
-  // — `MisioneroService.listFiltrados` derives its filter, so this cannot widen
-  // what a correction may point at.
+  // for the page rather than one per period.
   //
   // El roster colapsado, no la lista de personas: un período pudo ser de un
   // Matrimonio, y un cónyuge casado no es corregible por separado (ADR 0010).
@@ -180,7 +177,7 @@ export default async function HistorialPage({
                   </p>
                 )}
 
-                {/* A territory, never a person. */}
+                {/* A login, never a person. */}
                 <p className="text-base text-tinta-suave">{registro(a)}</p>
 
                 {a.corregidaAt && (
@@ -188,11 +185,7 @@ export default async function HistorialPage({
                   // that was edited and does not say so is a record nobody can
                   // trust twice.
                   <p className="text-base text-tinta-suave">
-                    Corregida el {fecha(a.corregidaAt)}
-                    {a.corregidaPor?.diocesisLocalidad
-                      ? ` desde ${a.corregidaPor.diocesisLocalidad}`
-                      : ""}
-                    .
+                    Corregida el {fecha(a.corregidaAt)}.
                   </p>
                 )}
 

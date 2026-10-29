@@ -5,7 +5,7 @@ import Boton, { BotonEnlace } from "./Boton";
  *
  * Two links and a sentence. No numbered strip: on a 390px phone, nine page
  * numbers are nine 20px targets in a row, which is the opposite of the 48px floor
- * the rest of the interface holds, and a Referente reads "página 3 de 7" faster
+ * the rest of the interface holds, and somebody reads "página 3 de 7" faster
  * than they find the emphasised 3 among them.
  *
  * A server component on purpose. The page lives in the address, so moving between

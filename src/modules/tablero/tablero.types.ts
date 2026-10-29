@@ -51,16 +51,8 @@ export interface ConteoPorQuinquenio {
 /**
  * Cómo se reparten las imágenes: por Estado, por Modalidad, por territorio y por
  * el año de consagración de quien las tiene.
- *
- * `vista` is derived from the Actor's rol rather than chosen: a Provincia or
- * Diócesis breakdown is the question an Asesor Nacional can act on, and it is a
- * single row with the Actor's own name in it for a Referente Local — which is not
- * a breakdown, it is noise. `null` therefore means "not a question this rol
- * has", not "no data".
  */
 export interface TableroDTO {
-  vista: "nacional" | "diocesana";
-
   totalPeregrinas: number;
   /** Images nobody has right now — the ones the año breakdown cannot place. */
   sinTenencia: number;
@@ -73,8 +65,8 @@ export interface TableroDTO {
    */
   porConsagracion: ConteoPorQuinquenio[];
 
-  /** Nacional only, biggest first. */
-  porProvincia: ConteoPorProvincia[] | null;
-  /** Nacional only: the Diócesis side by side, biggest first. */
-  porDiocesis: ConteoPorDiocesis[] | null;
+  /** Biggest first. */
+  porProvincia: ConteoPorProvincia[];
+  /** The Diócesis side by side, biggest first. */
+  porDiocesis: ConteoPorDiocesis[];
 }

@@ -7,13 +7,6 @@ import type {
   IdentidadHuerfanaDTO,
   UserDTO,
 } from "./user.types";
-import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
-import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
-import {
-  derivarAlcance,
-  esNacional,
-  exigirDentroDelAlcance,
-} from "@/lib/authorization/alcance";
 import { configura } from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
@@ -22,24 +15,21 @@ import {
   NoAutorizadoError,
   NoEncontradoError,
   SIN_AUTORIZACION,
-  SIN_TERRITORIO_ASIGNADO,
   ValidacionError,
 } from "@/lib/errors";
 
 /** Why an authenticated identity has no Actor. Rendered by /sin-autorizacion. */
-export type MotivoDeRefusa = "sin-usuario" | "dado-de-baja" | "sin-territorio";
+export type MotivoDeRefusa = "sin-usuario" | "dado-de-baja";
 
 const MENSAJE_POR_MOTIVO: Record<MotivoDeRefusa, string> = {
   "sin-usuario": SIN_AUTORIZACION,
   "dado-de-baja": CUENTA_DADA_DE_BAJA,
-  "sin-territorio": SIN_TERRITORIO_ASIGNADO,
 };
 
 /**
  * UserService
  *
- * Responsibility: who exists, what rol they hold, and which territory bounds
- * them.
+ * Responsibility: who exists, and what rol they hold.
  *
  * Two rules run through everything here:
  *
@@ -102,13 +92,6 @@ export class UserService {
       role: row.usuario.role,
       email: row.identidad?.email ?? "",
       displayName: row.identidad?.name ?? null,
-      diocesisLocalidad:
-        row.diocesis && row.provincia
-          ? mapearDiocesisLocalidad({
-              diocesis: row.diocesis,
-              provincia: row.provincia,
-            })
-          : null,
       deBaja: row.usuario.bajaAt !== null,
       sinIdentidad: row.identidad === null,
       createdById: row.usuario.createdById ?? null,
@@ -126,12 +109,12 @@ export class UserService {
    * with a `referente_local` default is the defect issue #2 exists to close, and
    * it made authentication sufficient for authorization.
    *
-   * Null covers three cases, all of them "no usable Actor": no row at all, a row
-   * given de baja, and a lower rol whose territory is missing. A Usuario given
-   * de baja loses access while every Peregrina and Misionero they registered
-   * keeps pointing at their row, so past work stays attributable (user story 15).
+   * Null covers two cases, both of them "no usable Actor": no row at all, and a
+   * row given de baja. A Usuario given de baja loses access while every
+   * Peregrina and Misionero they registered keeps pointing at their row, so past
+   * work stays attributable (user story 15).
    *
-   * `resolverActor` distinguishes the three, because the person on the other end
+   * `resolverActor` distinguishes the two, because the person on the other end
    * needs to know which one they are. This variant does not, because its callers
    * only need to know whether to keep going.
    */
@@ -143,24 +126,21 @@ export class UserService {
     const row = await UserRepository.findById(identidad.id);
     if (!row) return null;
     if (row.bajaAt !== null) return null;
-    if (!esNacional(row.role) && !row.diocesisLocalidadId) return null;
 
     return {
       id: row.id,
       role: row.role,
       email: identidad.email,
       displayName: identidad.displayName ?? null,
-      diocesisLocalidadId: row.diocesisLocalidadId ?? null,
     };
   }
 
   /**
    * Why this identity has no Actor, or null because it does.
    *
-   * Three refusals, kept apart because they send somebody to three different
-   * people: a stranger needs an invitation, a Usuario given de baja needs an
-   * Asesor Nacional, and a lower rol with no territory needs one assigned. "No
-   * anduvo" would send all three to the wrong place.
+   * Two refusals, kept apart because they send somebody to two different
+   * people: a stranger needs an invitation, and a Usuario given de baja needs an
+   * Asesor Nacional. "No anduvo" would send both to the wrong place.
    *
    * A code rather than a message, because the sign-in screen renders it and UI
    * copy gets reworded while a contract should not.
@@ -172,9 +152,6 @@ export class UserService {
 
     if (!row) return "sin-usuario";
     if (row.bajaAt !== null) return "dado-de-baja";
-    if (!esNacional(row.role) && !row.diocesisLocalidadId) {
-      return "sin-territorio";
-    }
     return null;
   }
 
@@ -207,12 +184,10 @@ export class UserService {
   // ── Reads ───────────────────────────────────────────────────────────────────
 
   /**
-   * The Usuarios this Actor administers.
+   * The Usuarios of the country, for an Actor who administers somebody.
    *
-   * Scoped like everything else: an Asesor Nacional sees the country, a
-   * Responsable Diocesano sees their own Diócesis. Emails come from
-   * `neon_auth."user"` — they used to be a hardcoded "—" for everybody,
-   * which made the screen unusable for its actual purpose.
+   * Emails come from `neon_auth."user"` — they used to be a hardcoded "—" for
+   * everybody, which made the screen unusable for its actual purpose.
    */
   static async listarUsuarios(
     actor: CurrentUser,
@@ -220,9 +195,8 @@ export class UserService {
   ): Promise<UserDTO[]> {
     const operacion = "UserService.listarUsuarios";
     UserService.exigirPuedeAdministrarAlguien(actor, operacion);
-    const alcance = derivarAlcance(actor, operacion);
 
-    const rows = await UserRepository.findAllConIdentidad(alcance, opts);
+    const rows = await UserRepository.findAllConIdentidad(opts);
     return rows.map(UserService.toDTO);
   }
 
@@ -230,9 +204,7 @@ export class UserService {
    * Identities the auth provider knows about that have no Usuario — user story
    * 17: a half-finished provisioning, or somebody who signed in and was refused.
    *
-   * Country-wide only. A Responsable Diocesano cannot act on these — an identity
-   * with no application row has no territory to compare theirs against, so there
-   * is no honest way to decide which of them are "theirs".
+   * Only for a rol that configura: acting on these is managing Usuarios.
    */
   static async listarIdentidadesSinUsuario(
     actor: CurrentUser
@@ -262,14 +234,11 @@ export class UserService {
   // ── Writes ──────────────────────────────────────────────────────────────────
 
   /**
-   * Changes a Usuario's rol or territory — user story 16, a real-world
-   * reassignment.
+   * Changes a Usuario's rol — user story 16, a real-world reassignment.
    *
-   * Both ranks are checked, and both territories. The Actor must outrank the
-   * Usuario as they are *and* as they are about to become, otherwise a
-   * Responsable Diocesano could promote a Referente to Asesor Nacional and
-   * inherit the country by proxy. And a scoped Actor may neither reach into
-   * another Diócesis nor push somebody out of their own.
+   * Both ranks are checked. The Actor must outrank the Usuario as they are *and*
+   * as they are about to become, otherwise an Actor could promote somebody past
+   * themselves and inherit that rol by proxy.
    */
   static async actualizar(
     actor: CurrentUser,
@@ -278,40 +247,22 @@ export class UserService {
   ): Promise<UserDTO> {
     const operacion = "UserService.actualizar";
     UserService.exigirPuedeAdministrarAlguien(actor, operacion);
-    const alcance = derivarAlcance(actor, operacion);
 
     // Now that an admin manages other admins, an admin could otherwise demote
     // themselves — and the last admin doing it leaves nobody who can undo it.
     if (targetId === actor.id) {
-      throw new ValidacionError("No podés cambiar tu propio rol ni tu territorio.");
+      throw new ValidacionError("No podés cambiar tu propio rol.");
     }
 
-    const actual = await UserService.exigirVisible(actor, alcance, targetId, operacion);
+    const actual = await UserService.exigirExistente(actor, targetId, operacion);
 
     UserService.exigirPuedeAdministrar(actor, actual.role, operacion);
+    UserService.exigirPuedeAdministrar(actor, input.rol, operacion);
 
-    const rol = input.rol ?? actual.role;
-    if (input.rol !== undefined) {
-      UserService.exigirPuedeAdministrar(actor, input.rol, operacion);
-    }
-
-    const territorio = await UserService.resolverTerritorio(
-      actor,
-      alcance,
-      rol,
-      input.diocesisLocalidadId === undefined
-        ? actual.diocesisLocalidadId
-        : input.diocesisLocalidadId,
-      operacion
-    );
-
-    const row = await UserRepository.update(targetId, {
-      role: rol,
-      diocesisLocalidadId: territorio,
-    });
+    const row = await UserRepository.update(targetId, { role: input.rol });
     if (!row) throw new NoEncontradoError("No existe ese usuario.");
 
-    return UserService.leerUno(alcance, targetId);
+    return UserService.leerUno(targetId);
   }
 
   /**
@@ -327,7 +278,6 @@ export class UserService {
   ): Promise<UserDTO> {
     const operacion = "UserService.darDeBaja";
     UserService.exigirPuedeAdministrarAlguien(actor, operacion);
-    const alcance = derivarAlcance(actor, operacion);
 
     if (targetId === actor.id) {
       throw new ValidacionError("No podés darte de baja a vos mismo.");
@@ -336,9 +286,8 @@ export class UserService {
     // Includes bajas, so somebody already dado de baja is reported as such
     // rather than as missing — "no existe" would be a lie the operator has to
     // debug.
-    const actual = await UserService.exigirVisible(
+    const actual = await UserService.exigirExistente(
       actor,
-      alcance,
       targetId,
       operacion,
       { incluirBajas: true }
@@ -348,7 +297,7 @@ export class UserService {
     const row = await UserRepository.darDeBaja(targetId);
     if (!row) throw new ConflictoError("Ese usuario ya estaba dado de baja.");
 
-    return UserService.leerUno(alcance, targetId, { incluirBajas: true });
+    return UserService.leerUno(targetId, { incluirBajas: true });
   }
 
   static async reactivar(
@@ -357,9 +306,8 @@ export class UserService {
   ): Promise<UserDTO> {
     const operacion = "UserService.reactivar";
     UserService.exigirPuedeAdministrarAlguien(actor, operacion);
-    const alcance = derivarAlcance(actor, operacion);
 
-    const actual = await UserService.exigirVisible(actor, alcance, targetId, operacion, {
+    const actual = await UserService.exigirExistente(actor, targetId, operacion, {
       incluirBajas: true,
     });
     UserService.exigirPuedeAdministrar(actor, actual.role, operacion);
@@ -367,28 +315,19 @@ export class UserService {
     const row = await UserRepository.reactivar(targetId);
     if (!row) throw new ConflictoError("Ese usuario no estaba dado de baja.");
 
-    return UserService.leerUno(alcance, targetId);
+    return UserService.leerUno(targetId);
   }
 
-  // ── Helpers privados de alcance ─────────────────────────────────────────────
+  // ── Helpers privados ─────────────────────────────────────────────
 
-  /**
-   * The target row, if this Actor may see it at all.
-   *
-   * A target outside the Actor's territory is reported as not existing rather
-   * than as forbidden: "that Usuario is in another Diócesis" is itself a fact
-   * about another Diócesis. The denial is logged, so the difference is visible
-   * to an operator and not to the caller.
-   */
-  private static async exigirVisible(
+  /** The target row, or a logged refusal that says it does not exist. */
+  private static async exigirExistente(
     actor: CurrentUser,
-    alcance: ReturnType<typeof derivarAlcance>,
     targetId: string,
     operacion: string,
     opts: { incluirBajas?: boolean } = {}
   ) {
     const encontrado = await UserRepository.findConIdentidadById(
-      alcance,
       targetId,
       opts
     );
@@ -397,7 +336,7 @@ export class UserService {
       registrarDenegacion({
         actor,
         operacion,
-        motivo: "usuario inexistente o fuera del territorio del Actor",
+        motivo: "usuario inexistente",
       });
       throw new NoEncontradoError("No existe ese usuario.");
     }
@@ -406,54 +345,11 @@ export class UserService {
   }
 
   private static async leerUno(
-    alcance: ReturnType<typeof derivarAlcance>,
     id: string,
     opts: { incluirBajas?: boolean } = {}
   ): Promise<UserDTO> {
-    const row = await UserRepository.findConIdentidadById(alcance, id, opts);
+    const row = await UserRepository.findConIdentidadById(id, opts);
     if (!row) throw new NoEncontradoError("No existe ese usuario.");
     return UserService.toDTO(row);
-  }
-
-  /**
-   * Checks the rol/territory pairing on a write, and that the destination is
-   * inside the Actor's scope.
-   *
-   * The pairing is the same invariant `derivarAlcance` fails closed on. Enforcing
-   * it here as well is deliberate: failing closed at login keeps a bad row from
-   * leaking data, and refusing it here keeps the bad row from being written.
-   */
-  private static async resolverTerritorio(
-    actor: CurrentUser,
-    alcance: ReturnType<typeof derivarAlcance>,
-    rol: Role,
-    diocesisLocalidadId: string | null | undefined,
-    operacion: string
-  ): Promise<string | null> {
-    if (esNacional(rol)) {
-      if (diocesisLocalidadId) {
-        throw new ValidacionError(
-          "Un Asesor Nacional y un Administrador cubren todo el país, así que no se les asigna una Diócesis/Localidad."
-        );
-      }
-      return null;
-    }
-
-    if (!diocesisLocalidadId) {
-      throw new ValidacionError(
-        "Elegí la Diócesis/Localidad que va a tener a cargo."
-      );
-    }
-
-    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-      diocesisLocalidadId
-    );
-    if (!territorio) {
-      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-    }
-
-    exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
-
-    return territorio.diocesis.id;
   }
 }

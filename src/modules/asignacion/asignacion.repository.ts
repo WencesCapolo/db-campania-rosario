@@ -12,7 +12,6 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { asignacion } from "./asignacion.schema";
 import type { AsignacionRow, NewAsignacionRow } from "./asignacion.schema";
@@ -25,9 +24,7 @@ import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 // «esta persona no es cónyuge de nadie» es cómo una lista ofrece una fila que la
 // otra no muestra.
 import { sinMatrimonioActivo } from "@/modules/misionero/misionero.repository";
-import { users } from "@/db/schema/users";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
-import type { Alcance } from "@/lib/authorization/alcance";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import type { Tenedor } from "@/modules/misionero/matrimonio.types";
 import type {
@@ -37,8 +34,7 @@ import type {
 
 /**
  * An Asignación is never useful on its own: a row of three foreign keys answers
- * nobody's question. Every read resolves the Código, the Tenedor's name, and
- * the territory of each login that touched the record.
+ * nobody's question. Every read resolves the Código and the Tenedor's name.
  *
  * `tenedor` is one field and not two half-filled ones, which is the whole shape
  * of ADR 0010 at this layer: the period belongs to a Misionero *or* to a
@@ -48,33 +44,14 @@ import type {
 export interface AsignacionCompleta {
   asignacion: AsignacionRow;
   peregrinaIdentificacion: string;
-  /** The Peregrina's territory — what this Asignación is scoped through. */
-  peregrinaDiocesisLocalidadId: string;
   tenedor: TenedorResueltoDTO;
-  registradaPorDiocesis: string | null;
-  cerradaPorDiocesis: string | null;
-  corregidaPorDiocesis: string | null;
-}
-
-/**
- * A Tenedor with its territory, for the guard every mutation runs before it
- * writes.
- *
- * A Matrimonio has no territory column of its own — it is spouse A's, which is
- * well defined only because both spouses share a Diócesis by construction
- * (ADR 0010). Flattened here so no caller has to know that.
- */
-export interface TenedorConTerritorio {
-  tenedor: TenedorResueltoDTO;
-  diocesisLocalidadId: string;
 }
 
 /**
  * Una imagen abierta, vista desde el **Tenedor** que la tiene.
  *
  * Mucho menos que `AsignacionCompleta` a propósito: es lo que necesita una celda
- * de una tabla — el Código, a dónde linkea, y el territorio de la imagen para
- * saber si se puede nombrar.
+ * de una tabla — el Código y a dónde linkea.
  *
  * `tenedor` y no `misioneroId`: la fila del listado que hace la pregunta puede
  * ser una pareja, y su id es de otra tabla (ADR 0010).
@@ -83,7 +60,6 @@ export interface TenenciaDeTenedor {
   tenedor: Tenedor;
   peregrinaId: string;
   peregrinaIdentificacion: string;
-  peregrinaDiocesisLocalidadId: string;
 }
 
 /**
@@ -101,17 +77,6 @@ export interface PeregrinaEstancada {
   dias: number;
   tenedor: TenedorResueltoDTO;
 }
-
-// Three different logins can touch one Asignación — the one that opened it, the
-// one that closed it, and the one that corrected it — so `users` and
-// `diocesis_localidad` are joined once per role. Left joins throughout: a
-// nacional rol has no territory, and a period that is still open has no closer.
-const registrante = alias(users, "registrante");
-const diocesisRegistrante = alias(diocesisLocalidad, "diocesis_registrante");
-const cerrador = alias(users, "cerrador");
-const diocesisCerrador = alias(diocesisLocalidad, "diocesis_cerrador");
-const corrector = alias(users, "corrector");
-const diocesisCorrector = alias(diocesisLocalidad, "diocesis_corrector");
 
 /**
  * The two spouses, joined through the Matrimonio rather than through the
@@ -136,7 +101,6 @@ function completa() {
     .select({
       asignacion,
       peregrinaIdentificacion: IDENTIFICACION,
-      peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
       misioneroId: misionero.id,
       misioneroNombre: misionero.nombre,
       misioneroApellido: misionero.apellido,
@@ -151,9 +115,6 @@ function completa() {
       esposoBNombre: esposoB.nombre,
       esposoBApellido: esposoB.apellido,
       esposoBBajaAt: esposoB.bajaAt,
-      registradaPorDiocesis: diocesisRegistrante.nombre,
-      cerradaPorDiocesis: diocesisCerrador.nombre,
-      corregidaPorDiocesis: diocesisCorrector.nombre,
     })
     .from(asignacion)
     // Peregrina is inner and deliberately not filtered on `baja_at`: a Peregrina
@@ -177,22 +138,7 @@ function completa() {
     .leftJoin(misionero, eq(misionero.id, asignacion.misioneroId))
     .leftJoin(matrimonio, eq(matrimonio.id, asignacion.matrimonioId))
     .leftJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
-    .leftJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId))
-    .leftJoin(registrante, eq(registrante.id, asignacion.registradaPorId))
-    .leftJoin(
-      diocesisRegistrante,
-      eq(diocesisRegistrante.id, registrante.diocesisLocalidadId)
-    )
-    .leftJoin(cerrador, eq(cerrador.id, asignacion.cerradaPorId))
-    .leftJoin(
-      diocesisCerrador,
-      eq(diocesisCerrador.id, cerrador.diocesisLocalidadId)
-    )
-    .leftJoin(corrector, eq(corrector.id, asignacion.corregidaPorId))
-    .leftJoin(
-      diocesisCorrector,
-      eq(diocesisCorrector.id, corrector.diocesisLocalidadId)
-    );
+    .leftJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId));
 }
 
 /** One row of `completa()`, inferred rather than restated. */
@@ -291,11 +237,7 @@ function aCompleta(fila: FilaCompleta): AsignacionCompleta {
   return {
     asignacion: fila.asignacion,
     peregrinaIdentificacion: fila.peregrinaIdentificacion,
-    peregrinaDiocesisLocalidadId: fila.peregrinaDiocesisLocalidadId,
     tenedor: tenedorDeColumnasResueltas(fila, fila.asignacion.id),
-    registradaPorDiocesis: fila.registradaPorDiocesis,
-    cerradaPorDiocesis: fila.cerradaPorDiocesis,
-    corregidaPorDiocesis: fila.corregidaPorDiocesis,
   };
 }
 
@@ -364,35 +306,6 @@ function tenedorDeColumnas(fila: {
   return null;
 }
 
-/**
- * The Actor's territorial filter, as SQL.
- *
- * The one place in the codebase where the filter is not a column on the table
- * being read. An Asignación has no territory of its own — a Peregrina is the
- * thing that lives somewhere — so the predicate lands on the joined `peregrina`
- * row, and every scoped read therefore joins it. `asignacion_peregrina_idx`
- * covers that join.
- *
- * The consequence is worth stating rather than discovering: a Peregrina that
- * moves Diócesis takes its whole history with it, so a Referente Local can lose
- * sight of Asignaciones their own territory registered, if an Asesor Nacional
- * moves the image out. That is the right way round — the chain of custody belongs
- * to the image — and the alternative, copying the territory onto each Asignación
- * when it opens, would freeze a fact that changes and is far worse to undo.
- */
-function condicionDeAlcance(alcance: Alcance) {
-  return alcance.tipo === "nacional"
-    ? undefined
-    : eq(peregrina.diocesisLocalidadId, alcance.diocesisLocalidadId);
-}
-
-function conAlcance(alcance: Alcance, ...extras: (SQL | undefined)[]) {
-  const filtros = [condicionDeAlcance(alcance), ...extras].filter(
-    (f) => f !== undefined
-  );
-  return filtros.length ? and(...filtros) : undefined;
-}
-
 /** An open period: no closing timestamp. This is the tenencia actual. */
 const abierta = isNull(asignacion.cerradaAt);
 
@@ -456,7 +369,7 @@ const CLAVE_ASIGNACION_ABIERTA = "asignacion_peregrina_abierta_key";
  * misma subconsulta — porque son las dos opciones de un mismo select y una
  * segunda consulta escrita a mano sería un segundo lugar donde discrepar.
  *
- * Scopeado por el territorio de la **persona** —el del cónyuge A para la pareja,
+ * Filtrado por el territorio de la **persona** —el del cónyuge A para la pareja,
  * que no tiene columna propia— y no por el de la imagen, que es lo que la
  * pregunta quiere decir: la Diócesis de alguien está en su propia fila, y una
  * Peregrina que se movió mientras estaba en una casa sigue estando en esa casa.
@@ -476,7 +389,6 @@ const CLAVE_ASIGNACION_ABIERTA = "asignacion_peregrina_abierta_key";
  * de un filtro.
  */
 async function tenedoresPorTenencia(
-  alcance: Alcance,
   filtros: FiltrosTerritoriales,
   tenencia: "con" | "sin"
 ): Promise<TenedorResueltoDTO[]> {
@@ -494,9 +406,6 @@ async function tenedoresPorTenencia(
     tenencia === "sin" ? notExists(sub) : exists(sub);
 
   const dePersonas = [
-    alcance.tipo === "nacional"
-      ? undefined
-      : eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
     filtros.diocesisLocalidadId
       ? eq(misionero.diocesisLocalidadId, filtros.diocesisLocalidadId)
       : undefined,
@@ -510,9 +419,6 @@ async function tenedoresPorTenencia(
   ].filter((f) => f !== undefined);
 
   const deParejas = [
-    alcance.tipo === "nacional"
-      ? undefined
-      : eq(esposoA.diocesisLocalidadId, alcance.diocesisLocalidadId),
     filtros.diocesisLocalidadId
       ? eq(esposoA.diocesisLocalidadId, filtros.diocesisLocalidadId)
       : undefined,
@@ -615,38 +521,27 @@ function claveDeOrden(t: TenedorResueltoDTO): {
  * denormalised `peregrina.misionero_actual_id` pointer that is derived from it —
  * the pointer is never written anywhere else, so the two cannot drift.
  *
- * No business logic. No permission checks. Every read takes an `Alcance` as its
- * first parameter, required, so a read added later cannot quietly omit the scope.
+ * No business logic. No permission checks.
  */
 export class AsignacionRepository {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   static async findById(
-    alcance: Alcance,
     id: string
   ): Promise<AsignacionCompleta | undefined> {
-    return leerUna(
-      completa().where(conAlcance(alcance, eq(asignacion.id, id))).limit(1)
-    );
+    return leerUna(completa().where(eq(asignacion.id, id)).limit(1));
   }
 
   /**
-   * A Tenedor with its territory and its names, before a mutation writes it.
+   * A Tenedor with its names, before a mutation writes it.
    *
-   * One method for both kinds, because every caller wants the same three things
-   * — does it exist, is it mine, and what is it called — and a caller that has
-   * to branch on `tipo` to ask them is a caller that will branch differently
-   * somewhere else.
-   *
-   * Unscoped by design, like every other `SinAlcance` read here: the caller
-   * compares the territory immediately, so that "no existe" and "es de otro
-   * territorio" stay different answers in the log and the same answer to the
-   * Actor. A Matrimonio's territory is spouse A's — it has no column of its own
-   * (ADR 0010) — and both spouses share a Diócesis by construction.
+   * One method for both kinds, because every caller wants the same two things
+   * — does it exist, and what is it called — and a caller that has to branch on
+   * `tipo` to ask them is a caller that will branch differently somewhere else.
    */
-  static async findTenedorSinAlcance(
+  static async findTenedor(
     t: Tenedor
-  ): Promise<TenedorConTerritorio | undefined> {
+  ): Promise<TenedorResueltoDTO | undefined> {
     if (t.tipo === "persona") {
       const [fila] = await db
         .select({
@@ -654,7 +549,6 @@ export class AsignacionRepository {
           nombre: misionero.nombre,
           apellido: misionero.apellido,
           bajaAt: misionero.bajaAt,
-          diocesisLocalidadId: misionero.diocesisLocalidadId,
         })
         .from(misionero)
         .where(eq(misionero.id, t.id))
@@ -662,13 +556,10 @@ export class AsignacionRepository {
       if (!fila) return undefined;
 
       return {
-        tenedor: {
-          tipo: "persona",
-          id: fila.id,
-          deBaja: fila.bajaAt !== null,
-          persona: persona(fila.id, fila.nombre, fila.apellido, fila.bajaAt),
-        },
-        diocesisLocalidadId: fila.diocesisLocalidadId,
+        tipo: "persona",
+        id: fila.id,
+        deBaja: fila.bajaAt !== null,
+        persona: persona(fila.id, fila.nombre, fila.apellido, fila.bajaAt),
       };
     }
 
@@ -680,7 +571,6 @@ export class AsignacionRepository {
         aNombre: esposoA.nombre,
         aApellido: esposoA.apellido,
         aBajaAt: esposoA.bajaAt,
-        aDiocesisLocalidadId: esposoA.diocesisLocalidadId,
         bId: esposoB.id,
         bNombre: esposoB.nombre,
         bApellido: esposoB.apellido,
@@ -697,50 +587,23 @@ export class AsignacionRepository {
     if (!fila) return undefined;
 
     return {
-      tenedor: {
-        tipo: "matrimonio",
-        id: fila.id,
-        deBaja: fila.bajaAt !== null,
-        matrimonio: {
-          misioneroA: persona(
-            fila.aId,
-            fila.aNombre,
-            fila.aApellido,
-            fila.aBajaAt
-          ),
-          misioneroB: persona(
-            fila.bId,
-            fila.bNombre,
-            fila.bApellido,
-            fila.bBajaAt
-          ),
-        },
+      tipo: "matrimonio",
+      id: fila.id,
+      deBaja: fila.bajaAt !== null,
+      matrimonio: {
+        misioneroA: persona(fila.aId, fila.aNombre, fila.aApellido, fila.aBajaAt),
+        misioneroB: persona(fila.bId, fila.bNombre, fila.bApellido, fila.bBajaAt),
       },
-      diocesisLocalidadId: fila.aDiocesisLocalidadId,
     };
-  }
-
-  /**
-   * The row regardless of territory, so a mutation can tell "does not exist"
-   * apart from "not yours" before refusing. A primary-key lookup, named to make
-   * the bypass visible; its callers compare the territory immediately.
-   */
-  static async findByIdSinAlcance(
-    id: string
-  ): Promise<AsignacionCompleta | undefined> {
-    return leerUna(completa().where(eq(asignacion.id, id)).limit(1));
   }
 
   /** The tenencia actual, if anybody has this image. */
   static async findAbiertaDePeregrina(
-    alcance: Alcance,
     peregrinaId: string
   ): Promise<AsignacionCompleta | undefined> {
     return leerUna(
       completa()
-        .where(
-          conAlcance(alcance, eq(asignacion.peregrinaId, peregrinaId), abierta)
-        )
+        .where(and(eq(asignacion.peregrinaId, peregrinaId), abierta))
         .limit(1)
     );
   }
@@ -753,12 +616,11 @@ export class AsignacionRepository {
    * last holder is the open row, which sorts last and stays open on purpose.
    */
   static async findHistorialDePeregrina(
-    alcance: Alcance,
     peregrinaId: string
   ): Promise<AsignacionCompleta[]> {
     return leerVarias(
       completa()
-        .where(conAlcance(alcance, eq(asignacion.peregrinaId, peregrinaId)))
+        .where(eq(asignacion.peregrinaId, peregrinaId))
         .orderBy(asc(asignacion.abiertaAt), asc(asignacion.createdAt))
     );
   }
@@ -771,36 +633,29 @@ export class AsignacionRepository {
    * the household's images were, and the gap is the years they were married.
    */
   static async findHistorialDeMisionero(
-    alcance: Alcance,
     misioneroId: string
   ): Promise<AsignacionCompleta[]> {
     return leerVarias(
       completa()
-        .where(conAlcance(alcance, tenidaPor(misioneroId)))
+        .where(tenidaPor(misioneroId))
         .orderBy(desc(asignacion.abiertaAt), desc(asignacion.createdAt))
     );
   }
 
   /**
-   * Every image this Misionero still has, **ignoring territory** — the guard
+   * Every image this Misionero still has, wherever it is filed — the guard
    * behind stories 13 and 14.
    *
-   * Unscoped on purpose, and this is the one place where that is not a
-   * convenience. A Peregrina can be moved to another Diócesis while a Misionero
-   * still physically holds it, so a scoped count would report zero and let the
-   * person be closed out with the image in their house. A guard that can be
-   * wrong in the permissive direction is not a guard.
-   *
-   * The caller is responsible for not leaking what it learns: `MisioneroService`
-   * names the Código only when the Actor could have seen it anyway, and otherwise
-   * says that an image from another territory is outstanding.
+   * A Peregrina can be moved to another Diócesis while a Misionero still
+   * physically holds it, so the image's territory does not enter into it. A
+   * guard that can be wrong in the permissive direction is not a guard.
    *
    * **Both legs, and this one is the bug the PRD opens with.** The guard keyed on
    * `misionero_id` alone, so the spouse the image was not filed under could be
    * given de baja with it sitting in their house. There is no "their" spouse any
    * more — the couple holds it — and `tenidaPor` says so.
    */
-  static async findAbiertasDeMisioneroSinAlcance(
+  static async findAbiertasDeMisionero(
     misioneroId: string
   ): Promise<AsignacionCompleta[]> {
     return leerVarias(
@@ -811,34 +666,20 @@ export class AsignacionRepository {
   }
 
   /**
-   * Every image this Matrimonio still has open, ignoring territory — the guard
-   * that refuses to end a marriage while one is outstanding.
+   * Every image this Matrimonio still has open, wherever it is filed — the
+   * guard that refuses to end a marriage while one is outstanding.
    *
    * `matrimonio.bajaAt` mirrors `misionero.bajaAt` exactly (ADR 0010), so it
-   * needs the same guard and the same unscoped reading of it: the image can have
-   * moved Diócesis while it sat in the couple's house.
+   * needs the same guard: the image can have moved Diócesis while it sat in the
+   * couple's house.
    */
-  static async findAbiertasDeMatrimonioSinAlcance(
+  static async findAbiertasDeMatrimonio(
     matrimonioId: string
   ): Promise<AsignacionCompleta[]> {
     return leerVarias(
       completa()
         .where(and(eq(asignacion.matrimonioId, matrimonioId), abierta))
         .orderBy(asc(IDENTIFICACION))
-    );
-  }
-
-  /**
-   * Every image this Peregrina's own record still has open, ignoring territory —
-   * the guard behind story 16, for the same reason as above.
-   */
-  static async findAbiertaDePeregrinaSinAlcance(
-    peregrinaId: string
-  ): Promise<AsignacionCompleta | undefined> {
-    return leerUna(
-      completa()
-        .where(and(eq(asignacion.peregrinaId, peregrinaId), abierta))
-        .limit(1)
     );
   }
 
@@ -856,24 +697,14 @@ export class AsignacionRepository {
    * veces la misma casa, y los cónyuges de un Matrimonio activo no son filas del
    * listado de todos modos.
    *
-   * Está scopeada por el territorio del **Tenedor**, como
-   * `findTenedoresSinPeregrina` y por la misma razón: la pregunta es sobre la
-   * gente de esta página, así que un id de otra Diócesis no devuelve nada y no
-   * hay nada que aprender pasándolo. Un Matrimonio no tiene territorio propio, y
-   * es el del cónyuge A.
-   *
-   * El territorio de la *imagen* vuelve en cada fila en lugar de filtrar: una
-   * Peregrina movida a otra Diócesis mientras alguien la tiene en la casa sigue
-   * estando en esa casa, así que cuenta como tenida — filtrarla mostraría
-   * «Ninguna» a quien tiene una. Nombrar su Código es otra pregunta, y la
-   * responde el service comparando ese territorio con el alcance, igual que
-   * `mensajeDePendientes`.
+   * El territorio de la *imagen* no entra: una Peregrina movida a otra Diócesis
+   * mientras alguien la tiene en la casa sigue estando en esa casa, así que
+   * cuenta como tenida — filtrarla mostraría «Ninguna» a quien tiene una.
    *
    * `asignacion_misionero_idx` cubre la pata individual, `asignacion_matrimonio_idx`
    * la del Matrimonio, y el `join` con peregrina es por clave primaria.
    */
   static async findAbiertasDeTenedores(
-    alcance: Alcance,
     tenedores: Tenedor[]
   ): Promise<TenenciaDeTenedor[]> {
     const personaIds = tenedores
@@ -896,32 +727,16 @@ export class AsignacionRepository {
         : undefined,
     ].filter((f) => f !== undefined);
 
-    // El territorio del Tenedor, en la pata que corresponda. La otra queda nula
-    // por el check `num_nonnulls(...) = 1`, y `null or true` sigue siendo cierto.
-    const territorial =
-      alcance.tipo === "nacional"
-        ? undefined
-        : or(
-            eq(misionero.diocesisLocalidadId, alcance.diocesisLocalidadId),
-            eq(esposoA.diocesisLocalidadId, alcance.diocesisLocalidadId)
-          );
-
     const filas = await db
       .select({
         misioneroId: asignacion.misioneroId,
         matrimonioId: asignacion.matrimonioId,
         peregrinaId: peregrina.id,
         peregrinaIdentificacion: IDENTIFICACION,
-        peregrinaDiocesisLocalidadId: peregrina.diocesisLocalidadId,
       })
       .from(asignacion)
       .innerJoin(peregrina, eq(peregrina.id, asignacion.peregrinaId))
-      // Las dos patas, en left join: olvidarse de una es devolver menos filas y
-      // ningún error.
-      .leftJoin(misionero, eq(misionero.id, asignacion.misioneroId))
-      .leftJoin(matrimonio, eq(matrimonio.id, asignacion.matrimonioId))
-      .leftJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
-      .where(and(abierta, or(...pedidos), territorial))
+      .where(and(abierta, or(...pedidos)))
       .orderBy(asc(IDENTIFICACION));
 
     return filas.map((fila) => {
@@ -936,7 +751,6 @@ export class AsignacionRepository {
         tenedor,
         peregrinaId: fila.peregrinaId,
         peregrinaIdentificacion: fila.peregrinaIdentificacion,
-        peregrinaDiocesisLocalidadId: fila.peregrinaDiocesisLocalidadId,
       };
     });
   }
@@ -949,19 +763,14 @@ export class AsignacionRepository {
    * "not assigned right now" are different questions and the second one is
    * `misionero_actual_id is null`.
    */
-  static async findPeregrinasNuncaAsignadas(
-    alcance: Alcance
-  ): Promise<{ id: string; identificacion: string }[]> {
+  static async findPeregrinasNuncaAsignadas(): Promise<
+    { id: string; identificacion: string }[]
+  > {
     return db
       .select({ id: peregrina.id, identificacion: IDENTIFICACION })
       .from(peregrina)
       .leftJoin(asignacion, eq(asignacion.peregrinaId, peregrina.id))
-      .where(
-        conAlcance(
-          alcance,
-          isNull(asignacion.id)
-        )
-      )
+      .where(isNull(asignacion.id))
       .orderBy(asc(IDENTIFICACION));
   }
 
@@ -974,19 +783,17 @@ export class AsignacionRepository {
    * one of them. The old name kept compiling while a household fell on the wrong
    * side of the filter.
    *
-   * Scoped by the **holder's** territory and not by the image's, which is the
-   * one read in this file where `conAlcance` is the wrong filter: the question is
-   * "who in my Diócesis has their hands free", and a person's Diócesis is on
-   * their own row — a couple's is spouse A's. The `not exists` deliberately
+   * Filtered by the **holder's** territory and not by the image's: the question
+   * is "who in this Diócesis has their hands free", and a person's Diócesis is
+   * on their own row — a couple's is spouse A's. The `not exists` deliberately
    * ignores the image's territory, so somebody holding a Peregrina that has since
    * been moved elsewhere is *not* offered as free — the same reason
-   * `findAbiertasDeMisioneroSinAlcance` is unscoped.
+   * `findAbiertasDeMisionero` ignores it.
    */
   static async findTenedoresSinPeregrina(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales = {}
   ): Promise<TenedorResueltoDTO[]> {
-    return tenedoresPorTenencia(alcance, filtros, "sin");
+    return tenedoresPorTenencia(filtros, "sin");
   }
 
   /**
@@ -1000,10 +807,9 @@ export class AsignacionRepository {
    * same reason its twin does — an image in somebody's house is in that house.
    */
   static async findTenedoresConPeregrina(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales = {}
   ): Promise<TenedorResueltoDTO[]> {
-    return tenedoresPorTenencia(alcance, filtros, "con");
+    return tenedoresPorTenencia(filtros, "con");
   }
 
   /**
@@ -1020,7 +826,6 @@ export class AsignacionRepository {
    * in the production plan.
    */
   static async findPeregrinasEstancadas(
-    alcance: Alcance,
     dias: number,
     filtros: FiltrosTerritoriales = {}
   ): Promise<PeregrinaEstancada[]> {
@@ -1061,8 +866,7 @@ export class AsignacionRepository {
         eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
       )
       .where(
-        conAlcance(
-          alcance,
+        and(
           abierta,
           filtros.diocesisLocalidadId
             ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
@@ -1252,7 +1056,7 @@ export class AsignacionRepository {
 
   /** Reads back a row this repository has just written, resolved for the caller. */
   static async exigirRecienEscrita(id: string): Promise<AsignacionCompleta> {
-    const row = await AsignacionRepository.findByIdSinAlcance(id);
+    const row = await AsignacionRepository.findById(id);
     if (!row) throw new Error(`Asignacion not found: ${id}`);
     return row;
   }
@@ -1260,8 +1064,8 @@ export class AsignacionRepository {
   // ── Agregaciones ───────────────────────────────────────────────────────────
 
   /**
-   * How many periods are open and how many have closed — scoped, and filtered
-   * through the image's territory like every other read here.
+   * How many periods are open and how many have closed — filtered through the
+   * image's territory like every other read here.
    *
    * The open count is *not* how the tablero answers "how many images are out":
    * that is `misionero_actual_id is not null` on the Peregrina, one table and no
@@ -1269,7 +1073,6 @@ export class AsignacionRepository {
    * pair answers a different question — how much movement the history holds.
    */
   static async contarPorTenencia(
-    alcance: Alcance,
     filtros: FiltrosTerritoriales = {}
   ): Promise<{ abiertas: number; cerradas: number }> {
     const [row] = await db
@@ -1286,8 +1089,7 @@ export class AsignacionRepository {
         eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
       )
       .where(
-        conAlcance(
-          alcance,
+        and(
           filtros.diocesisLocalidadId
             ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
             : undefined,

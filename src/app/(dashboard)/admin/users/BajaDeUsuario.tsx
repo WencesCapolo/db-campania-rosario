@@ -20,9 +20,9 @@ import {
  * that rather than implying a deletion that will not happen.
  *
  * The subject is the email, and the copy calls it *an access* — `el acceso de …`.
- * Referentes Locales share one login per territory, so "dar de baja a
- * referentes@villamaria" would be a sentence about a place written as if it were
- * about a person. Here the account is genuinely what is being changed, which is
+ * A Buzón is shared by everybody who does one function (ADR 0016), so "dar de
+ * baja a dirigentes@…" would be a sentence about a function written as if it
+ * were about a person. Here the account is genuinely what is being changed, which is
  * the one case where naming it is honest.
  *
  * Refusing to give yourself de baja is `UserService`'s rule, checked there and
@@ -49,7 +49,7 @@ export default function BajaDeUsuario({
         etiquetaAccesible={`Devolver acceso a ${acceso}`}
         titulo="¿Devolverle el acceso?"
         sujeto={`El acceso de ${acceso}`}
-        consecuencia="Vuelve a poder entrar, con el mismo rol y el mismo territorio que tenía."
+        consecuencia="Vuelve a poder entrar, con el mismo rol que tenía."
         etiquetaDeConfirmacion="Sí, devolver el acceso"
         accion={() => reactivarUsuarioAction(id)}
       />

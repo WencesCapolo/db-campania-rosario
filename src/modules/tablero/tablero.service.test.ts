@@ -26,7 +26,7 @@ import type { CurrentUser } from "@/modules/user/user.types";
  */
 
 let territorio: TerritorioDePrueba;
-let referente: CurrentUser;
+let responsable: CurrentUser;
 let asesor: CurrentUser;
 let peregrinas: {
   asignadaVieja: string;
@@ -49,49 +49,46 @@ let peregrinas: {
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
-  referente = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
+  responsable = await crearActor({ rol: "responsable_diocesano" });
   asesor = await crearActor({ rol: "asesor_nacional" });
 
   const m1 = await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     apellido: "Álvarez",
     fechaConsagracion: "2012-01-01",
   });
   const m2 = await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     apellido: "Benítez",
   });
   // Cabrera no tiene ninguna imagen: el filtro por quién la tiene da cero.
   await crearMisioneroDirecto({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     apellido: "Cabrera",
   });
 
   const asignadaVieja = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     modalidad: "JOV",
   });
   const libreNunca = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     modalidad: "JOV",
   });
   const auxiliarReciente = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     modalidad: "FAM",
     tipo: "auxiliar",
   });
   const extraviada = await crearPeregrinaDirecta({
     diocesisLocalidadId: territorio.villaMaria.id,
-    createdById: referente.id,
+    createdById: responsable.id,
     modalidad: "JOV",
   });
   const otraDiocesis = await crearPeregrinaDirecta({
@@ -114,24 +111,24 @@ beforeEach(async () => {
     otraProvincia: otraProvincia.id,
   };
 
-  await PeregrinaService.update(referente, libreNunca.id, {
+  await PeregrinaService.update(responsable, libreNunca.id, {
     estado: "en_reparacion",
   });
 
   // La imagen que lleva 400 días en las mismas manos: se asigna y se corrige la
   // fecha de apertura, que es la única manera de fabricar antigüedad sin tocar
   // la base por fuera del servicio.
-  const vieja = await AsignacionService.asignar(referente, {
+  const vieja = await AsignacionService.asignar(responsable, {
     peregrinaId: asignadaVieja.id,
     tenedor: { tipo: "persona", id: m1.id },
     nota: null,
   });
-  await AsignacionService.corregir(referente, {
+  await AsignacionService.corregir(responsable, {
     asignacionId: vieja.id,
     abiertaAt: haceDias(400),
   });
 
-  await AsignacionService.asignar(referente, {
+  await AsignacionService.asignar(responsable, {
     peregrinaId: auxiliarReciente.id,
     tenedor: { tipo: "persona", id: m2.id },
     nota: null,
@@ -139,12 +136,12 @@ beforeEach(async () => {
 
   // Extraviada *con* su Asignación abierta: marcarla extraviada no cierra el
   // período, y eso es lo que conserva el nombre del último Misionero.
-  await AsignacionService.asignar(referente, {
+  await AsignacionService.asignar(responsable, {
     peregrinaId: extraviada.id,
     tenedor: { tipo: "persona", id: m1.id },
     nota: null,
   });
-  await PeregrinaService.update(referente, extraviada.id, {
+  await PeregrinaService.update(responsable, extraviada.id, {
     estado: "extraviada",
   });
 });
@@ -200,14 +197,13 @@ describe("las cifras de un Asesor Nacional", () => {
   it("cuenta el país entero", async () => {
     const tablero = await TableroService.resumen(asesor);
 
-    expect(tablero.vista).toBe("nacional");
     expect(tablero.totalPeregrinas).toBe(6);
   });
 
   it("compara Diócesis, la más grande primero", async () => {
     const { porDiocesis } = await TableroService.resumen(asesor);
 
-    expect(porDiocesis?.[0]).toEqual({
+    expect(porDiocesis[0]).toEqual({
       diocesisLocalidadId: territorio.villaMaria.id,
       nombre: "Villa María",
       provincia: "Córdoba",
@@ -244,7 +240,7 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
    * existe para contarla.
    */
   beforeEach(async () => {
-    const pareja = await MatrimonioService.create(referente, {
+    const pareja = await MatrimonioService.create(responsable, {
       nombreA: "Rosa",
       apellidoA: "Benegas",
       nombreB: "Luis",
@@ -254,11 +250,11 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
 
     const delMatrimonio = await crearPeregrinaDirecta({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
       modalidad: "MAT",
     });
 
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: delMatrimonio.id,
       tenedor: { tipo: "matrimonio", id: pareja.id },
       nota: null,
@@ -266,7 +262,7 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
   });
 
   it("un hogar cuenta una vez por año de consagración, el más antiguo", async () => {
-    const consagrados = await MatrimonioService.create(referente, {
+    const consagrados = await MatrimonioService.create(responsable, {
       nombreA: "Elena",
       apellidoA: "Duarte",
       fechaConsagracionA: "2003-01-01",
@@ -277,10 +273,10 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
     });
     const imagen = await crearPeregrinaDirecta({
       diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: referente.id,
+      createdById: responsable.id,
       modalidad: "MAT",
     });
-    await AsignacionService.asignar(referente, {
+    await AsignacionService.asignar(responsable, {
       peregrinaId: imagen.id,
       tenedor: { tipo: "matrimonio", id: consagrados.id },
       nota: null,
@@ -338,7 +334,7 @@ describe("los filtros", () => {
 
   it("filtra por Identificación, sin distinguir mayúsculas", async () => {
     const dto = await PeregrinaService.getById(
-      referente,
+      responsable,
       peregrinas.asignadaVieja,
     );
     const tablero = await TableroService.resumen(asesor, {

@@ -22,8 +22,8 @@ import type { CurrentUser } from "@/modules/user/user.types";
  * the abbreviation is corrected, and only where the existing one was the
  * three-letter placeholder migration 0001 invented.
  *
- * Takes the Actor it runs as, like every other write in the codebase. A seed is
- * genuinely unscoped work, and ADR 0001 asks that this be visible at the call
+ * Takes the Actor it runs as, like every other write in the codebase. A seed has
+ * no Usuario behind it, and ADR 0001 asks that this be visible at the call
  * site rather than implied by a missing argument — hence `ACTOR_DE_SISTEMA`
  * spelled out below instead of no argument at all.
  *
