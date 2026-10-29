@@ -26,15 +26,15 @@ A person who signs in. Every Usuario holds exactly one Rol. Distinct from a Misi
 _Avoid_: Cuenta, Miembro
 
 **Actor**:
-The authenticated Usuario on whose behalf an operation runs — their Rol plus the territory that bounds what they may see and change.
+The authenticated Usuario on whose behalf an operation runs — their Rol, which decides what they may change. Every Rol sees the whole country (ADR 0016).
 _Avoid_: Session, Current user
 
 **Buzón**:
-The email address a Usuario enters by. It belongs to a Diócesis/Localidad rather than to a person: one access per territory, handed on to whoever takes the work over, and the handover is done by changing the mailbox's own password. Entering means receiving a link in that mailbox, so the Buzón is the credential and not merely a name.
+The email address a Usuario enters by. For the two Rols that load records it belongs to a **function** rather than to a person: one Buzón shared by every Responsable Diocesano, one by every Dirigente Joven (ADR 0016). Handing it on is changing the mailbox's own password. Entering means receiving a link in that mailbox, so the Buzón is the credential and not merely a name.
 _Avoid_: Cuenta, Mail personal, Usuario
 
 **Invitación**:
-The record that brings a Usuario into existence: a Buzón, a Rol, a territory, and who issued it. Nobody self-registers and nothing expires — a mistaken one is revocada. The invited Rol is strictly below the inviter's, and the territory is the inviter's own, so the hierarchy is territorial as well as ranked (ADR 0003).
+The record that brings a Usuario into existence: a Buzón, a Rol, and who issued it. Nobody self-registers and nothing expires — a mistaken one is revocada. The invited Rol is strictly below the inviter's (ADR 0003); no Rol carries a territory (ADR 0016).
 _Avoid_: Alta, Registro, Solicitud
 
 **Enlace de invitación**:
@@ -42,19 +42,20 @@ The address the inviter copies and sends by whatever they already use to reach t
 _Avoid_: Enlace de entrar, Enlace mágico, Token
 
 **Rol**:
-One of four, ranked: `admin`, `asesor_nacional`, `responsable_diocesano`, `referente_local`. A Usuario may only create and manage Usuarios of a strictly lower Rol.
+One of four: `admin`, `asesor_nacional`, `responsable_diocesano`, `dirigente_joven`. All four see the whole country. The first two **configure** — Usuarios, Invitaciones, Territorio; the last two **load** — Peregrinas, Misioneros, Asignaciones — and share a rank, so neither manages the other and neither invites anybody. A Usuario may only create and manage Usuarios of a strictly lower rank (ADR 0016).
+_Avoid_: Referente Local (gone since ADR 0016)
 
 **Asesor Nacional**:
-A Usuario with visibility over the whole country, who manages Responsables Diocesanos.
+A Usuario who configures the system and invites the Responsables Diocesanos and Dirigentes Jóvenes.
 _Avoid_: Admin (that is a separate, higher Rol)
 
 **Responsable Diocesano**:
-A Usuario scoped to one Diócesis/Localidad, who manages the Referentes Locales within it.
+The shared Buzón of every Responsable Diocesano in the country. Loads Peregrinas of every Modalidad, Misioneros and Asignaciones anywhere; configures nothing. The name is the people's, not a scope: it is not bounded by a Diócesis.
 _Avoid_: Zone manager, Encargado diocesano
 
-**Referente Local**:
-A Usuario who registers Misioneros and assigns Peregrinas to them within their own territory.
-_Avoid_: Encargado de Rama, Local manager
+**Dirigente Joven**:
+The shared Buzón of every dirigente of the Campaña joven. Sees everything, like any Rol, and **writes only `JOV` Peregrinas** — and the Asignaciones of those. Loads and edits any Misionero, because a Misionero has no Modalidad (ADR 0016).
+_Avoid_: Dirigente (alone), Referente
 
 **Misionero**:
 A person who can take charge of a Peregrina, alone or as half of a Matrimonio. A tracked data entity only — a Misionero has no credentials and never signs in.
@@ -114,7 +115,7 @@ The place where a Peregrina is venerated — a santuario, ermita, or parroquia, 
 _Avoid_: Ubicación, Sede
 
 **Asignación**:
-A period during which one Tenedor — a Misionero or a Matrimonio — had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the **territory** each end was registered from, and never with a person: a Referente Local's Buzón is one access per territory, handed on from whoever held it to whoever comes next, so the record can answer *where* and cannot answer *who*.
+A period during which one Tenedor — a Misionero or a Matrimonio — had charge of one Peregrina. Closed when the Peregrina is returned or handed on. Recorded with the Usuario each end was registered by, and never presented as a person: a Buzón is shared by everybody doing one function, so the record cannot answer *who*. Since ADR 0016 no Rol carries a territory, so it no longer answers *where* either.
 A mistaken one is **corregida**, never deleted — an edit that stamps `corregidaAt`, so a typo does not become permanent history and the correction does not become invisible history.
 _Avoid_: Ubicación, Préstamo; "registrada por" followed by a person's name
 

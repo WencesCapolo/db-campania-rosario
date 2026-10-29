@@ -39,14 +39,14 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
   // Un segundo login del mismo territorio: los Referentes Locales comparten uno
   // por territorio, así que esto es lo que de verdad pasa cuando "otra persona"
   // registra algo.
   otroReferente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
 

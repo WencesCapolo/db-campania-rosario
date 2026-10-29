@@ -15,108 +15,73 @@ import { NoAutorizadoError } from "@/lib/errors";
  * Aprovisionamiento por invitación — historias 7 a 14.
  *
  * Nadie se registra solo. Un Usuario existe porque alguien de rango superior lo
- * invitó a un territorio que ese alguien también alcanza, y la invitación es el
- * registro que lo prueba.
+ * invitó, y la invitación es el registro que lo prueba. Desde ADR 0016 ningún
+ * rol lleva territorio: los dos que cargan registros son un Buzón por función,
+ * y los invita un admin o un Asesor Nacional.
  */
 
 let territorio: TerritorioDePrueba;
 let admin: CurrentUser;
 let asesor: CurrentUser;
-let diocesano: CurrentUser;
-let referente: CurrentUser;
+let responsable: CurrentUser;
+let dirigente: CurrentUser;
 
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
   admin = await crearActor({ rol: "admin" });
   asesor = await crearActor({ rol: "asesor_nacional" });
-  diocesano = await crearActor({
-    rol: "responsable_diocesano",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
-  referente = await crearActor({
-    rol: "referente_local",
-    diocesisLocalidadId: territorio.villaMaria.id,
-  });
+  responsable = await crearActor({ rol: "responsable_diocesano" });
+  dirigente = await crearActor({ rol: "dirigente_joven" });
 });
 
 describe("quién puede invitar a quién — historias 7 a 11", () => {
-  it("un Asesor Nacional invita a un Responsable Diocesano y le asigna la Diócesis", async () => {
-    const invitacion = await InvitacionService.invitar(asesor, {
-      email: "nuevo.diocesano@ejemplo.test",
+  it("un Asesor Nacional invita a un Responsable Diocesano y a un Dirigente Joven", async () => {
+    const r = await InvitacionService.invitar(asesor, {
+      email: "responsables@ejemplo.test",
       rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.zapala.id,
+    });
+    const d = await InvitacionService.invitar(asesor, {
+      email: "dirigentes@ejemplo.test",
+      rol: "dirigente_joven",
     });
 
-    expect(invitacion.estado).toBe("pendiente");
-    expect(invitacion.rol).toBe("responsable_diocesano");
-    expect(invitacion.diocesisLocalidad?.nombre).toBe("Zapala");
-    expect(invitacion.invitadaPorId).toBe(asesor.id);
+    expect([r.estado, d.estado]).toEqual(["pendiente", "pendiente"]);
+    expect([r.rol, d.rol]).toEqual(["responsable_diocesano", "dirigente_joven"]);
+    expect(r.invitadaPorId).toBe(asesor.id);
   });
 
-  it("un Responsable Diocesano invita a un Referente Local de su Diócesis", async () => {
-    const invitacion = await InvitacionService.invitar(diocesano, {
-      email: "nuevo.referente@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    expect(invitacion.rol).toBe("referente_local");
-    expect(invitacion.diocesisLocalidad?.nombre).toBe("Villa María");
+  it("los dos rols que cargan no invitan a nadie, ni entre sí — historia 11", async () => {
+    for (const actor of [responsable, dirigente]) {
+      for (const rol of ["responsable_diocesano", "dirigente_joven"] as const) {
+        await expect(
+          InvitacionService.invitar(actor, {
+            email: `cualquiera-${rol}@ejemplo.test`,
+            rol,
+          })
+        ).rejects.toThrow(NoAutorizadoError);
+      }
+      await expect(InvitacionService.listarPendientes(actor)).rejects.toThrow(
+        NoAutorizadoError
+      );
+    }
   });
 
-  it("un Responsable Diocesano NO puede invitar fuera de su Diócesis — historia 9", async () => {
+  it("nadie invita por encima de su rango — historia 10", async () => {
     await expect(
-      InvitacionService.invitar(diocesano, {
-        email: "de.al.lado@ejemplo.test",
-        rol: "referente_local",
-        // Misma Provincia, otra Diócesis. La jerarquía es territorial además de
-        // jerárquica, y el selector de territorio llega más lejos que el permiso.
-        diocesisLocalidadId: territorio.rioCuarto.id,
-      })
-    ).rejects.toThrow(NoAutorizadoError);
-  });
-
-  it("un Responsable Diocesano NO puede invitar a su propio rango ni por encima — historia 10", async () => {
-    await expect(
-      InvitacionService.invitar(diocesano, {
-        email: "otro.diocesano@ejemplo.test",
-        rol: "responsable_diocesano",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow(NoAutorizadoError);
-
-    await expect(
-      InvitacionService.invitar(diocesano, {
+      InvitacionService.invitar(responsable, {
         email: "un.asesor@ejemplo.test",
         rol: "asesor_nacional",
-        diocesisLocalidadId: null,
       })
     ).rejects.toThrow(NoAutorizadoError);
-  });
-
-  it("un Referente Local no puede invitar a nadie — historia 11", async () => {
-    await expect(
-      InvitacionService.invitar(referente, {
-        email: "cualquiera@ejemplo.test",
-        rol: "referente_local",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow(NoAutorizadoError);
-
-    await expect(InvitacionService.listarPendientes(referente)).rejects.toThrow(
-      NoAutorizadoError
-    );
   });
 
   it("un admin puede invitar a otro admin — decidido con el usuario el 2026-07-25", async () => {
     const invitacion = await InvitacionService.invitar(admin, {
       email: "otro.admin@ejemplo.test",
       rol: "admin",
-      diocesisLocalidadId: null,
     });
 
     expect(invitacion.rol).toBe("admin");
-    expect(invitacion.diocesisLocalidad).toBeNull();
   });
 
   it("un Asesor Nacional NO puede invitar a otro Asesor Nacional", async () => {
@@ -124,50 +89,16 @@ describe("quién puede invitar a quién — historias 7 a 11", () => {
       InvitacionService.invitar(asesor, {
         email: "colega@ejemplo.test",
         rol: "asesor_nacional",
-        diocesisLocalidadId: null,
       })
     ).rejects.toThrow(NoAutorizadoError);
   });
 });
 
-describe("el par rol/territorio es una regla, no una comodidad", () => {
-  it("un rol territorial necesita territorio", async () => {
-    await expect(
-      InvitacionService.invitar(asesor, {
-        email: "sin.territorio@ejemplo.test",
-        rol: "referente_local",
-        diocesisLocalidadId: null,
-      })
-    ).rejects.toThrow(/Elegí la Diócesis\/Localidad/);
-  });
-
-  it("un rol nacional no lleva territorio", async () => {
-    await expect(
-      InvitacionService.invitar(admin, {
-        email: "asesor.con.diocesis@ejemplo.test",
-        rol: "asesor_nacional",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow(/cubren todo el país/);
-  });
-
-  it("no se invita a una Diócesis dada de baja ni a una inexistente", async () => {
-    await expect(
-      InvitacionService.invitar(asesor, {
-        email: "a.ningun.lado@ejemplo.test",
-        rol: "referente_local",
-        diocesisLocalidadId: "no-existe",
-      })
-    ).rejects.toThrow(/No existe esa Diócesis\/Localidad/);
-  });
-});
-
 describe("aceptar una invitación", () => {
-  it("crea el Usuario con el rol y el territorio invitados", async () => {
+  it("crea el Usuario con el rol invitado, sin territorio", async () => {
     await InvitacionService.invitar(asesor, {
       email: "recien.llegado@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.zapala.id,
+      rol: "dirigente_joven",
     });
 
     const identidad = await crearIdentidad({
@@ -175,15 +106,14 @@ describe("aceptar una invitación", () => {
     });
     const actor = await InvitacionService.aceptarSiHayPendiente(identidad);
 
-    expect(actor?.role).toBe("referente_local");
-    expect(actor?.diocesisLocalidadId).toBe(territorio.zapala.id);
+    expect(actor?.role).toBe("dirigente_joven");
+    expect(actor?.diocesisLocalidadId).toBeNull();
   });
 
   it("el id del Usuario es el de la identidad, así que la sesión lo encuentra", async () => {
     await InvitacionService.invitar(asesor, {
       email: "coincide@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     const identidad = await crearIdentidad({ email: "coincide@ejemplo.test" });
@@ -198,8 +128,7 @@ describe("aceptar una invitación", () => {
   it("ignora mayúsculas y espacios en el email", async () => {
     await InvitacionService.invitar(asesor, {
       email: "  Mayuscula@Ejemplo.TEST ",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     const identidad = await crearIdentidad({ email: "mayuscula@ejemplo.test" });
@@ -210,8 +139,7 @@ describe("aceptar una invitación", () => {
   it("aceptar dos veces produce un solo Usuario", async () => {
     await InvitacionService.invitar(asesor, {
       email: "dos.veces@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     const identidad = await crearIdentidad({ email: "dos.veces@ejemplo.test" });
@@ -231,8 +159,7 @@ describe("aceptar una invitación", () => {
   it("una invitación revocada no se puede aceptar — historia 14", async () => {
     const invitacion = await InvitacionService.invitar(asesor, {
       email: "un.error@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     await InvitacionService.revocar(asesor, invitacion.id);
@@ -242,10 +169,9 @@ describe("aceptar una invitación", () => {
   });
 
   it("el Usuario invitado queda atribuido a quien lo invitó", async () => {
-    await InvitacionService.invitar(diocesano, {
+    await InvitacionService.invitar(asesor, {
       email: "delegado@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "dirigente_joven",
     });
 
     const identidad = await crearIdentidad({ email: "delegado@ejemplo.test" });
@@ -253,48 +179,46 @@ describe("aceptar una invitación", () => {
 
     const usuarios = await UserService.listarUsuarios(asesor);
     const invitado = usuarios.find((u) => u.id === identidad.id);
-    expect(invitado?.createdById).toBe(diocesano.id);
+    expect(invitado?.createdById).toBe(asesor.id);
   });
 
-  it("el Usuario invitado puede trabajar en su territorio y no en otro", async () => {
+  it("el Usuario invitado trabaja en cualquier Provincia", async () => {
     await InvitacionService.invitar(asesor, {
       email: "a.trabajar@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.zapala.id,
+      rol: "responsable_diocesano",
     });
     const identidad = await crearIdentidad({ email: "a.trabajar@ejemplo.test" });
     const actor = await InvitacionService.aceptarSiHayPendiente(identidad);
     expect(actor).not.toBeNull();
     if (!actor) return;
 
-    const creada = await PeregrinaService.create(actor, {
+    const enNeuquen = await PeregrinaService.create(actor, {
       tipo: "peregrina",
-      modalidad: "JOV",
+      modalidad: "FAM",
       diocesisLocalidadId: territorio.zapala.id,
     });
-    expect(creada.codigo).toBe("NEU JOV 0001");
+    const enCordoba = await PeregrinaService.create(actor, {
+      tipo: "peregrina",
+      modalidad: "JOV",
+      diocesisLocalidadId: territorio.villaMaria.id,
+    });
 
-    await expect(
-      PeregrinaService.create(actor, {
-        tipo: "peregrina",
-        modalidad: "JOV",
-        diocesisLocalidadId: territorio.villaMaria.id,
-      })
-    ).rejects.toThrow(NoAutorizadoError);
+    expect([enNeuquen.codigo, enCordoba.codigo]).toEqual([
+      "NEU FAM 0001",
+      "CBA JOV 0001",
+    ]);
   });
 });
 
 describe("invitaciones pendientes — historias 13 y 14", () => {
-  it("un Asesor Nacional ve las pendientes del país", async () => {
+  it("un Asesor Nacional ve las pendientes", async () => {
     await InvitacionService.invitar(asesor, {
       email: "uno@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
     await InvitacionService.invitar(asesor, {
       email: "dos@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.zapala.id,
+      rol: "dirigente_joven",
     });
 
     const pendientes = await InvitacionService.listarPendientes(asesor);
@@ -305,30 +229,10 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
     ]);
   });
 
-  it("un Responsable Diocesano ve sólo las de su Diócesis", async () => {
-    await InvitacionService.invitar(asesor, {
-      email: "de.villa.maria@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    await InvitacionService.invitar(asesor, {
-      email: "de.rio.cuarto@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.rioCuarto.id,
-    });
-
-    const pendientes = await InvitacionService.listarPendientes(diocesano);
-
-    expect(pendientes.map((i) => i.email)).toEqual([
-      "de.villa.maria@ejemplo.test",
-    ]);
-  });
-
   it("una invitación aceptada deja de estar pendiente", async () => {
     await InvitacionService.invitar(asesor, {
       email: "ya.entro@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
     const identidad = await crearIdentidad({ email: "ya.entro@ejemplo.test" });
     await InvitacionService.aceptarSiHayPendiente(identidad);
@@ -336,23 +240,21 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
     expect(await InvitacionService.listarPendientes(asesor)).toEqual([]);
   });
 
-  it("un Responsable Diocesano NO puede revocar una invitación de otra Diócesis", async () => {
-    const ajena = await InvitacionService.invitar(asesor, {
+  it("quien carga no revoca", async () => {
+    const invitacion = await InvitacionService.invitar(asesor, {
       email: "ajena@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.rioCuarto.id,
+      rol: "dirigente_joven",
     });
 
     await expect(
-      InvitacionService.revocar(diocesano, ajena.id)
-    ).rejects.toThrow(/No existe esa invitación/);
+      InvitacionService.revocar(dirigente, invitacion.id)
+    ).rejects.toThrow(NoAutorizadoError);
   });
 
   it("no se revoca dos veces", async () => {
     const invitacion = await InvitacionService.invitar(asesor, {
       email: "revocada@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     await InvitacionService.revocar(asesor, invitacion.id);
@@ -365,15 +267,13 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
   it("no se invita dos veces al mismo email mientras haya una pendiente", async () => {
     await InvitacionService.invitar(asesor, {
       email: "repetida@ejemplo.test",
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+      rol: "responsable_diocesano",
     });
 
     await expect(
       InvitacionService.invitar(asesor, {
         email: "repetida@ejemplo.test",
-        rol: "referente_local",
-        diocesisLocalidadId: territorio.villaMaria.id,
+        rol: "responsable_diocesano",
       })
     ).rejects.toThrow(/invitación pendiente/);
   });
@@ -381,9 +281,8 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
   it("no se invita a quien ya tiene usuario", async () => {
     await expect(
       InvitacionService.invitar(asesor, {
-        email: referente.email,
-        rol: "referente_local",
-        diocesisLocalidadId: territorio.villaMaria.id,
+        email: dirigente.email,
+        rol: "dirigente_joven",
       })
     ).rejects.toThrow(/ya tiene un usuario/);
   });

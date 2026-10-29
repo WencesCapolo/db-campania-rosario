@@ -7,7 +7,7 @@ A web-based digital inventory for the Campaña del Rosario. It replaces unorgani
 ## 2. Read these first
 
 - **`CONTEXT.md`** (repo root) — the domain glossary. It is authoritative for vocabulary. Use these exact terms in code, UI copy, and commit messages. Do not invent synonyms.
-- **`docs/adr/`** — fifteen decisions that are hard to reverse. Read 0001, 0003 and 0011 before changing authorization, user provisioning or how somebody enters, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, 0009 before touching a colour, a typeface or a border, 0010 before touching who a Peregrina is in the charge *of*, 0012 before touching how a Peregrina is identified, 0013 before touching a Código's número or a Fecha de consagración, 0014 before touching Extraviada or borrar — a Peregrina has no baja, and 0015 before touching a dropdown, a picker or a list's search. There are no passwords: entering is a link sent to a Buzón, which is a territory's address and not a person's (ADR 0011).
+- **`docs/adr/`** — sixteen decisions that are hard to reverse. Read 0001, 0003, 0011 and 0016 before changing authorization, user provisioning or how somebody enters, 0004 before touching charge of a Peregrina, 0005 before touching territory or Modalidad, 0006 before changing how the UI is tested, 0007 before touching a filter, a figure or an index, 0008 before touching pagination or a form's validation timing, 0009 before touching a colour, a typeface or a border, 0010 before touching who a Peregrina is in the charge *of*, 0012 before touching how a Peregrina is identified, 0013 before touching a Código's número or a Fecha de consagración, 0014 before touching Extraviada or borrar — a Peregrina has no baja, and 0015 before touching a dropdown, a picker or a list's search. There are no passwords: entering is a link sent to a Buzón, which is a function's shared address and not a person's (ADR 0011, 0016).
 - **`docs/PRODUCTION-PLAN.md`** — current state, phases, and open questions.
 
 ## 3. Tech stack
@@ -39,16 +39,22 @@ That direction between Misionero and Peregrina **reversed** in issue 3 (ADR 0004
 
 ## 5. Access control
 
-The hierarchy has four ranked roles: `admin`, `asesor_nacional`, `responsable_diocesano`, `referente_local`. A Usuario may only create or manage Usuarios of a strictly lower rank — with one exception settled on 2026-07-25: an `admin` is a real person and may invite another admin, promote an existing Usuario to admin, and manage other admins — never their own row (`UserService` refuses a change of rol or a baja on yourself).
+Four rols, and since ADR 0016 **all four see the whole country**. What separates them is what they may *do*:
 
-Two rules hold everywhere, and issue 2 made them true rather than aspirational (see ADR 0001 and ADR 0003):
+- `admin`, `asesor_nacional` — **configure**: Usuarios, Invitaciones, Territorio (`configura` in `src/lib/authorization/capacidades.ts`).
+- `responsable_diocesano` — **loads** Peregrinas of every Modalidad, Misioneros and Asignaciones. One Buzón shared by every Responsable Diocesano.
+- `dirigente_joven` — **loads** only `JOV` Peregrinas and their Asignaciones, and any Misionero. One Buzón shared by every dirigente.
 
-- **Every service method takes an `Actor` first**, and every repository read takes the derived `Alcance` first. There is no signature that permits an unscoped query. Where a genuinely unscoped operation is needed — seeds, migrations, cron — pass `ACTOR_DE_SISTEMA` so the intent is visible.
-- **A Usuario with no application-level record is unauthorized.** Never default an unknown authenticated user into a role. Provisioning is invitation-only and hierarchy-respecting; nobody self-registers.
+The two loading rols share a rank (`superaEnRango` in `src/db/schema/users.ts`, the one definition of rank): neither manages the other and neither invites anybody. Otherwise a Usuario may only create or manage Usuarios of a strictly lower rank — with one exception settled on 2026-07-25: an `admin` is a real person and may invite another admin, promote an existing Usuario to admin, and manage other admins — never their own row (`UserService` refuses a change of rol or a baja on yourself).
 
-Scope derivation lives in exactly one place, `derivarAlcance` in `src/lib/authorization/alcance.ts`. Both lower rols are bounded by their Diócesis/Localidad. A lower rol with no territory **fails closed** — it is refused, never treated as unscoped.
+**The Modalidad bounds writes, never reads.** `exigirModalidad(actor, modalidad, operacion)` runs in every write on a Peregrina and every Asignación write — on an edit, against the Modalidad the image has *and* the one it is given. A Dirigente Joven reads every image and every figure. A screen does not offer what the service would refuse: write controls are gated with `cargaLaModalidad`, pickers that end in an entrega read `listParaEntregar`/`listDisponibles`, and client forms read the Actor's Modalidad from `useModalidadPropia()`.
 
-Territory *selection lists* reach one level wider, to the Actor's Provincia, because a picker with one entry is not a picker. Seeing a Diócesis in a list is not permission to read its records.
+Two rules hold everywhere (ADR 0001 and ADR 0003):
+
+- **Every service method takes an `Actor` first**, and every repository read takes the derived `Alcance` first. Where a genuinely unscoped operation is needed — seeds, migrations, cron — pass `ACTOR_DE_SISTEMA` so the intent is visible.
+- **A Usuario with no application-level record is unauthorized.** Never default an unknown authenticated user into a role — `users.role` has no default. Provisioning is invitation-only and hierarchy-respecting; nobody self-registers.
+
+Scope derivation lives in exactly one place, `derivarAlcance` in `src/lib/authorization/alcance.ts`. Every rol derives `nacional` today; the `diocesis` branch, its fail-closed refusal and the rol↔territory pairing are unreachable since ADR 0016 and are due to be removed.
 
 Misioneros are data entities. They have no credentials and never sign in.
 
@@ -85,8 +91,8 @@ The primary users are often older adults, entering every record by hand — ther
 - **A form tells somebody as they leave a field, not only on submit.** `useValidacionAlSalir(schema)` validates one field on blur against the same Zod schema the router parses, clears the message when the value changes, and renders through `Campo`'s `error` prop. Never write a second copy of a rule for the client (ADR 0008).
 - **Filters are one schema, and it lives in the address.** `filtrosDeInventarioSchema` (Estado, Modalidad, Tipo, tenencia, territorio, Región, Identificación) is shared by the tablero and every list; its territorial half is in `territorio.types` because the import chain runs one way. A filter naming a territory outside the Actor's scope is **refused**, never intersected away — the intersection would relabel one Diócesis's figures with another's name. An unrecognised enum value is dropped, because that is a typo rather than an escalation.
 - **Counts are aggregate queries.** Never fetch rows to count them, and never derive a figure on the client: that is what the previous dashboard did, and it made every number a count of the page size.
-- **Errors:** throw typed domain errors from `src/lib/errors.ts`; routers map them with `aResultado`, which is the one translation from error to response. Log every authorization denial with `registrarDenegacion` — and log the *territory*, never a person: Referentes Locales share one login per territory.
-- **Tests:** any change to a service's scope filter requires a test proving out-of-territory data stays invisible. This is the one suite that must never be skipped.
+- **Errors:** throw typed domain errors from `src/lib/errors.ts`; routers map them with `aResultado`, which is the one translation from error to response. Log every authorization denial with `registrarDenegacion` — and never a person: a Buzón is shared by everybody doing one function.
+- **Tests:** any change to what a rol may write requires a test proving the write outside it is refused and leaves the record intact — `src/lib/authorization/capacidades.test.ts`. The negative half is the test. This is the one suite that must never be skipped.
 
 ## 8. Notes for agents
 

@@ -9,6 +9,7 @@ import {
   type ValidacionAlSalir,
 } from "@/lib/validacion-al-salir";
 import type { Modalidad, PeregrinaTipo } from "./peregrina.schema";
+import { useModalidadPropia } from "./ModalidadPropia";
 import {
   MODALIDADES,
   MODALIDAD_LABELS,
@@ -92,7 +93,11 @@ export interface CamposDePeregrina {
 }
 
 export function useCamposDePeregrina(): CamposDePeregrina {
-  const [datos, setDatos] = useState<DatosDePeregrina>(INICIALES);
+  const propia = useModalidadPropia();
+  const [datos, setDatos] = useState<DatosDePeregrina>({
+    ...INICIALES,
+    modalidad: propia ?? INICIALES.modalidad,
+  });
   const validacion = useValidacionAlSalir(createPeregrinaSchema);
 
   function paraAlta(rotulacion: Rotulacion): DatosParaAlta | null {
@@ -169,6 +174,7 @@ export default function CamposDePeregrinaForm({
   rotulacion: Rotulacion;
 }) {
   const { datos, cambiar, validacion } = campos;
+  const propia = useModalidadPropia();
 
   return (
     <div className="space-y-5">
@@ -220,14 +226,20 @@ export default function CamposDePeregrinaForm({
           alElegir={(valor) => cambiar({ tipo: valor as PeregrinaTipo })}
         />
 
-        <Eleccion
-          etiqueta="Modalidad"
-          value={datos.modalidad}
-          opciones={MODALIDADES_ELEGIBLES}
-          alElegir={(valor) =>
-            cambiar({ modalidad: valor as Modalidad })
-          }
-        />
+        {/* Quien carga una sola Modalidad no elige: una lista de una opción no
+            es una elección, y la regla la hace cumplir el servicio (ADR 0016). */}
+        {propia ? (
+          <ModalidadSinElegir modalidad={propia} />
+        ) : (
+          <Eleccion
+            etiqueta="Modalidad"
+            value={datos.modalidad}
+            opciones={MODALIDADES_ELEGIBLES}
+            alElegir={(valor) =>
+              cambiar({ modalidad: valor as Modalidad })
+            }
+          />
+        )}
       </div>
 
       <CampoDeFechaDeConsagracion
@@ -242,6 +254,21 @@ export default function CamposDePeregrinaForm({
           if (v) validacion.alSalir("fechaConsagracion", v);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * La Modalidad a la vista, en el lugar del desplegable, para quien carga una sola
+ * (ADR 0016).
+ */
+export function ModalidadSinElegir({ modalidad }: { modalidad: Modalidad }) {
+  return (
+    <div className="space-y-1">
+      <p className="block text-base font-semibold text-tinta">Modalidad</p>
+      <p className="flex min-h-12 items-center text-lg text-tinta">
+        {MODALIDAD_LABELS[modalidad]} ({modalidad})
+      </p>
     </div>
   );
 }

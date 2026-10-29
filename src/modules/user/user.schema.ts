@@ -5,6 +5,7 @@ export {
   usersRelations,
   roleEnum,
   ROLE_HIERARCHY,
+  superaEnRango,
 } from "@/db/schema/users";
 
 export type { User, NewUser, Role } from "@/db/schema/users";

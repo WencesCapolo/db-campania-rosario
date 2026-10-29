@@ -1,4 +1,6 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
+import { getCurrentUser } from "@/lib/get-current-user";
+import { cargaLaModalidad } from "@/lib/authorization/capacidades";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
 import {
   MODALIDAD_LABELS,
@@ -40,10 +42,15 @@ export default async function PeregrinaPage({
 }) {
   const { id } = await params;
 
-  const [peregrina, historial] = await Promise.all([
+  const [actor, peregrina, historial] = await Promise.all([
+    getCurrentUser(),
     getPeregrinaByIdAction(id),
     getHistorialDePeregrinaAction(id),
   ]);
+
+  // Todos ven cualquier imagen; no todos la cargan. Un Dirigente Joven no ve
+  // botones que el servicio le rechazaría (ADR 0016).
+  const carga = cargaLaModalidad(actor.role, peregrina.modalidad);
 
   const abierta = historial.find((a) => a.abierta) ?? null;
 
@@ -80,9 +87,19 @@ export default async function PeregrinaPage({
           </p>
         )}
 
-        <div>
-          <EditarPeregrina peregrina={peregrina} />
-        </div>
+        {carga ? (
+          <div>
+            <EditarPeregrina peregrina={peregrina} />
+          </div>
+        ) : (
+          <Mensaje>
+            <p>
+              Es una imagen de {MODALIDAD_LABELS[peregrina.modalidad]}. Tu
+              usuario carga sólo las de Jóvenes, así que acá podés mirarla pero
+              no cambiarla.
+            </p>
+          </Mensaje>
+        )}
       </header>
 
       <Tarjeta titulo="¿Quién la tiene ahora?">
@@ -126,9 +143,11 @@ export default async function PeregrinaPage({
             <p className="text-base leading-relaxed text-tinta-suave">
               No la tiene nadie ahora.
             </p>
-            <BotonEnlace href="/asignacion/new">
-              Entregarla a un Misionero
-            </BotonEnlace>
+            {carga && (
+              <BotonEnlace href="/asignacion/new">
+                Entregarla a un Misionero
+              </BotonEnlace>
+            )}
           </div>
         )}
       </Tarjeta>
@@ -175,7 +194,7 @@ export default async function PeregrinaPage({
         )}
       </Tarjeta>
 
-      {peregrina.codigo === null && peregrina.numeracionAnterior && (
+      {carga && peregrina.codigo === null && peregrina.numeracionAnterior && (
         <Tarjeta titulo="Todavía no tiene Código">
           <div className="space-y-4">
             <p className="text-base leading-relaxed">
@@ -190,14 +209,16 @@ export default async function PeregrinaPage({
         </Tarjeta>
       )}
 
-      <Tarjeta titulo="Administrar">
-        <BorrarPeregrina
-          id={peregrina.id}
-          identificacion={peregrina.identificacion}
-          periodos={historial.length}
-          laTiene={abierta ? nombreDeTenedor(abierta.tenedor) : null}
-        />
-      </Tarjeta>
+      {carga && (
+        <Tarjeta titulo="Administrar">
+          <BorrarPeregrina
+            id={peregrina.id}
+            identificacion={peregrina.identificacion}
+            periodos={historial.length}
+            laTiene={abierta ? nombreDeTenedor(abierta.tenedor) : null}
+          />
+        </Tarjeta>
+      )}
     </main>
   );
 }

@@ -11,7 +11,11 @@ import { UserRepository } from "@/modules/user/user.repository";
 import { UserService } from "@/modules/user/user.service";
 import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
 import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
-import { ROLE_HIERARCHY, type Role } from "@/modules/user/user.schema";
+import {
+  ROLE_HIERARCHY,
+  superaEnRango,
+  type Role,
+} from "@/modules/user/user.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
 import {
   derivarAlcance,
@@ -70,15 +74,13 @@ export class InvitacionService {
    * Strictly lower rank, with one exception the user settled on 2026-07-25: an
    * `admin` is a real person, not a technical account, and an admin may invite
    * another admin. Everyone else is bounded by "strictly below me", so nobody
-   * can escalate their own rank and a Referente Local — the bottom — can invite
-   * nobody at all.
+   * can escalate their own rank, and the two rols that load records — the
+   * bottom, sharing one rank — invite nobody at all (ADR 0016).
    */
   private static puedeInvitarRol(actorRol: Role, rol: Role): boolean {
     if (actorRol === "admin") return true;
 
-    const actorIdx = ROLE_HIERARCHY.indexOf(actorRol);
-    const rolIdx = ROLE_HIERARCHY.indexOf(rol);
-    return actorIdx !== -1 && rolIdx !== -1 && actorIdx < rolIdx;
+    return superaEnRango(actorRol, rol);
   }
 
   /** A rol that can invite somebody may also see the pending list. */
@@ -94,7 +96,7 @@ export class InvitacionService {
       motivo: "el rol no puede invitar a nadie",
     });
     throw new NoAutorizadoError(
-      "Tu rol no puede invitar usuarios. Pedíselo a tu Responsable Diocesano."
+      "Tu rol no puede invitar usuarios. Pedíselo a un Asesor Nacional."
     );
   }
 

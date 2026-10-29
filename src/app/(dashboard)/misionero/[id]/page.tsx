@@ -5,7 +5,7 @@ import {
 } from "@/modules/misionero/misionero.router";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
-import { getPeregrinasAction } from "@/modules/peregrina/peregrina.router";
+import { getPeregrinasParaEntregarAction } from "@/modules/peregrina/peregrina.router";
 import EntregarImagen from "@/modules/asignacion/EntregarImagen";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
@@ -58,7 +58,7 @@ export default async function MisioneroPage({
   // matrimonio (ADR 0010).
   const puedeRecibir =
     abiertas.length === 0 && !misionero.deBaja && matrimonioId === null;
-  const peregrinas = puedeRecibir ? await getPeregrinasAction() : [];
+  const peregrinas = puedeRecibir ? await getPeregrinasParaEntregarAction() : [];
 
   const resumenes = Object.entries(misionero.resumenesAnuales).sort(
     ([a], [b]) => Number(b) - Number(a),

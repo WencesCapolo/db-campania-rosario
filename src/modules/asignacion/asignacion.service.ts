@@ -34,6 +34,7 @@ import {
   exigirTerritorioDentroDelAlcance,
   type Alcance,
 } from "@/lib/authorization/alcance";
+import { exigirModalidad } from "@/lib/authorization/capacidades";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   ConflictoError,
@@ -487,6 +488,7 @@ export class AsignacionService {
       input.peregrinaId,
       operacion
     );
+    exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,
@@ -542,6 +544,7 @@ export class AsignacionService {
       input.peregrinaId,
       operacion
     );
+    exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const tenedor = await AsignacionService.exigirTenedorVisible(
       actor,
@@ -640,6 +643,7 @@ export class AsignacionService {
       input.peregrinaId,
       operacion
     );
+    exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const cerrada = await AsignacionRepository.cerrar(input.peregrinaId, {
       cerradaAt: new Date(),
@@ -677,6 +681,13 @@ export class AsignacionService {
       input.asignacionId,
       operacion
     );
+    const peregrina = await AsignacionService.exigirPeregrinaVisible(
+      actor,
+      alcance,
+      actual.asignacion.peregrinaId,
+      operacion
+    );
+    exigirModalidad(actor, peregrina.peregrina.modalidad, operacion);
 
     const seguiraAbierta =
       input.cerradaAt !== undefined

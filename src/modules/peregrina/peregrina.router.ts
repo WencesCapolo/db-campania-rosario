@@ -26,9 +26,9 @@ import { paginaSchema, type Pagina } from "@/lib/paginacion";
  * refusal that renders as "no hay Peregrinas" is a lie.
  */
 
-export async function getPeregrinasAction(): Promise<PeregrinaDTO[]> {
+export async function getPeregrinasParaEntregarAction(): Promise<PeregrinaDTO[]> {
   const actor = await getCurrentUser();
-  return PeregrinaService.listAll(actor);
+  return PeregrinaService.listParaEntregar(actor);
 }
 
 export async function getPeregrinaByIdAction(id: string): Promise<PeregrinaDTO> {

@@ -17,7 +17,7 @@ beforeEach(async () => {
   // refused rather than treated as country-wide. Córdoba, so the Neuquén
   // fixtures stay out of reach and the scoping suite has something to prove.
   actor = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.rioCuarto.id,
   });
 });

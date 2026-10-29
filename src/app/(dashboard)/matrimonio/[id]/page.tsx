@@ -3,7 +3,7 @@ import { getMatrimonioByIdAction } from "@/modules/misionero/matrimonio.router";
 import { CENTRO_LABELS } from "@/modules/misionero/misionero.types";
 import type { MisioneroDTO } from "@/modules/misionero/misionero.types";
 import { getHistorialDeMisioneroAction } from "@/modules/asignacion/asignacion.router";
-import { getPeregrinasAction } from "@/modules/peregrina/peregrina.router";
+import { getPeregrinasParaEntregarAction } from "@/modules/peregrina/peregrina.router";
 import EntregarImagen from "@/modules/asignacion/EntregarImagen";
 import Tarjeta from "@/components/Tarjeta";
 import Insignia from "@/components/Insignia";
@@ -76,7 +76,7 @@ export default async function MatrimonioPage({
 
   // Las imágenes para el diálogo de entrega, sólo cuando se lo ofrece.
   const puedeRecibir = abiertas.length === 0 && !matrimonio.deBaja;
-  const peregrinas = puedeRecibir ? await getPeregrinasAction() : [];
+  const peregrinas = puedeRecibir ? await getPeregrinasParaEntregarAction() : [];
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">

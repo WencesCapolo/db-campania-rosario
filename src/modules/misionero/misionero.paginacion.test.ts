@@ -7,7 +7,6 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import { FILAS_POR_PAGINA } from "@/lib/paginacion";
-import { NoAutorizadoError } from "@/lib/errors";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { TenedorDTO } from "./matrimonio.types";
 
@@ -133,61 +132,3 @@ describe("el total es del conjunto, no de la página", () => {
   });
 });
 
-describe("el alcance sobrevive a la paginación", () => {
-  it("un Referente Local no alcanza otra Diócesis en ninguna página", async () => {
-    await sembrarHomonimos(CUANTOS, territorio.villaMaria.id);
-    await crearMisioneroDirecto({
-      diocesisLocalidadId: territorio.rioCuarto.id,
-      createdById: asesor.id,
-      nombre: "Jorge",
-      apellido: "Ledesma",
-    });
-
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const primera = await MisioneroService.listPagina(referente, {}, 1);
-    const ids = await idsDeTodasLasPaginas(referente);
-
-    // Asserted as a negative: Ledesma is in neither the total nor any page. A
-    // Misionero record carries a name and a telephone number, which is the leak
-    // ADR 0001 exists for.
-    expect(primera.total).toBe(CUANTOS);
-    expect(ids).toHaveLength(CUANTOS);
-
-    const buscado = await MisioneroService.listPagina(
-      referente,
-      { q: "ledesma" },
-      1
-    );
-    expect(buscado).toMatchObject({ total: 0, filas: [] });
-  });
-
-  it("un filtro territorial fuera del alcance se rechaza", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(
-      MisioneroService.listPagina(
-        referente,
-        { diocesisLocalidadId: territorio.rioCuarto.id },
-        1
-      )
-    ).rejects.toThrow(NoAutorizadoError);
-  });
-
-  it("un rol territorial sin territorio se rechaza antes de contar", async () => {
-    const sinTerritorio = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: null,
-    });
-
-    await expect(
-      MisioneroService.listPagina(sinTerritorio, {}, 1)
-    ).rejects.toThrow(NoAutorizadoError);
-  });
-});

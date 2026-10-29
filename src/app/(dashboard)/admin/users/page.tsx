@@ -8,6 +8,7 @@ import {
 } from "@/modules/user/user.router";
 import { getInvitacionesPendientesAction } from "@/modules/invitacion/invitacion.router";
 import { ROLE_LABELS, puedeAdministrar, rolesAsignables } from "@/lib/permissions";
+import { configura } from "@/lib/authorization/capacidades";
 import type { Role } from "@/modules/user/user.schema";
 import type { UserDTO } from "@/modules/user/user.types";
 import type { InvitacionDTO } from "@/modules/invitacion/invitacion.types";
@@ -109,7 +110,7 @@ export default async function UsuariosPage({
   const [usuarios, pendientes, huerfanas] = await Promise.all([
     getUsersAction({ incluirBajas: true }),
     getInvitacionesPendientesAction(),
-    esNacional(actor.role)
+    configura(actor.role)
       ? getIdentidadesSinUsuarioAction()
       : Promise.resolve([]),
   ]);
@@ -451,7 +452,7 @@ const RANGO: Record<Role, number> = {
   admin: 0,
   asesor_nacional: 1,
   responsable_diocesano: 2,
-  referente_local: 3,
+  dirigente_joven: 3,
 };
 
 // Country-wide first, then by place, then by rank inside a place. The email is
@@ -496,6 +497,3 @@ function primero(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function esNacional(rol: Role): boolean {
-  return rol === "admin" || rol === "asesor_nacional";
-}

@@ -1,4 +1,6 @@
 import { getPeregrinaByIdAction } from "@/modules/peregrina/peregrina.router";
+import { getCurrentUser } from "@/lib/get-current-user";
+import { cargaLaModalidad } from "@/lib/authorization/capacidades";
 import { getHistorialDePeregrinaAction } from "@/modules/asignacion/asignacion.router";
 import { getMisionerosFiltradosAction } from "@/modules/misionero/misionero.router";
 import EstadoDePeregrina from "@/modules/peregrina/EstadoDePeregrina";
@@ -56,13 +58,17 @@ export default async function HistorialPage({
   //
   // El roster colapsado, no la lista de personas: un período pudo ser de un
   // Matrimonio, y un cónyuge casado no es corregible por separado (ADR 0010).
-  const [peregrina, historial, tenedores] = await Promise.all([
+  const [actor, peregrina, historial, tenedores] = await Promise.all([
+    getCurrentUser(),
     getPeregrinaByIdAction(id),
     getHistorialDePeregrinaAction(id),
     getMisionerosFiltradosAction({}),
   ]);
 
   const abierta = historial.find((a) => a.abierta) ?? null;
+  // El historial lo lee cualquiera; devolver y corregir, sólo quien carga la
+  // Modalidad de la imagen (ADR 0016).
+  const carga = cargaLaModalidad(actor.role, peregrina.modalidad);
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-6">
@@ -111,20 +117,24 @@ export default async function HistorialPage({
               </Mensaje>
             )}
 
-            <RegistrarDevolucion
-              peregrinaId={peregrina.id}
-              identificacion={peregrina.identificacion}
-              tenedor={nombreDeTenedor(abierta.tenedor)}
-            />
+            {carga && (
+              <RegistrarDevolucion
+                peregrinaId={peregrina.id}
+                identificacion={peregrina.identificacion}
+                tenedor={nombreDeTenedor(abierta.tenedor)}
+              />
+            )}
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-base leading-relaxed text-tinta-suave">
               No está a cargo de nadie.
             </p>
-            <BotonEnlace href="/asignacion/new">
-              Entregarla a un Misionero
-            </BotonEnlace>
+            {carga && (
+              <BotonEnlace href="/asignacion/new">
+                Entregarla a un Misionero
+              </BotonEnlace>
+            )}
           </div>
         )}
       </Tarjeta>
@@ -186,9 +196,11 @@ export default async function HistorialPage({
                   </p>
                 )}
 
-                <div className="pt-2">
-                  <CorregirAsignacion asignacion={a} tenedores={tenedores} />
-                </div>
+                {carga && (
+                  <div className="pt-2">
+                    <CorregirAsignacion asignacion={a} tenedores={tenedores} />
+                  </div>
+                )}
               </li>
             ))}
           </ol>

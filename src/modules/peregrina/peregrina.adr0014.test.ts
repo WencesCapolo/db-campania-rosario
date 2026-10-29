@@ -11,7 +11,7 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import type { CurrentUser } from "@/modules/user/user.types";
-import { ConflictoError, NoAutorizadoError } from "@/lib/errors";
+import { ConflictoError } from "@/lib/errors";
 
 /**
  * ADR 0014 — una Peregrina no tiene baja.
@@ -31,7 +31,7 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
   asesor = await crearActor({ rol: "asesor_nacional" });
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
 });
@@ -99,19 +99,6 @@ describe("Extraviada es un Estado", () => {
     expect(tablero.totalPeregrinas).toBe(1);
     expect(lista.total).toBe(1);
   });
-
-  it("un Referente no ve las extraviadas de otro territorio", async () => {
-    const ajena = await nueva(asesor, 23, territorio.rioCuarto.id);
-    await PeregrinaService.update(asesor, ajena.id, { estado: "extraviada" });
-
-    const pagina = await PeregrinaService.listPagina(referente, {
-      estado: "extraviada",
-    });
-
-    expect(pagina.filas).toEqual([]);
-    expect(pagina.total).toBe(0);
-  });
-
   it("su Código sigue ocupado, y la negativa dice cómo encontrarla", async () => {
     const perdida = await nueva(referente, 23);
     await PeregrinaService.update(referente, perdida.id, { estado: "extraviada" });
@@ -146,15 +133,6 @@ describe("borrar una Peregrina", () => {
     );
     const otraVez = await nueva(referente, 23);
     expect(otraVez.codigo).toBe("CBA JOV 0023");
-  });
-
-  it("un Referente no borra una de otro territorio", async () => {
-    const ajena = await nueva(asesor, 23, territorio.rioCuarto.id);
-
-    await expect(PeregrinaService.borrar(referente, ajena.id)).rejects.toThrow(
-      NoAutorizadoError,
-    );
-    expect((await PeregrinaService.getById(asesor, ajena.id)).id).toBe(ajena.id);
   });
 });
 

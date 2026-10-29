@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/get-current-user";
+import { filtroPropio } from "@/lib/authorization/capacidades";
 
 /**
  * Inicio — tres botones, y nada más.
@@ -45,9 +47,10 @@ type Acceso = {
   principal: boolean;
 };
 
-const ACCESOS: Acceso[] = [
+// El listado abre con la Modalidad de quien la tiene propia (ADR 0016).
+const accesos = (filtro: string): Acceso[] => [
   {
-    href: "/peregrina",
+    href: `/peregrina${filtro}`,
     titulo: "Peregrinas",
     descripcion: "Buscar una imagen y ver dónde está",
     principal: false,
@@ -90,7 +93,10 @@ function Punta({ className }: { className: string }) {
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
+export default async function Page() {
+  const actor = await getCurrentUser();
+  const destinos = accesos(filtroPropio(actor.role));
+
   return (
     /* Centrado óptico y no geométrico: la tarjeta queda arriba del centro exacto,
        más o menos a la mitad del camino entre pegada a la barra y centrada. El
@@ -141,7 +147,7 @@ export default function Page() {
           </header>
 
           <ul>
-            {ACCESOS.map((acceso, i) => (
+            {destinos.map((acceso, i) => (
               <li
                 key={acceso.href}
                 className={i > 0 ? "border-t-2 border-borde-suave" : undefined}

@@ -9,7 +9,7 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import type { CurrentUser } from "@/modules/user/user.types";
-import { ConflictoError, NoAutorizadoError, ValidacionError } from "@/lib/errors";
+import { ConflictoError, ValidacionError } from "@/lib/errors";
 
 /**
  * ADR 0013 — el número del Código se puede tipear, la imagen tiene Fecha de
@@ -25,7 +25,7 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
   asesor = await crearActor({ rol: "asesor_nacional" });
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
 });
@@ -96,7 +96,7 @@ describe("el número del Código, tipeado", () => {
     await expect(nueva(asesor, { numero: 5 })).rejects.toThrow(/CBA JOV 0005/);
   });
 
-  it("cuenta las de otro territorio, aunque el Referente no las vea", async () => {
+  it("cuenta las de otra Diócesis de la misma Provincia", async () => {
     // Río Cuarto también es Córdoba: comparte la secuencia, y el Código es único.
     await PeregrinaService.create(asesor, {
       tipo: "peregrina",
@@ -266,21 +266,6 @@ describe("borrar una Peregrina", () => {
     const historial = await AsignacionService.historialDeMisionero(referente, ana.id);
     expect(historial).toEqual([]);
   });
-
-  it("un Referente no elimina una imagen de otro territorio", async () => {
-    const ajena = await PeregrinaService.create(asesor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.rioCuarto.id,
-    });
-
-    await expect(PeregrinaService.borrar(referente, ajena.id)).rejects.toThrow(
-      NoAutorizadoError
-    );
-    const sigue = await PeregrinaService.getById(asesor, ajena.id);
-    expect(sigue.id).toBe(ajena.id);
-  });
-
   it("libera su Código: se puede volver a cargar con el mismo número", async () => {
     const creada = await nueva(asesor, { numero: 8 });
     await PeregrinaService.borrar(asesor, creada.id);

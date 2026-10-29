@@ -26,15 +26,12 @@ describe("resolver el Actor de una identidad autenticada — historia 12", () =>
     expect(await UserService.resolverActorSiExiste(identidad)).toBeNull();
   });
 
-  it("y en particular NO queda como Referente Local", async () => {
+  it("y en particular NO recibe un rol por omisión", async () => {
     const identidad = await crearIdentidad();
 
     // El defecto que el issue #2 cierra: autenticarse alcanzaba para estar
-    // autorizado, con rol referente_local «por si acaso».
-    const actor = await UserService.resolverActorSiExiste(identidad);
-
-    expect(actor).toBeNull();
-    expect(actor?.role).not.toBe("referente_local");
+    // autorizado, con un rol «por si acaso».
+    expect(await UserService.resolverActorSiExiste(identidad)).toBeNull();
   });
 
   it("lo rechaza con un mensaje en castellano que nombra a quién pedirle acceso", async () => {
@@ -48,27 +45,17 @@ describe("resolver el Actor de una identidad autenticada — historia 12", () =>
     );
   });
 
-  it("distingue los tres motivos, porque mandan a tres personas distintas", async () => {
+  it("distingue los motivos, porque mandan a personas distintas", async () => {
     const desconocida = await crearIdentidad();
-    const sinTerritorio = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: null,
-    });
-    const deBaja = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+    const deBaja = await crearActor({ rol: "responsable_diocesano" });
     await UserService.darDeBaja(asesor, deBaja.id);
 
     expect(await UserService.motivoDeRefusa(desconocida.id)).toBe("sin-usuario");
-    expect(await UserService.motivoDeRefusa(sinTerritorio.id)).toBe(
-      "sin-territorio"
-    );
     expect(await UserService.motivoDeRefusa(deBaja.id)).toBe("dado-de-baja");
     expect(await UserService.motivoDeRefusa(asesor.id)).toBeNull();
   });
 
-  it("un rol nacional resuelve sin territorio, porque cubre el país", async () => {
+  it("resuelve sin territorio, porque todo rol cubre el país", async () => {
     const actor = await UserService.resolverActor({
       id: asesor.id,
       email: asesor.email,
@@ -77,23 +64,12 @@ describe("resolver el Actor de una identidad autenticada — historia 12", () =>
     expect(actor.role).toBe("asesor_nacional");
     expect(actor.diocesisLocalidadId).toBeNull();
   });
-
-  it("un rol territorial sin territorio NO resuelve", async () => {
-    const roto = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: null,
-    });
-
-    expect(
-      await UserService.resolverActorSiExiste({ id: roto.id, email: roto.email })
-    ).toBeNull();
-  });
 });
 
 describe("dar de baja un Usuario — historia 15", () => {
   it("le quita el acceso", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -109,7 +85,7 @@ describe("dar de baja un Usuario — historia 15", () => {
 
   it("y deja intactas sus atribuciones anteriores", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
     const registrada = await PeregrinaService.create(referente, {
@@ -127,7 +103,7 @@ describe("dar de baja un Usuario — historia 15", () => {
 
   it("no se puede dar de baja dos veces", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -146,7 +122,7 @@ describe("dar de baja un Usuario — historia 15", () => {
 
   it("una reactivación devuelve el acceso", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -162,58 +138,17 @@ describe("dar de baja un Usuario — historia 15", () => {
   });
 });
 
-describe("el rango y el territorio acotan la administración de Usuarios", () => {
-  it("un Responsable Diocesano NO ve los Usuarios de otra Diócesis", async () => {
-    const propio = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-    const vecino = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.rioCuarto.id,
-    });
-    const diocesano = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
+describe("el rango acota la administración de Usuarios", () => {
+  it("un Dirigente Joven no administra Usuarios en absoluto", async () => {
+    const dirigente = await crearActor({ rol: "dirigente_joven" });
 
-    const lista = await UserService.listarUsuarios(diocesano);
-    const ids = lista.map((u) => u.id);
-
-    expect(ids).toContain(propio.id);
-    expect(ids).not.toContain(vecino.id);
-    expect(ids).not.toContain(asesor.id);
-  });
-
-  it("un Referente Local no administra Usuarios en absoluto", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(UserService.listarUsuarios(referente)).rejects.toThrow(
+    await expect(UserService.listarUsuarios(dirigente)).rejects.toThrow(
       NoAutorizadoError
     );
   });
-
-  it("un Responsable Diocesano NO puede tocar un Usuario de otra Diócesis", async () => {
-    const vecino = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.rioCuarto.id,
-    });
-    const diocesano = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(
-      UserService.darDeBaja(diocesano, vecino.id)
-    ).rejects.toThrow(/No existe ese usuario/);
-  });
-
   it("un Responsable Diocesano NO puede ascender a nadie por encima suyo", async () => {
     const propio = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
     const diocesano = await crearActor({
@@ -226,37 +161,18 @@ describe("el rango y el territorio acotan la administración de Usuarios", () =>
     ).rejects.toThrow(NoAutorizadoError);
   });
 
-  it("un Asesor Nacional reasigna rol y territorio — historia 16", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
+  it("un Asesor Nacional cambia el rol de quien carga — historia 16", async () => {
+    const responsable = await crearActor({ rol: "responsable_diocesano" });
+
+    const actualizado = await UserService.actualizar(asesor, responsable.id, {
+      rol: "dirigente_joven",
     });
 
-    const actualizado = await UserService.actualizar(asesor, referente.id, {
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.zapala.id,
-    });
-
-    expect(actualizado.role).toBe("responsable_diocesano");
-    expect(actualizado.diocesisLocalidad?.nombre).toBe("Zapala");
+    expect(actualizado.role).toBe("dirigente_joven");
   });
-
-  it("no deja un rol territorial sin territorio", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(
-      UserService.actualizar(asesor, referente.id, {
-        diocesisLocalidadId: null,
-      })
-    ).rejects.toThrow(/Elegí la Diócesis\/Localidad/);
-  });
-
   it("un Asesor Nacional NO puede ascender a nadie a su propio rango", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -270,7 +186,7 @@ describe("el rango y el territorio acotan la administración de Usuarios", () =>
   it("no le pone territorio a un rol nacional", async () => {
     const admin = await crearActor({ rol: "admin" });
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -285,7 +201,7 @@ describe("el rango y el territorio acotan la administración de Usuarios", () =>
   it("ascender a un rol nacional le quita el territorio", async () => {
     const admin = await crearActor({ rol: "admin" });
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -301,7 +217,7 @@ describe("el rango y el territorio acotan la administración de Usuarios", () =>
 describe("los emails salen de neon_auth, no de un guión", () => {
   it("la lista de Usuarios trae el email real de cada uno", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
       email: "referente.villamaria@ejemplo.test",
     });
@@ -314,7 +230,7 @@ describe("los emails salen de neon_auth, no de un guión", () => {
 
   it("marca al Usuario cuya identidad ya no existe en el proveedor — ADR 0002", async () => {
     const huerfano = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
       sinIdentidad: true,
     });
@@ -351,7 +267,7 @@ describe("los emails salen de neon_auth, no de un guión", () => {
 describe("un Usuario dado de baja sale de las listas", () => {
   it("no aparece salvo que se lo pida explícitamente", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
     await UserService.darDeBaja(asesor, referente.id);
@@ -367,7 +283,7 @@ describe("un Usuario dado de baja sale de las listas", () => {
 
   it("y sigue habiendo una fila detrás de sus registros", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
     const registrada = await crearPeregrinaDirecta({

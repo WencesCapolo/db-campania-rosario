@@ -50,7 +50,7 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
   asesor = await crearActor({ rol: "asesor_nacional" });
@@ -149,20 +149,24 @@ beforeEach(async () => {
   });
 });
 
+/** Las cifras de Villa María, pedidas por filtro: ningún rol tiene territorio (ADR 0016). */
+function enVillaMaria() {
+  return { diocesisLocalidadId: territorio.villaMaria.id };
+}
+
 function haceDias(dias: number): Date {
   return new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
 }
 
-describe("las cifras de un rol territorial", () => {
+describe("las cifras de una Diócesis", () => {
   it("cuenta su Diócesis y nada más — historias 1 y 6", async () => {
-    const tablero = await TableroService.resumen(referente);
+    const tablero = await TableroService.resumen(asesor, enVillaMaria());
 
-    expect(tablero.vista).toBe("diocesana");
     expect(tablero.totalPeregrinas).toBe(4);
   });
 
   it("desglosa por Estado — historia 2", async () => {
-    const { porEstado } = await TableroService.resumen(referente);
+    const { porEstado } = await TableroService.resumen(asesor, enVillaMaria());
 
     expect(ordenar(porEstado, "estado")).toEqual([
       { estado: "activa", total: 2 },
@@ -172,7 +176,7 @@ describe("las cifras de un rol territorial", () => {
   });
 
   it("desglosa por Modalidad — historia 7", async () => {
-    const { porModalidad } = await TableroService.resumen(referente);
+    const { porModalidad } = await TableroService.resumen(asesor, enVillaMaria());
 
     expect(ordenar(porModalidad, "modalidad")).toEqual([
       { modalidad: "FAM", total: 1 },
@@ -181,7 +185,7 @@ describe("las cifras de un rol territorial", () => {
   });
 
   it("desglosa las imágenes que alguien tiene por año de consagración", async () => {
-    const { porConsagracion } = await TableroService.resumen(referente);
+    const { porConsagracion } = await TableroService.resumen(asesor, enVillaMaria());
 
     // Álvarez se consagró en 2012 y tiene dos; Benítez no tiene año cargado y
     // tiene una. La libre y la que está en reparación sin nadie no cuentan.
@@ -189,13 +193,6 @@ describe("las cifras de un rol territorial", () => {
       { desde: 2010, total: 2 },
       { desde: null, total: 1 },
     ]);
-  });
-
-  it("no recibe el desglose nacional: sería una fila con su propio nombre", async () => {
-    const tablero = await TableroService.resumen(referente);
-
-    expect(tablero.porProvincia).toBeNull();
-    expect(tablero.porDiocesis).toBeNull();
   });
 });
 
@@ -231,7 +228,7 @@ describe("las cifras de un Asesor Nacional", () => {
 
 describe("las cifras derivadas", () => {
   it("cuenta las que no tiene nadie ahora — historia 4", async () => {
-    const tablero = await TableroService.resumen(referente);
+    const tablero = await TableroService.resumen(asesor, enVillaMaria());
 
     // Sólo la que está en reparación: las otras tres están en manos de alguien,
     // incluida la extraviada, cuyo período sigue abierto a propósito.
@@ -289,7 +286,7 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
       nota: null,
     });
 
-    const { porConsagracion } = await TableroService.resumen(referente);
+    const { porConsagracion } = await TableroService.resumen(asesor, enVillaMaria());
 
     // La pareja de arriba no tiene años cargados y suma a la fila sin año.
     expect(porConsagracion).toEqual([
@@ -303,7 +300,8 @@ describe("un Matrimonio es un Tenedor y no dos personas — ADR 0010", () => {
 
 describe("los filtros", () => {
   it("se combinan — historia 17", async () => {
-    const tablero = await TableroService.resumen(referente, {
+    const tablero = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       modalidad: "JOV",
       estado: "activa",
     });
@@ -313,7 +311,8 @@ describe("los filtros", () => {
   });
 
   it("un cero legítimo es un cero, no una falla", async () => {
-    const tablero = await TableroService.resumen(referente, {
+    const tablero = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       modalidad: "FAM",
       estado: "extraviada",
     });
@@ -324,10 +323,12 @@ describe("los filtros", () => {
   });
 
   it("filtra por tenencia", async () => {
-    const libres = await TableroService.resumen(referente, {
+    const libres = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       tenencia: "libre",
     });
-    const asignadas = await TableroService.resumen(referente, {
+    const asignadas = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       tenencia: "asignada",
     });
 
@@ -340,7 +341,8 @@ describe("los filtros", () => {
       referente,
       peregrinas.asignadaVieja,
     );
-    const tablero = await TableroService.resumen(referente, {
+    const tablero = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       identificacion: dto.identificacion.toLowerCase(),
     });
 
@@ -349,10 +351,12 @@ describe("los filtros", () => {
 
   it("filtra por quién la tiene, por apellido y sin distinguir mayúsculas", async () => {
     // Álvarez tiene dos: la vieja y la extraviada. Benítez tiene la auxiliar.
-    const alvarez = await TableroService.resumen(referente, {
+    const alvarez = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       misionero: "álVAREZ",
     });
-    const benitez = await TableroService.resumen(referente, {
+    const benitez = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       misionero: "Benítez",
     });
 
@@ -361,10 +365,12 @@ describe("los filtros", () => {
   });
 
   it("toma el nombre completo, en cualquiera de los dos órdenes", async () => {
-    const nombreApellido = await TableroService.resumen(referente, {
+    const nombreApellido = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       misionero: "María Álvarez",
     });
-    const apellidoNombre = await TableroService.resumen(referente, {
+    const apellidoNombre = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       misionero: "Álvarez María",
     });
 
@@ -376,7 +382,8 @@ describe("los filtros", () => {
     // Cabrera existe y no tiene nada. El error que esto vigila es un `or` mal
     // armado o una condición que se cae del `where`: cualquiera de los dos
     // devolvería el territorio entero, que se lee como "las tiene todas".
-    const tablero = await TableroService.resumen(referente, {
+    const tablero = await TableroService.resumen(asesor, {
+      ...enVillaMaria(),
       misionero: "Cabrera",
     });
 

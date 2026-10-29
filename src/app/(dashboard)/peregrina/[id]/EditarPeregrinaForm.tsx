@@ -22,7 +22,11 @@ import {
   type PeregrinaDTO,
   type UpdatePeregrinaInput,
 } from "@/modules/peregrina/peregrina.types";
-import { CampoDeFechaDeConsagracion } from "@/modules/peregrina/CamposDePeregrina";
+import {
+  CampoDeFechaDeConsagracion,
+  ModalidadSinElegir,
+} from "@/modules/peregrina/CamposDePeregrina";
+import { useModalidadPropia } from "@/modules/peregrina/ModalidadPropia";
 import { useValidacionAlSalir } from "@/lib/validacion-al-salir";
 import DialogoDeEdicion from "@/components/DialogoDeEdicion";
 
@@ -90,6 +94,7 @@ export default function EditarPeregrinaForm({
   );
   const [tipo, setTipo] = useState<PeregrinaTipo>(peregrina.tipo);
   const [modalidad, setModalidad] = useState<Modalidad>(peregrina.modalidad);
+  const propia = useModalidadPropia();
   const [estado, setEstado] = useState<PeregrinaEstado>(peregrina.estado);
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
     peregrina.diocesisLocalidad.id,
@@ -211,12 +216,16 @@ export default function EditarPeregrinaForm({
           opciones={TIPOS}
           alElegir={(valor) => setTipo(valor as PeregrinaTipo)}
         />
-        <Eleccion
-          etiqueta="Modalidad"
-          value={modalidad}
-          opciones={MODALIDADES_ELEGIBLES}
-          alElegir={(valor) => setModalidad(valor as Modalidad)}
-        />
+        {propia ? (
+          <ModalidadSinElegir modalidad={modalidad} />
+        ) : (
+          <Eleccion
+            etiqueta="Modalidad"
+            value={modalidad}
+            opciones={MODALIDADES_ELEGIBLES}
+            alElegir={(valor) => setModalidad(valor as Modalidad)}
+          />
+        )}
       </div>
 
       <Eleccion

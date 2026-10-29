@@ -101,7 +101,7 @@ async function sembrarMundo(pool: Pool): Promise<Mundo> {
   );
 
   for (const [id, rol] of [
-    ["usuario-a", "referente_local"],
+    ["usuario-a", "responsable_diocesano"],
     ["usuario-b", "asesor_nacional"],
   ] as const) {
     await pool.query(`insert into users (id, role) values ($1, $2)`, [id, rol]);

@@ -43,21 +43,32 @@ type Props = {
   nombre: string;
   rol: string;
   puedeAdministrar: boolean;
-  esNacional: boolean;
+  /** `?modalidad=JOV` para quien carga una sola, o "" (ADR 0016). */
+  filtroPropio: string;
 };
 
-function destinos({ puedeAdministrar, esNacional }: Props) {
+function destinos({ puedeAdministrar, filtroPropio }: Props) {
   return [
     // El tablero se llega desde acá y no desde Inicio: Inicio son las tres cosas
     // que un Referente vino a hacer, y las cifras no son una de ellas — pero son
     // la primera cosa que abre un Responsable Diocesano o un Asesor Nacional, así
     // que tienen que estar a un toque desde cualquier pantalla.
-    { href: "/tablero", texto: "Tablero" },
-    ...(puedeAdministrar ? [{ href: "/admin/users", texto: "Usuarios" }] : []),
-    // Territorio is national work — TerritorioService refuses it below
-    // asesor_nacional — so the link is not offered to a Responsable Diocesano who
-    // could only be refused by it.
-    ...(esNacional ? [{ href: "/admin/territorio", texto: "Territorio" }] : []),
+    // Quien carga una sola Modalidad llega con ella filtrada, y la puede sacar:
+    // el filtro es una comodidad, no un límite (ADR 0016).
+    { ruta: "/tablero", href: `/tablero${filtroPropio}`, texto: "Tablero" },
+    // Usuarios y Territorio son la configuración, y los mismos dos rols la hacen
+    // (ADR 0016): a quien carga registros no se le ofrece un destino que sólo
+    // lo rechazaría.
+    ...(puedeAdministrar
+      ? [
+          { ruta: "/admin/users", href: "/admin/users", texto: "Usuarios" },
+          {
+            ruta: "/admin/territorio",
+            href: "/admin/territorio",
+            texto: "Territorio",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -99,8 +110,8 @@ export function Barra(props: Props) {
         </Link>
 
         <nav aria-label="Secciones" className="ml-auto flex items-center gap-2">
-          {destinos(props).map(({ href, texto }) => {
-            const actual = pathname.startsWith(href);
+          {destinos(props).map(({ ruta, href, texto }) => {
+            const actual = pathname.startsWith(ruta);
 
             return (
               <Link

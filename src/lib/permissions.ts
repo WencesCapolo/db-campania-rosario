@@ -1,26 +1,23 @@
-import { ROLE_HIERARCHY, type Role } from "@/db/schema";
+import { ROLE_HIERARCHY, superaEnRango, type Role } from "@/db/schema/users";
 
 /**
  * Returns true if `actorRole` outranks `targetRole` in the hierarchy.
  * A role can only act on roles strictly below it.
  */
 export function canManageRole(actorRole: Role, targetRole: Role): boolean {
-    const actorIndex = ROLE_HIERARCHY.indexOf(actorRole);
-    const targetIndex = ROLE_HIERARCHY.indexOf(targetRole);
-    return actorIndex < targetIndex; // lower index = higher privilege
+    return superaEnRango(actorRole, targetRole);
 }
 
 /**
  * Returns all roles that `actorRole` is allowed to assign when creating users.
  *
- * admin              → can create: asesor_nacional, responsable_diocesano, referente_local
- * asesor_nacional    → can create: responsable_diocesano, referente_local
- * responsable_diocesano → can create: referente_local
- * referente_local    → cannot create any user
+ * admin                 → can create: asesor_nacional, responsable_diocesano, dirigente_joven
+ * asesor_nacional       → can create: responsable_diocesano, dirigente_joven
+ * responsable_diocesano → cannot create any user
+ * dirigente_joven       → cannot create any user
  */
 export function creatableRoles(actorRole: Role): Role[] {
-    const actorIndex = ROLE_HIERARCHY.indexOf(actorRole);
-    return ROLE_HIERARCHY.slice(actorIndex + 1);
+    return ROLE_HIERARCHY.filter((rol) => superaEnRango(actorRole, rol));
 }
 
 /**
@@ -69,10 +66,8 @@ export function isAdmin(role: Role): boolean {
  * the same question for itself from the rol it was handed. Two independent
  * answers on purpose: this one shapes a form, and the service's one is the rule.
  */
-export const ROLES_CON_TERRITORIO: readonly Role[] = [
-    "responsable_diocesano",
-    "referente_local",
-];
+// Empty since ADR 0016: every rol covers the country.
+export const ROLES_CON_TERRITORIO: readonly Role[] = [];
 
 export function llevaTerritorio(rol: Role): boolean {
     return ROLES_CON_TERRITORIO.includes(rol);
@@ -85,5 +80,5 @@ export const ROLE_LABELS: Record<Role, string> = {
     admin: "Administrador",
     asesor_nacional: "Asesor Nacional",
     responsable_diocesano: "Responsable Diocesano",
-    referente_local: "Referente Local",
+    dirigente_joven: "Dirigente Joven",
 };

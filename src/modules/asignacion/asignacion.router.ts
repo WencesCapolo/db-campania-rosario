@@ -157,7 +157,7 @@ export async function getOpcionesParaAsignarAction(): Promise<{
   // a sacar.
   const [tenedores, peregrinas] = await Promise.all([
     MisioneroService.listFiltrados(actor, {}),
-    PeregrinaService.listAll(actor),
+    PeregrinaService.listParaEntregar(actor),
   ]);
   return { tenedores, peregrinas };
 }

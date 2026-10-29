@@ -1,5 +1,5 @@
 import { UserRepository, type UsuarioConIdentidad } from "./user.repository";
-import { ROLE_HIERARCHY } from "./user.schema";
+import { ROLE_HIERARCHY, superaEnRango } from "./user.schema";
 import type { Role } from "./user.schema";
 import type {
   ActualizarUsuarioInput,
@@ -14,6 +14,7 @@ import {
   esNacional,
   exigirDentroDelAlcance,
 } from "@/lib/authorization/alcance";
+import { configura } from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   CUENTA_DADA_DE_BAJA,
@@ -57,9 +58,7 @@ export class UserService {
   private static puedeAdministrarRol(actorRol: Role, rol: Role): boolean {
     if (actorRol === "admin") return true;
 
-    const actorIdx = ROLE_HIERARCHY.indexOf(actorRol);
-    const rolIdx = ROLE_HIERARCHY.indexOf(rol);
-    return actorIdx !== -1 && rolIdx !== -1 && actorIdx < rolIdx;
+    return superaEnRango(actorRol, rol);
   }
 
   private static exigirPuedeAdministrar(
@@ -240,11 +239,11 @@ export class UserService {
   ): Promise<IdentidadHuerfanaDTO[]> {
     const operacion = "UserService.listarIdentidadesSinUsuario";
 
-    if (!esNacional(actor.role)) {
+    if (!configura(actor.role)) {
       registrarDenegacion({
         actor,
         operacion,
-        motivo: "sólo un rol nacional puede ver identidades sin usuario",
+        motivo: "sólo un rol que configura puede ver identidades sin usuario",
       });
       throw new NoAutorizadoError(
         "Sólo un Asesor Nacional puede ver las identidades sin usuario."

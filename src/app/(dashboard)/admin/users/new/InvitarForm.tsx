@@ -45,7 +45,7 @@ export default function InvitarForm({
 
   const [email, setEmail] = useState("");
   const [rol, setRol] = useState<Role>(
-    rolesDisponibles[rolesDisponibles.length - 1] ?? "referente_local",
+    rolesDisponibles[rolesDisponibles.length - 1] ?? "dirigente_joven",
   );
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
     null,

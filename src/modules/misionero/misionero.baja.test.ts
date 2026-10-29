@@ -34,7 +34,7 @@ beforeEach(async () => {
 
   asesor = await crearActor({ rol: "asesor_nacional" });
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
 
@@ -133,11 +133,10 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     );
   });
 
-  it("una imagen que se fue a otro territorio sigue frenando la baja, sin filtrar su Código", async () => {
+  it("una imagen que se mudó de Diócesis sigue frenando la baja", async () => {
     // El guard es a propósito sin alcance: una Peregrina puede mudarse de Diócesis
     // mientras el Misionero la sigue teniendo en su casa, y un guard que se
-    // equivoca del lado permisivo no es un guard. Pero nombrar un Código de otro
-    // territorio confirmaría un registro que este Actor no puede leer.
+    // equivoca del lado permisivo no es un guard.
     await AsignacionService.asignar(referente, {
       peregrinaId: peregrina.id,
       tenedor: { tipo: "persona", id: ana.id },
@@ -150,8 +149,7 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
     const intento = MisioneroService.darDeBaja(referente, ana.id);
 
     await expect(intento).rejects.toThrow(ConflictoError);
-    await expect(intento).rejects.toThrow(/de otro territorio/);
-    await expect(intento).rejects.not.toThrow(new RegExp(peregrina.identificacion));
+    await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
   });
 });
 

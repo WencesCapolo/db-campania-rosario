@@ -22,6 +22,11 @@ import {
   type Alcance,
 } from "@/lib/authorization/alcance";
 import {
+  cargaLaModalidad,
+  exigirModalidad,
+  modalidadPropia,
+} from "@/lib/authorization/capacidades";
+import {
   ConflictoError,
   NoEncontradoError,
   ValidacionError,
@@ -125,6 +130,21 @@ export class PeregrinaService {
     return rows.map(PeregrinaService.toDTO);
   }
 
+  /**
+   * The images this Actor may hand to somebody — every picker that ends in an
+   * entrega. Not `listAll`: a Dirigente Joven sees every image but loads only
+   * JOV ones (ADR 0016), and an option that always ends in a refusal is a worse
+   * bug than the refusal.
+   */
+  static async listParaEntregar(actor: CurrentUser): Promise<PeregrinaDTO[]> {
+    const alcance = derivarAlcance(actor, "PeregrinaService.listParaEntregar");
+    const propia = modalidadPropia(actor.role);
+    const rows = propia
+      ? await PeregrinaRepository.findByModalidad(alcance, propia)
+      : await PeregrinaRepository.findAll(alcance);
+    return rows.map(PeregrinaService.toDTO);
+  }
+
   static async getById(
     actor: CurrentUser,
     id: string
@@ -223,11 +243,16 @@ export class PeregrinaService {
    *
    * Read off the denormalised pointer, which is what it is for: the alternative
    * is an anti-join against Asignación on every keystroke of a picker.
+   *
+   * Only the Modalidades this Actor loads, because the step after it is an
+   * entrega (ADR 0016).
    */
   static async listDisponibles(actor: CurrentUser): Promise<PeregrinaDTO[]> {
     const alcance = derivarAlcance(actor, "PeregrinaService.listDisponibles");
     const rows = await PeregrinaRepository.findDisponibles(alcance);
-    return rows.map(PeregrinaService.toDTO);
+    return rows
+      .filter((r) => cargaLaModalidad(actor.role, r.peregrina.modalidad))
+      .map(PeregrinaService.toDTO);
   }
 
   static async listByModalidad(
@@ -267,6 +292,7 @@ export class PeregrinaService {
     // Registering into somebody else's territory is a write that leaves the
     // Actor's scope, so it is refused for the same reason reading it would be.
     exigirDentroDelAlcance(actor, alcance, territorio.diocesis.id, operacion);
+    exigirModalidad(actor, input.modalidad, operacion);
 
     // Three ways in. A typed número makes the Código from it — ADR 0013. An
     // image that already carries a Numeración anterior and no número is
@@ -328,6 +354,7 @@ export class PeregrinaService {
       id,
       operacion
     );
+    exigirModalidad(actor, actual.peregrina.modalidad, operacion);
     if (actual.peregrina.codigo !== null) {
       throw new ConflictoError(
         `Esa Peregrina ya tiene el Código ${actual.peregrina.codigo}.`
@@ -431,6 +458,13 @@ export class PeregrinaService {
       operacion
     );
 
+    // Both ends, like a move between territories: the Modalidad the image has,
+    // and the one it is being given (ADR 0016).
+    exigirModalidad(actor, actual.peregrina.modalidad, operacion);
+    if (input.modalidad !== undefined) {
+      exigirModalidad(actor, input.modalidad, operacion);
+    }
+
     let provincia = actual.provincia;
     if (input.diocesisLocalidadId !== undefined) {
       const territorio = await TerritorioRepository.findDiocesisLocalidadById(
@@ -510,7 +544,13 @@ export class PeregrinaService {
     const operacion = "PeregrinaService.borrar";
     const alcance = derivarAlcance(actor, operacion);
 
-    await PeregrinaService.exigirVisible(actor, alcance, id, operacion);
+    const actual = await PeregrinaService.exigirVisible(
+      actor,
+      alcance,
+      id,
+      operacion
+    );
+    exigirModalidad(actor, actual.peregrina.modalidad, operacion);
 
     if (!(await PeregrinaRepository.borrar(id))) {
       throw new NoEncontradoError("No existe esa Peregrina.");

@@ -4,7 +4,6 @@ import { MisioneroService } from "./misionero.service";
 import { MatrimonioRepository } from "./matrimonio.repository";
 import { MisioneroRepository } from "./misionero.repository";
 import { derivarAlcance } from "@/lib/authorization/alcance";
-import { NoAutorizadoError, NoEncontradoError } from "@/lib/errors";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -17,12 +16,7 @@ import type { TenedorDTO } from "./matrimonio.types";
 /**
  * El Matrimonio: un Tenedor, no dos personas — ADR 0010.
  *
- * Two suites in one file, because they fail the same way. The territorial half
- * is the one CLAUDE.md §7 says must never be skipped: a Matrimonio has no
- * territory column, so its scope is spouse A's, and a leg of the union that
- * forgot to apply it would expose a household from another Diócesis.
- *
- * The other half is the mitigation ADR 0010 asks for by name. A read that joins
+ * The mitigation ADR 0010 asks for by name. A read that joins
  * the misionero leg and forgets the matrimonio leg returns **fewer rows and no
  * error** — a couple simply vanishes from a list. Silence is the failure mode,
  * and silence needs a test rather than a reviewer.
@@ -103,23 +97,6 @@ describe("un matrimonio se entra de una vez", () => {
     expect(pareja.misioneroA.telefono).toBe("353-555-0100");
     expect(pareja.misioneroB.telefono).toBeNull();
   });
-
-  it("un territorio fuera del alcance se rechaza", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(
-      MatrimonioService.create(referente, {
-        nombreA: "Ana",
-        apellidoA: "Álvarez",
-        nombreB: "Juan",
-        apellidoB: "Benítez",
-        diocesisLocalidadId: territorio.rioCuarto.id,
-      })
-    ).rejects.toThrow(NoAutorizadoError);
-  });
 });
 
 describe("el listado colapsa el hogar en una fila", () => {
@@ -185,55 +162,6 @@ describe("el listado colapsa el hogar en una fila", () => {
     // clause simply stops matching them.
     expect(pagina.total).toBe(2);
     expect(etiquetas(pagina.filas)).toEqual(["Benegas, Rosa", "Cardozo, Luis"]);
-  });
-});
-
-describe("el alcance sobrevive a la unión", () => {
-  it("un Referente Local no ve el hogar de otra Diócesis por ninguna pata", async () => {
-    await crearAlvarezBenitez(territorio.rioCuarto.id);
-    await crearMisioneroDirecto({
-      diocesisLocalidadId: territorio.villaMaria.id,
-      createdById: asesor.id,
-      nombre: "Carla",
-      apellido: "Zárate",
-    });
-
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const pagina = await MisioneroService.listPagina(referente, {}, 1);
-    expect(pagina.total).toBe(1);
-    expect(etiquetas(pagina.filas)).toEqual(["Zárate, Carla"]);
-
-    // Asserted as a negative too: neither surname reaches across the border, and
-    // neither does the count behind the tablero's card.
-    const buscado = await MisioneroService.listPagina(
-      referente,
-      { q: "benítez" },
-      1
-    );
-    expect(buscado).toMatchObject({ total: 0, filas: [] });
-
-    const alcance = derivarAlcance(referente, "prueba");
-    expect(await MisioneroRepository.contarTotal(alcance, {})).toBe(1);
-  });
-
-  it("leer un Matrimonio ajeno se rechaza, y uno inexistente se distingue", async () => {
-    const pareja = await crearAlvarezBenitez(territorio.rioCuarto.id);
-
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    await expect(MatrimonioService.get(referente, pareja.id)).rejects.toThrow(
-      NoAutorizadoError
-    );
-    await expect(
-      MatrimonioService.get(referente, "no-existe")
-    ).rejects.toThrow(NoEncontradoError);
   });
 });
 

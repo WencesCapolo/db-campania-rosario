@@ -16,6 +16,7 @@ import type {
 } from "./territorio.types";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { esNacional } from "@/lib/authorization/alcance";
+import { configura } from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   ConflictoError,
@@ -65,17 +66,17 @@ export class TerritorioService {
   }
 
   /**
-   * Asesor Nacional and above. These Actors see the whole country, and they
-   * are the only ones who may change the canonical list — one predicate
-   * because it is one fact about them, not a coincidence.
+   * Asesor Nacional and above. Every rol sees the whole country since ADR
+   * 0016; changing the canonical list is configuration, and only these two
+   * configure.
    */
-  private static exigirNacional(actor: CurrentUser, operacion: string): void {
-    if (esNacional(actor.role)) return;
+  private static exigirQueConfigura(actor: CurrentUser, operacion: string): void {
+    if (configura(actor.role)) return;
 
     registrarDenegacion({
       actor,
       operacion,
-      motivo: "sólo un rol nacional administra el territorio",
+      motivo: "sólo un rol que configura administra el territorio",
     });
     throw new NoAutorizadoError(NO_AUTORIZADO_TERRITORIO);
   }
@@ -238,7 +239,7 @@ export class TerritorioService {
     actor: CurrentUser,
     id: string
   ): Promise<UsoTerritorio> {
-    TerritorioService.exigirNacional(actor, "TerritorioService.usoDeDiocesisLocalidad");
+    TerritorioService.exigirQueConfigura(actor, "TerritorioService.usoDeDiocesisLocalidad");
     return TerritorioRepository.countUsoDiocesisLocalidad(id);
   }
 
@@ -246,7 +247,7 @@ export class TerritorioService {
     actor: CurrentUser,
     id: string
   ): Promise<UsoTerritorio> {
-    TerritorioService.exigirNacional(actor, "TerritorioService.usoDeProvincia");
+    TerritorioService.exigirQueConfigura(actor, "TerritorioService.usoDeProvincia");
     return TerritorioRepository.countUsoProvincia(id);
   }
 
@@ -256,7 +257,7 @@ export class TerritorioService {
     actor: CurrentUser,
     input: CrearProvinciaInput
   ): Promise<ProvinciaDTO> {
-    TerritorioService.exigirNacional(actor, "TerritorioService.crearProvincia");
+    TerritorioService.exigirQueConfigura(actor, "TerritorioService.crearProvincia");
 
     const yaExiste = await TerritorioRepository.findProvinciaByNombre(
       normalizarNombre(input.nombre)
@@ -285,7 +286,7 @@ export class TerritorioService {
     actor: CurrentUser,
     input: RenombrarProvinciaInput
   ): Promise<ProvinciaDTO> {
-    TerritorioService.exigirNacional(actor, "TerritorioService.renombrarProvincia");
+    TerritorioService.exigirQueConfigura(actor, "TerritorioService.renombrarProvincia");
 
     const colision = await TerritorioRepository.findProvinciaByNombre(
       normalizarNombre(input.nombre)
@@ -306,7 +307,7 @@ export class TerritorioService {
     actor: CurrentUser,
     id: string
   ): Promise<ProvinciaDTO> {
-    TerritorioService.exigirNacional(actor, "TerritorioService.darDeBajaProvincia");
+    TerritorioService.exigirQueConfigura(actor, "TerritorioService.darDeBajaProvincia");
 
     const uso = await TerritorioRepository.countUsoProvincia(id);
     if (uso.peregrinas > 0 || uso.misioneros > 0) {
@@ -327,7 +328,7 @@ export class TerritorioService {
     actor: CurrentUser,
     input: CrearDiocesisLocalidadInput
   ): Promise<DiocesisLocalidadDTO> {
-    TerritorioService.exigirNacional(
+    TerritorioService.exigirQueConfigura(
       actor,
       "TerritorioService.crearDiocesisLocalidad"
     );
@@ -365,7 +366,7 @@ export class TerritorioService {
     actor: CurrentUser,
     input: RenombrarDiocesisLocalidadInput
   ): Promise<DiocesisLocalidadDTO> {
-    TerritorioService.exigirNacional(
+    TerritorioService.exigirQueConfigura(
       actor,
       "TerritorioService.renombrarDiocesisLocalidad"
     );
@@ -403,7 +404,7 @@ export class TerritorioService {
     actor: CurrentUser,
     id: string
   ): Promise<DiocesisLocalidadDTO> {
-    TerritorioService.exigirNacional(
+    TerritorioService.exigirQueConfigura(
       actor,
       "TerritorioService.darDeBajaDiocesisLocalidad"
     );

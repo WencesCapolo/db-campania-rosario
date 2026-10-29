@@ -10,24 +10,40 @@ import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 
 // -----------------------------------------------
 // Role enum — ordered from highest to lowest
+//
+// `dirigente_joven` took the place of `referente_local` in the enum (ADR 0016):
+// a rename, so it sits last. Order here is display order; rank is RANGO_DE_ROL.
 // -----------------------------------------------
 export const roleEnum = pgEnum("role", [
     "admin",
     "asesor_nacional",
     "responsable_diocesano",
-    "referente_local",
+    "dirigente_joven",
 ]);
 
 export type Role = (typeof roleEnum.enumValues)[number];
 
-// Role hierarchy — used for permission checks
-// Lower index = higher privilege
+// The order lists are shown in, highest first.
 export const ROLE_HIERARCHY: Role[] = [
     "admin",
     "asesor_nacional",
     "responsable_diocesano",
-    "referente_local",
+    "dirigente_joven",
 ];
+
+// Rank, lower is higher. The two rols that load records share one: neither
+// outranks the other, so neither administers the other (ADR 0016).
+const RANGO_DE_ROL: Record<Role, number> = {
+    admin: 0,
+    asesor_nacional: 1,
+    responsable_diocesano: 2,
+    dirigente_joven: 2,
+};
+
+/** Whether `actor` is strictly above `rol` — the one definition of rank. */
+export function superaEnRango(actor: Role, rol: Role): boolean {
+    return RANGO_DE_ROL[actor] < RANGO_DE_ROL[rol];
+}
 
 // -----------------------------------------------
 // Users
@@ -40,7 +56,7 @@ export const users = pgTable(
         // Must match the id in neon_auth."user"
         id: text("id").primaryKey(),
 
-        role: roleEnum("role").notNull().default("referente_local"),
+        role: roleEnum("role").notNull(),
 
         // The territory that bounds what this Usuario may see and change.
         //

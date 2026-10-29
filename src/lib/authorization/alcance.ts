@@ -36,8 +36,16 @@ export type Alcance =
  */
 const NACIONAL: Alcance = { tipo: "nacional" };
 
-/** The rols that are country-wide, and therefore carry no territory. */
-const ROLES_NACIONALES: readonly Role[] = ["admin", "asesor_nacional"];
+/**
+ * The rols that are country-wide, and therefore carry no territory. Since ADR
+ * 0016 that is all four: a Buzón is one per function, not one per territory.
+ */
+const ROLES_NACIONALES: readonly Role[] = [
+  "admin",
+  "asesor_nacional",
+  "responsable_diocesano",
+  "dirigente_joven",
+];
 
 export function esNacional(rol: Role): boolean {
   return ROLES_NACIONALES.includes(rol);

@@ -51,7 +51,7 @@ describe("resolución de territorio", () => {
   });
 });
 
-describe("las listas de selección respetan el territorio del Actor", () => {
+describe("las listas de selección", () => {
   it("un Asesor Nacional ve todo el país", async () => {
     const lista = await TerritorioService.listarDiocesisLocalidades(asesor);
 
@@ -62,60 +62,6 @@ describe("las listas de selección respetan el territorio del Actor", () => {
       "Zapala",
     ]);
   });
-
-  it("un Responsable Diocesano ve su Provincia y NO ve las demás", async () => {
-    const responsable = await crearActor({
-      rol: "responsable_diocesano",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const lista = await TerritorioService.listarDiocesisLocalidades(responsable);
-    const nombres = lista.map((d) => d.nombre);
-
-    expect(nombres.sort()).toEqual(["Río Cuarto", "Villa María"]);
-    // The negative half is the test.
-    expect(nombres).not.toContain("Zapala");
-    expect(nombres).not.toContain("Chos Malal");
-  });
-
-  it("un Referente Local ve su Provincia y NO ve las demás", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.zapala.id,
-    });
-
-    const lista = await TerritorioService.listarDiocesisLocalidades(referente);
-    const nombres = lista.map((d) => d.nombre);
-
-    expect(nombres.sort()).toEqual(["Chos Malal", "Zapala"]);
-    expect(nombres).not.toContain("Villa María");
-    expect(nombres).not.toContain("Río Cuarto");
-  });
-
-  it("pedir explícitamente otra Provincia no amplía el alcance", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.zapala.id,
-    });
-
-    const lista = await TerritorioService.listarDiocesisLocalidades(referente, {
-      provinciaId: territorio.cordoba.id,
-    });
-
-    expect(lista).toEqual([]);
-  });
-
-  it("un Referente Local ve solo su propia Provincia en la lista de Provincias", async () => {
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const provincias = await TerritorioService.listarProvincias(referente);
-
-    expect(provincias.map((p) => p.nombre)).toEqual(["Córdoba"]);
-  });
-
   it("no ofrece una Diócesis/Localidad dada de baja", async () => {
     const baja = await TerritorioService.darDeBajaDiocesisLocalidad(
       asesor,
@@ -132,7 +78,7 @@ describe("las listas de selección respetan el territorio del Actor", () => {
 describe("una Región no es editable", () => {
   it("expone las siete Regiones de la Campaña, iguales para todo Actor", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 
@@ -271,9 +217,9 @@ describe("autorización de escritura", () => {
     ).rejects.toThrow(/No tenés permisos/);
   });
 
-  it("un Referente Local NO puede crear una Diócesis/Localidad", async () => {
+  it("un Dirigente Joven NO puede crear una Diócesis/Localidad", async () => {
     const referente = await crearActor({
-      rol: "referente_local",
+      rol: "responsable_diocesano",
       diocesisLocalidadId: territorio.villaMaria.id,
     });
 

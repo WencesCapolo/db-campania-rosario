@@ -1,5 +1,11 @@
 import { getCurrentUser } from "@/lib/get-current-user";
 import { ROLE_LABELS } from "@/lib/permissions";
+import {
+  configura,
+  filtroPropio,
+  modalidadPropia,
+} from "@/lib/authorization/capacidades";
+import { ModalidadPropiaProvider } from "@/modules/peregrina/ModalidadPropia";
 import { Barra } from "./barra";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +49,9 @@ export default async function DashboardLayout({
 }) {
   const user = await getCurrentUser();
 
-  const esNacional = user.role === "admin" || user.role === "asesor_nacional";
-
-  const puedeAdministrar = esNacional || user.role === "responsable_diocesano";
+  // Usuarios y Territorio son configuración, y la configuran admin y Asesor
+  // Nacional. Quien carga registros no ve los destinos (ADR 0016).
+  const puedeAdministrar = configura(user.role);
 
   return (
     /* Columna de altura completa: la barra mide lo que mide y el contenido se queda
@@ -60,10 +66,12 @@ export default async function DashboardLayout({
         nombre={user.displayName ?? user.email.split("@")[0]}
         rol={ROLE_LABELS[user.role]}
         puedeAdministrar={puedeAdministrar}
-        esNacional={esNacional}
+        filtroPropio={filtroPropio(user.role)}
       />
 
-      <div className="flex flex-1 flex-col">{children}</div>
+      <ModalidadPropiaProvider modalidad={modalidadPropia(user.role)}>
+        <div className="flex flex-1 flex-col">{children}</div>
+      </ModalidadPropiaProvider>
     </div>
   );
 }

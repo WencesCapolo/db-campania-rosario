@@ -7,7 +7,6 @@ import {
   type TerritorioDePrueba,
 } from "@/test/factories";
 import { FILAS_POR_PAGINA } from "@/lib/paginacion";
-import { NoAutorizadoError } from "@/lib/errors";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { PeregrinaDTO } from "./peregrina.types";
 
@@ -151,59 +150,3 @@ describe("una página que no existe", () => {
   });
 });
 
-describe("el alcance sobrevive a la paginación", () => {
-  it("un Referente Local no alcanza otra Diócesis en ninguna página", async () => {
-    await sembrar(CUANTAS, territorio.villaMaria.id);
-    await sembrar(3, territorio.rioCuarto.id);
-
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    const suyas = await todasLasPaginas(referente);
-    const primera = await PeregrinaService.listPagina(referente, {}, 1);
-
-    // The negative, asserted rather than inferred from the positive: Río Cuarto's
-    // three images are absent from every page *and* from the total, which is what
-    // makes the count on the header theirs.
-    expect(primera.total).toBe(CUANTAS);
-    expect(suyas).toHaveLength(CUANTAS);
-    expect(
-      suyas.every(
-        (p) => p.diocesisLocalidad.id === territorio.villaMaria.id
-      )
-    ).toBe(true);
-  });
-
-  it("un filtro territorial fuera del alcance se rechaza, en cualquier página", async () => {
-    await sembrar(3, territorio.rioCuarto.id);
-
-    const referente = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    // Refused rather than intersected away — the intersection would relabel one
-    // Diócesis's rows with another's name.
-    await expect(
-      PeregrinaService.listPagina(
-        referente,
-        { diocesisLocalidadId: territorio.rioCuarto.id },
-        1
-      )
-    ).rejects.toThrow(NoAutorizadoError);
-  });
-
-  it("un rol territorial sin territorio se rechaza antes de contar", async () => {
-    const sinTerritorio = await crearActor({
-      rol: "referente_local",
-      diocesisLocalidadId: null,
-    });
-
-    // Fails closed. An unscoped read is not the fallback for a missing scope.
-    await expect(
-      PeregrinaService.listPagina(sinTerritorio, {}, 1)
-    ).rejects.toThrow(NoAutorizadoError);
-  });
-});

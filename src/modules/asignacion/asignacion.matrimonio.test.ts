@@ -45,7 +45,7 @@ beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
   referente = await crearActor({
-    rol: "referente_local",
+    rol: "responsable_diocesano",
     diocesisLocalidadId: territorio.villaMaria.id,
   });
 
