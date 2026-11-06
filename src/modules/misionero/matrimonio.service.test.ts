@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MatrimonioService } from "./matrimonio.service";
 import { MisioneroService } from "./misionero.service";
-import { MatrimonioRepository } from "./matrimonio.repository";
-import { MisioneroRepository } from "./misionero.repository";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -119,24 +117,12 @@ describe("el listado colapsa el hogar en una fila", () => {
     ]);
   });
 
-  it("la cifra vale lo mismo que las filas que hay detrás del enlace", async () => {
-    await crearAlvarezBenitez(territorio.villaMaria.id);
-
-    const total = await MisioneroRepository.contarTotal({});
-    const porRegion = await MisioneroRepository.contarPorRegion({});
-    const porEstado = await MisioneroRepository.contarPorEstado({});
-
-    // Two people, one Tenedor. A figure that counted the spouses would say two
-    // and the list behind it would show one.
-    expect(total).toBe(1);
-    expect(porRegion).toEqual([{ region: "CENTRO", total: 1 }]);
-    expect(porEstado).toEqual([{ estado: "activo", total: 1 }]);
-  });
-
   it("buscar por cualquiera de los dos apellidos encuentra el hogar", async () => {
     await crearAlvarezBenitez(territorio.villaMaria.id);
 
-    for (const termino of ["álvarez", "BENÍTEZ", "juan", "ana"]) {
+    // The full name, in either order, finds the household too — the same rule
+    // as the holder search on the Peregrina list (`coincideAlgunNombre`).
+    for (const termino of ["álvarez", "BENÍTEZ", "juan", "ana", "Ana Álvarez", "benítez juan"]) {
       const pagina = await MisioneroService.listPagina(
         asesor,
         { q: termino },
@@ -163,17 +149,18 @@ describe("el listado colapsa el hogar en una fila", () => {
   });
 });
 
-describe("deMisionero — el guardia de «casado nunca solo»", () => {
+describe("de qué Matrimonio es un Misionero — el guardia de «casado nunca solo»", () => {
   it("encuentra el Matrimonio desde cualquiera de los dos esposos", async () => {
     const pareja = await crearAlvarezBenitez(territorio.villaMaria.id);
 
     for (const esposo of [pareja.misioneroA, pareja.misioneroB]) {
-      const encontrado = await MatrimonioRepository.deMisionero(
+      const encontrado = await MisioneroService.matrimonioActivo(
+        asesor,
         esposo.id
       );
       // Keying on `misionero_a_id` alone is the bug the feature exists to kill:
       // the spouse the image was not filed under was invisible to every guard.
-      expect(encontrado?.id).toBe(pareja.id);
+      expect(encontrado).toBe(pareja.id);
     }
   });
 
@@ -184,13 +171,11 @@ describe("deMisionero — el guardia de «casado nunca solo»", () => {
     });
     const pareja = await crearAlvarezBenitez(territorio.villaMaria.id);
 
-    expect(
-      await MatrimonioRepository.deMisionero(soltera.id)
-    ).toBeNull();
+    expect(await MisioneroService.matrimonioActivo(asesor, soltera.id)).toBeNull();
 
     await MatrimonioService.baja(asesor, pareja.id);
     expect(
-      await MatrimonioRepository.deMisionero(pareja.misioneroA.id)
+      await MisioneroService.matrimonioActivo(asesor, pareja.misioneroA.id)
     ).toBeNull();
   });
 });

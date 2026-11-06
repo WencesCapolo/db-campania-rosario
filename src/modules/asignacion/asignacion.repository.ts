@@ -7,7 +7,6 @@ import {
   exists,
   inArray,
   isNull,
-  isNotNull,
   notExists,
   or,
   sql,
@@ -19,17 +18,17 @@ import { peregrina } from "@/modules/peregrina/peregrina.schema";
 import { IDENTIFICACION } from "@/modules/peregrina/peregrina.repository";
 import { misionero } from "@/modules/misionero/misionero.schema";
 import { matrimonio } from "@/modules/misionero/matrimonio.schema";
-// Un predicado del roster, importado y no reescrito — la misma razón por la que
-// `peregrina.repository` importa `coincideElNombre` de acá: dos copias a mano de
+// Un predicado del roster, importado y no reescrito: dos copias a mano de
 // «esta persona no es cónyuge de nadie» es cómo una lista ofrece una fila que la
 // otra no muestra.
 import { sinMatrimonioActivo } from "@/modules/misionero/misionero.repository";
 import { diocesisLocalidad } from "@/modules/territorio/territorio.schema";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import type { Tenedor } from "@/modules/misionero/matrimonio.types";
-import type {
-  PersonaDeTenedorDTO,
-  TenedorResueltoDTO,
+import {
+  type TenedorResueltoDTO,
+  matrimonioResuelto,
+  personaResuelta,
 } from "@/lib/tenedor";
 
 /**
@@ -144,13 +143,24 @@ function completa() {
 /** One row of `completa()`, inferred rather than restated. */
 type FilaCompleta = Awaited<ReturnType<typeof completa>>[number];
 
-function persona(
-  id: string,
-  nombre: string,
-  apellido: string,
-  bajaAt: Date | null
-): PersonaDeTenedorDTO {
-  return { id, nombre, apellido, deBaja: bajaAt !== null };
+/** A couple as the two pickers' selects bring it back: one row, both spouses. */
+function parejaResuelta(m: {
+  id: string;
+  bajaAt: Date | null;
+  aId: string;
+  aNombre: string;
+  aApellido: string;
+  aBajaAt: Date | null;
+  bId: string;
+  bNombre: string;
+  bApellido: string;
+  bBajaAt: Date | null;
+}): TenedorResueltoDTO {
+  return matrimonioResuelto(
+    m,
+    { id: m.aId, nombre: m.aNombre, apellido: m.aApellido, bajaAt: m.aBajaAt },
+    { id: m.bId, nombre: m.bNombre, apellido: m.bApellido, bajaAt: m.bBajaAt }
+  );
 }
 
 /**
@@ -192,39 +202,30 @@ function tenedorDeColumnasResueltas(
   contexto: string
 ): TenedorResueltoDTO {
   if (fila.misioneroId !== null) {
-    return {
-      tipo: "persona",
+    return personaResuelta({
       id: fila.misioneroId,
-      deBaja: fila.misioneroBajaAt !== null,
-      persona: persona(
-        fila.misioneroId,
-        fila.misioneroNombre ?? "",
-        fila.misioneroApellido ?? "",
-        fila.misioneroBajaAt
-      ),
-    };
+      nombre: fila.misioneroNombre ?? "",
+      apellido: fila.misioneroApellido ?? "",
+      bajaAt: fila.misioneroBajaAt,
+    });
   }
 
   if (fila.matrimonioId !== null && fila.esposoAId && fila.esposoBId) {
-    return {
-      tipo: "matrimonio",
-      id: fila.matrimonioId,
-      deBaja: fila.matrimonioBajaAt !== null,
-      matrimonio: {
-        misioneroA: persona(
-          fila.esposoAId,
-          fila.esposoANombre ?? "",
-          fila.esposoAApellido ?? "",
-          fila.esposoABajaAt
-        ),
-        misioneroB: persona(
-          fila.esposoBId,
-          fila.esposoBNombre ?? "",
-          fila.esposoBApellido ?? "",
-          fila.esposoBBajaAt
-        ),
+    return matrimonioResuelto(
+      { id: fila.matrimonioId, bajaAt: fila.matrimonioBajaAt },
+      {
+        id: fila.esposoAId,
+        nombre: fila.esposoANombre ?? "",
+        apellido: fila.esposoAApellido ?? "",
+        bajaAt: fila.esposoABajaAt,
       },
-    };
+      {
+        id: fila.esposoBId,
+        nombre: fila.esposoBNombre ?? "",
+        apellido: fila.esposoBApellido ?? "",
+        bajaAt: fila.esposoBBajaAt,
+      }
+    );
   }
 
   throw new Error(
@@ -470,25 +471,8 @@ async function tenedoresPorTenencia(
   ]);
 
   const filas: TenedorResueltoDTO[] = [
-    ...personas.map(
-      (p): TenedorResueltoDTO => ({
-        tipo: "persona",
-        id: p.id,
-        deBaja: p.bajaAt !== null,
-        persona: persona(p.id, p.nombre, p.apellido, p.bajaAt),
-      })
-    ),
-    ...parejas.map(
-      (m): TenedorResueltoDTO => ({
-        tipo: "matrimonio",
-        id: m.id,
-        deBaja: m.bajaAt !== null,
-        matrimonio: {
-          misioneroA: persona(m.aId, m.aNombre, m.aApellido, m.aBajaAt),
-          misioneroB: persona(m.bId, m.bNombre, m.bApellido, m.bBajaAt),
-        },
-      })
-    ),
+    ...personas.map(personaResuelta),
+    ...parejas.map(parejaResuelta),
   ];
 
   // `apellido, nombre, id`, el mismo orden del roster y por la misma razón: la
@@ -553,14 +537,7 @@ export class AsignacionRepository {
         .from(misionero)
         .where(eq(misionero.id, t.id))
         .limit(1);
-      if (!fila) return undefined;
-
-      return {
-        tipo: "persona",
-        id: fila.id,
-        deBaja: fila.bajaAt !== null,
-        persona: persona(fila.id, fila.nombre, fila.apellido, fila.bajaAt),
-      };
+      return fila && personaResuelta(fila);
     }
 
     const [fila] = await db
@@ -584,17 +561,7 @@ export class AsignacionRepository {
       .innerJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId))
       .where(eq(matrimonio.id, t.id))
       .limit(1);
-    if (!fila) return undefined;
-
-    return {
-      tipo: "matrimonio",
-      id: fila.id,
-      deBaja: fila.bajaAt !== null,
-      matrimonio: {
-        misioneroA: persona(fila.aId, fila.aNombre, fila.aApellido, fila.aBajaAt),
-        misioneroB: persona(fila.bId, fila.bNombre, fila.bApellido, fila.bBajaAt),
-      },
-    };
+    return fila && parejaResuelta(fila);
   }
 
   /** The tenencia actual, if anybody has this image. */
@@ -1048,15 +1015,17 @@ export class AsignacionRepository {
         .returning();
       if (!row) throw new Error(`Asignacion not found: ${id}`);
 
-      // Read back off the written row rather than off `tenedor`: a correction
-      // that only moved a date leaves the holder alone, and the pointer still
-      // has to end up agreeing with whichever leg the row carries.
+      // Re-derive the pointer from whichever row is open *after* the write,
+      // not from the corrected row: correcting an old, closed period must not
+      // touch who has the image now, and closing the open one must clear it.
+      const [vigente] = await tx
+        .select()
+        .from(asignacion)
+        .where(and(eq(asignacion.peregrinaId, row.peregrinaId), abierta));
       await tx
         .update(peregrina)
         .set({
-          ...punteroDeTenedor(
-            row.cerradaAt === null ? tenedorDeColumnas(row) : null
-          ),
+          ...punteroDeTenedor(vigente ? tenedorDeColumnas(vigente) : null),
           updatedAt: new Date(),
         })
         .where(eq(peregrina.id, row.peregrinaId));
@@ -1070,46 +1039,5 @@ export class AsignacionRepository {
     const row = await AsignacionRepository.findById(id);
     if (!row) throw new Error(`Asignacion not found: ${id}`);
     return row;
-  }
-
-  // ── Agregaciones ───────────────────────────────────────────────────────────
-
-  /**
-   * How many periods are open and how many have closed — filtered through the
-   * image's territory like every other read here.
-   *
-   * The open count is *not* how the tablero answers "how many images are out":
-   * that is `misionero_actual_id is not null` on the Peregrina, one table and no
-   * join, and it is the same predicate the listado's `tenencia` filter uses. This
-   * pair answers a different question — how much movement the history holds.
-   */
-  static async contarPorTenencia(
-    filtros: FiltrosTerritoriales = {}
-  ): Promise<{ abiertas: number; cerradas: number }> {
-    const [row] = await db
-      .select({
-        abiertas: sql<number>`cast(count(*) filter (where ${abierta}) as int)`,
-        cerradas: sql<number>`cast(count(*) filter (where ${isNotNull(
-          asignacion.cerradaAt
-        )}) as int)`,
-      })
-      .from(asignacion)
-      .innerJoin(peregrina, eq(peregrina.id, asignacion.peregrinaId))
-      .innerJoin(
-        diocesisLocalidad,
-        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId)
-      )
-      .where(
-        and(
-          filtros.diocesisLocalidadId
-            ? eq(peregrina.diocesisLocalidadId, filtros.diocesisLocalidadId)
-            : undefined,
-          filtros.region
-            ? eq(diocesisLocalidad.region, filtros.region)
-            : undefined
-        )
-      );
-
-    return { abiertas: row?.abiertas ?? 0, cerradas: row?.cerradas ?? 0 };
   }
 }

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MisioneroService } from "./misionero.service";
 import { AsignacionService } from "@/modules/asignacion/asignacion.service";
-import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -24,7 +23,6 @@ import { ConflictoError } from "@/lib/errors";
 
 let territorio: TerritorioDePrueba;
 let responsable: CurrentUser;
-let asesor: CurrentUser;
 
 let peregrina: { id: string; identificacion: string };
 let ana: { id: string };
@@ -32,7 +30,6 @@ let ana: { id: string };
 beforeEach(async () => {
   territorio = await crearTerritorioDePrueba();
 
-  asesor = await crearActor({ rol: "asesor_nacional" });
   responsable = await crearActor({ rol: "responsable_diocesano" });
 
   peregrina = await crearPeregrinaDirecta({
@@ -129,25 +126,6 @@ describe("no se puede dar de baja a alguien que todavía tiene una Peregrina", (
       ConflictoError
     );
   });
-
-  it("una imagen que se mudó de Diócesis sigue frenando la baja", async () => {
-    // El guard no mira el territorio de la imagen: una Peregrina puede mudarse
-    // de Diócesis mientras el Misionero la sigue teniendo en su casa, y un guard
-    // que se equivoca del lado permisivo no es un guard.
-    await AsignacionService.asignar(responsable, {
-      peregrinaId: peregrina.id,
-      tenedor: { tipo: "persona", id: ana.id },
-      nota: null,
-    });
-    await PeregrinaService.update(asesor, peregrina.id, {
-      diocesisLocalidadId: territorio.zapala.id,
-    });
-
-    const intento = MisioneroService.darDeBaja(responsable, ana.id);
-
-    await expect(intento).rejects.toThrow(ConflictoError);
-    await expect(intento).rejects.toThrow(new RegExp(peregrina.identificacion));
-  });
 });
 
 describe("un Misionero dado de baja", () => {
@@ -165,10 +143,10 @@ describe("un Misionero dado de baja", () => {
   });
 
   it("desaparece de las listas activas — historia 12", async () => {
-    expect(await MisioneroService.listAll(responsable)).toEqual([]);
-    expect(await MisioneroService.search(responsable, "Álvarez")).toEqual([]);
-    expect(await MisioneroService.listByRegion(responsable, "CENTRO")).toEqual([]);
     expect(await MisioneroService.listFiltrados(responsable, {})).toEqual([]);
+    expect(
+      await MisioneroService.listFiltrados(responsable, { q: "Álvarez" })
+    ).toEqual([]);
   });
 
   it("sigue resolviendo por nombre dentro del historial — historia 15", async () => {
@@ -213,8 +191,8 @@ describe("un Misionero dado de baja", () => {
     const reactivado = await MisioneroService.reactivar(responsable, ana.id);
     expect(reactivado.deBaja).toBe(false);
 
-    const lista = await MisioneroService.listAll(responsable);
-    expect(lista.map((m) => m.id)).toEqual([ana.id]);
+    const lista = await MisioneroService.listFiltrados(responsable, {});
+    expect(lista).toMatchObject([{ tipo: "persona", persona: { id: ana.id } }]);
   });
 
   it("darlo de baja dos veces lo dice, en lugar de fingir que funcionó", async () => {

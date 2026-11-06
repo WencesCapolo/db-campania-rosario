@@ -471,7 +471,7 @@ describe("estados de la Peregrina", () => {
 
     expect(enReparacion.estado).toBe("en_reparacion");
     // Y sigue en el inventario activo: reparar no es dar de baja.
-    const lista = await PeregrinaService.listAll(responsable);
+    const lista = await PeregrinaService.listFiltradas(responsable, {});
     expect(lista.map((p) => p.id)).toContain(peregrina.id);
   });
 
@@ -597,6 +597,10 @@ describe("corregir una Asignación — historia 17", () => {
       tenedor: { tipo: "persona", id: carla.id },
     });
     expect(corregida.tenedor.deBaja).toBe(true);
+
+    // Corregir el período viejo no toca quién la tiene ahora.
+    const dto = await PeregrinaService.getById(responsable, peregrina.id);
+    expect(dto.tenenciaActual?.id).toBe(beto.id);
 
     // Uno abierto no: tendría una imagen a cargo y no aparecería en ninguna lista.
     await expect(

@@ -10,7 +10,6 @@ import {
   numeroDeCodigoSchema,
 } from "./peregrina.types";
 import type { ActionResult, PeregrinaDTO } from "./peregrina.types";
-import type { PeregrinaEstado } from "./peregrina.schema";
 import { aResultado } from "@/lib/errors";
 import { paginaSchema, type Pagina } from "@/lib/paginacion";
 
@@ -37,28 +36,13 @@ export async function getPeregrinaByIdAction(id: string): Promise<PeregrinaDTO> 
 }
 
 /**
- * The listado's one read — every filter, in the database.
- *
- * The filters are parsed here, at the boundary, and an invalid shape is a
- * refusal rather than a silently ignored value: the lenient reading of a query
- * string happens in `filtrosDesdeParams` before this is called, and by the time
- * a filter reaches a service it is either valid or absent.
+ * The listado's read, one page at a time — story 23. Every filter, in the
+ * database.
  *
  * `inactiva` is reachable on purpose. It is excluded from *entry* and from the
  * filter control — see `ESTADOS_SELECCIONABLES` — but a record already carrying
  * it must stay readable, and a read that refused the value would make those
  * records unreachable rather than merely unwritable.
- */
-export async function getPeregrinasFiltradasAction(
-  filtros: unknown
-): Promise<PeregrinaDTO[]> {
-  const actor = await getCurrentUser();
-  const parsed = filtrosDeInventarioSchema.parse(filtros ?? {});
-  return PeregrinaService.listFiltradas(actor, parsed);
-}
-
-/**
- * The listado's read, one page at a time — story 23.
  *
  * The page is parsed here like everything else that arrives from outside: the
  * lenient reading of `?pagina=` happens in `paginaDesdeParams`, so what gets to
@@ -74,13 +58,6 @@ export async function getPeregrinasPaginadasAction(
   const parsedFiltros = filtrosDeInventarioSchema.parse(filtros ?? {});
   const parsedPagina = paginaSchema.parse(pagina ?? 1);
   return PeregrinaService.listPagina(actor, parsedFiltros, parsedPagina);
-}
-
-export async function getPeregrinasPorEstadoAction(
-  estado: PeregrinaEstado
-): Promise<PeregrinaDTO[]> {
-  const actor = await getCurrentUser();
-  return PeregrinaService.listByEstado(actor, estado);
 }
 
 /**

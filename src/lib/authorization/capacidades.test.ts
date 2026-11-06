@@ -358,6 +358,9 @@ describe("quien carga no configura", () => {
           })
         ).rejects.toThrow(NoAutorizadoError);
       }
+      await expect(InvitacionService.listarPendientes(actor)).rejects.toThrow(
+        NoAutorizadoError
+      );
     });
 
     it(`${rol}: NO lista ni administra Usuarios`, async () => {

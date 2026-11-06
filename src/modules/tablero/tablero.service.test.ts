@@ -330,6 +330,10 @@ describe("los filtros", () => {
 
     expect(libres.totalPeregrinas).toBe(1);
     expect(asignadas.totalPeregrinas).toBe(3);
+    // Every figure answers the same question: among the ones somebody has,
+    // none is free.
+    expect(libres.sinTenencia).toBe(1);
+    expect(asignadas.sinTenencia).toBe(0);
   });
 
   it("filtra por Identificación, sin distinguir mayúsculas", async () => {

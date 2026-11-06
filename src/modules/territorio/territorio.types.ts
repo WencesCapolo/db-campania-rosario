@@ -99,11 +99,6 @@ export const renombrarDiocesisLocalidadSchema = z.object({
   nombre: nombreTerritorio,
 });
 
-export const buscarPorNombreSchema = z.object({
-  provincia: z.string(),
-  diocesisLocalidad: z.string(),
-});
-
 export type CrearProvinciaInput = z.infer<typeof crearProvinciaSchema>;
 export type RenombrarProvinciaInput = z.infer<typeof renombrarProvinciaSchema>;
 export type CrearDiocesisLocalidadInput = z.infer<
@@ -112,7 +107,6 @@ export type CrearDiocesisLocalidadInput = z.infer<
 export type RenombrarDiocesisLocalidadInput = z.infer<
   typeof renombrarDiocesisLocalidadSchema
 >;
-export type BuscarPorNombreInput = z.infer<typeof buscarPorNombreSchema>;
 
 // ── Result pattern ────────────────────────────────────────────────────────────
 

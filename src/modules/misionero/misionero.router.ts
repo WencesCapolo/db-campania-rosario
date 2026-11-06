@@ -24,11 +24,6 @@ import { paginaSchema, type Pagina } from "@/lib/paginacion";
  * and map thrown domain errors onto a result. No business logic lives here.
  */
 
-export async function getMisionerosAction(): Promise<MisioneroDTO[]> {
-  const actor = await getCurrentUser();
-  return MisioneroService.listAll(actor);
-}
-
 export async function getMisioneroByIdAction(id: string): Promise<MisioneroDTO> {
   const actor = await getCurrentUser();
   return MisioneroService.getById(actor, id);
@@ -40,11 +35,6 @@ export async function getMatrimonioActivoDeMisioneroAction(
 ): Promise<string | null> {
   const actor = await getCurrentUser();
   return MisioneroService.matrimonioActivo(actor, id);
-}
-
-export async function searchMisionerosAction(query: string): Promise<MisioneroDTO[]> {
-  const actor = await getCurrentUser();
-  return MisioneroService.search(actor, query);
 }
 
 export async function createMisioneroAction(

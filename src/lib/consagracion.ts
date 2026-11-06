@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { deCampoDeFecha, fecha, paraCampoDeFecha } from "@/lib/formato";
+import { deCampoDeFecha, fecha, diaEnArgentina } from "@/lib/formato";
 
 /**
  * The day, if the text names one that exists. `new Date` rolls "1998-13-40"
@@ -9,7 +9,7 @@ import { deCampoDeFecha, fecha, paraCampoDeFecha } from "@/lib/formato";
  */
 function diaReal(valor: string): Date | null {
   const d = deCampoDeFecha(valor);
-  return d && paraCampoDeFecha(d) === valor ? d : null;
+  return d && diaEnArgentina(d) === valor ? d : null;
 }
 
 /**

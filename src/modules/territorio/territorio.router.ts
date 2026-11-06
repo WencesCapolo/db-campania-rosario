@@ -15,7 +15,6 @@ import type {
   ProvinciaDTO,
   UsoTerritorio,
 } from "./territorio.types";
-import type { Region } from "./territorio.schema";
 import { aResultado } from "@/lib/errors";
 
 /**
@@ -27,11 +26,6 @@ import { aResultado } from "@/lib/errors";
  */
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
-
-export async function getRegionesAction(): Promise<readonly Region[]> {
-  const actor = await getCurrentUser();
-  return TerritorioService.listarRegiones(actor);
-}
 
 export async function getProvinciasAction(): Promise<ProvinciaDTO[]> {
   const actor = await getCurrentUser();

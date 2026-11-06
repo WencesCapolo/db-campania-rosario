@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { and, asc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { matrimonio } from "./matrimonio.schema";
@@ -10,7 +10,6 @@ import {
   diocesisLocalidad,
   provincia,
 } from "@/modules/territorio/territorio.schema";
-import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import type {
   MisioneroConTerritorio,
   OpcionesDeLectura,
@@ -108,55 +107,6 @@ function vigentes(opts: OpcionesDeLectura, ...extras: (SQL | undefined)[]) {
 }
 
 /**
- * The territorial filters, as SQL. A Matrimonio has no `diocesis_localidad_id`
- * of its own — ADR 0010 — so they land on spouse A, who supplies the couple's
- * territory. That is well defined only because both spouses share a Diócesis by
- * construction: the form enters it once, and `MatrimonioService.create` writes
- * it to both rows in the same transaction.
- */
-function condicionDeFiltros(
-  filtros: FiltrosTerritoriales
-): (SQL | undefined)[] {
-  return [
-    filtros.diocesisLocalidadId
-      ? eq(esposoA.diocesisLocalidadId, filtros.diocesisLocalidadId)
-      : undefined,
-    filtros.region ? eq(diocesisA.region, filtros.region) : undefined,
-  ];
-}
-
-/**
- * The couple's whole predicate: baja, territory, and a search that has to hit
- * **either** spouse.
- *
- * Searching only spouse A would mean "Benítez" never finds "Ana Álvarez y Juan
- * Benítez", and the person typing has no way to know which half of the household
- * was entered first — which is the confusion this whole feature exists to end.
- */
-function condicionDeListado(
-  filtros: FiltrosTerritoriales & { q?: string },
-  opts: OpcionesDeLectura
-) {
-  const termino = filtros.q?.trim();
-  return vigentes(
-    opts,
-    ...condicionDeFiltros(filtros),
-    termino
-      ? or(
-          ilike(esposoA.nombre, `%${termino}%`),
-          ilike(esposoA.apellido, `%${termino}%`),
-          ilike(esposoB.nombre, `%${termino}%`),
-          ilike(esposoB.apellido, `%${termino}%`),
-          ilike(diocesisA.nombre, `%${termino}%`)
-        )
-      : undefined
-  );
-}
-
-/** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
-const TOTAL = sql<number>`cast(count(*) as int)`;
-
-/**
  * MatrimonioRepository
  *
  * Responsibility: raw database access for the `matrimonio` table.
@@ -230,37 +180,6 @@ export class MatrimonioRepository {
       vigentes(opts, inArray(matrimonio.id, ids))
     );
     return filas.map(armar);
-  }
-
-  static async findFiltrados(
-    filtros: FiltrosTerritoriales & { q?: string },
-    opts: OpcionesDeLectura = {},
-    paginacion?: { limit: number; offset: number }
-  ): Promise<MatrimonioConEsposos[]> {
-    const consulta = conEsposos()
-      .where(condicionDeListado(filtros, opts))
-      .orderBy(asc(esposoA.apellido), asc(esposoA.nombre), asc(matrimonio.id));
-
-    const filas = await (paginacion
-      ? consulta.limit(paginacion.limit).offset(paginacion.offset)
-      : consulta);
-
-    return filas.map(armar);
-  }
-
-  /** The same predicate as `findFiltrados`, counted in the database. */
-  static async contarFiltrados(
-    filtros: FiltrosTerritoriales & { q?: string },
-    opts: OpcionesDeLectura = {}
-  ): Promise<number> {
-    const [row] = await db
-      .select({ total: TOTAL })
-      .from(matrimonio)
-      .innerJoin(esposoA, eq(esposoA.id, matrimonio.misioneroAId))
-      .innerJoin(diocesisA, eq(diocesisA.id, esposoA.diocesisLocalidadId))
-      .innerJoin(esposoB, eq(esposoB.id, matrimonio.misioneroBId))
-      .where(condicionDeListado(filtros, opts));
-    return row?.total ?? 0;
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────

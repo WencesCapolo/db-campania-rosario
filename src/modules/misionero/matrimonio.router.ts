@@ -8,10 +8,8 @@ import {
   updateMatrimonioSchema,
   type MatrimonioDTO,
 } from "./matrimonio.types";
-import { filtrosDeMisioneroSchema } from "./misionero.types";
 import type { ActionResult } from "./misionero.types";
 import { aResultado } from "@/lib/errors";
-import { paginaSchema, type Pagina } from "@/lib/paginacion";
 
 /**
  * MatrimonioRouter — Next.js server actions
@@ -29,17 +27,6 @@ export async function getMatrimonioByIdAction(
 ): Promise<MatrimonioDTO> {
   const actor = await getCurrentUser();
   return MatrimonioService.get(actor, id);
-}
-
-/** The couples, one page at a time — the filters are the shared ones. */
-export async function getMatrimoniosPaginadosAction(
-  filtros: unknown,
-  pagina: unknown
-): Promise<Pagina<MatrimonioDTO>> {
-  const actor = await getCurrentUser();
-  const parsedFiltros = filtrosDeMisioneroSchema.parse(filtros ?? {});
-  const parsedPagina = paginaSchema.parse(pagina ?? 1);
-  return MatrimonioService.listPagina(actor, parsedFiltros, parsedPagina);
 }
 
 export async function createMatrimonioAction(

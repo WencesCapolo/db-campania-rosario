@@ -225,14 +225,6 @@ export class AsignacionService {
     return row ? AsignacionService.toDTO(row) : null;
   }
 
-  static async getById(
-    actor: CurrentUser,
-    id: string
-  ): Promise<AsignacionDTO> {
-    const row = await AsignacionService.exigirAsignacion(id);
-    return AsignacionService.toDTO(row);
-  }
-
   /**
    * Qué tiene cada uno de una página de **Tenedores** — la columna «¿Tiene
    * imagen?» del listado.

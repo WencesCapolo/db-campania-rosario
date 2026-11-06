@@ -29,8 +29,6 @@ export const ESTADOS_SELECCIONABLES = [
   "extraviada",
 ] as const satisfies readonly PeregrinaEstado[];
 
-export type EstadoSeleccionable = (typeof ESTADOS_SELECCIONABLES)[number];
-
 /** Spanish labels, including for the legacy value, because it still renders. */
 export const ESTADO_LABELS: Record<PeregrinaEstado, string> = {
   activa: "Activa",
@@ -296,8 +294,6 @@ export const filtrosDeInventarioSchema = filtrosTerritorialesSchema.extend({
 });
 
 export type FiltrosDeInventario = z.infer<typeof filtrosDeInventarioSchema>;
-
-export const SIN_FILTROS: FiltrosDeInventario = {};
 
 /** The address's names for the filters — one list, so no screen invents a key. */
 export const CLAVES_DE_FILTRO = [

@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { identidades, identidadIdComoTexto } from "@/db/schema/neon-auth";
 import { and, asc, eq, isNull, isNotNull, sql } from "drizzle-orm";
-import type { User, NewUser, Role } from "./user.schema";
+import type { User, NewUser } from "./user.schema";
 
 /**
  * A Usuario as the management screen needs it: the application row and the
@@ -93,13 +93,6 @@ export class UserRepository {
       .orderBy(asc(users.role), asc(users.createdAt));
   }
 
-  static async findByRole(role: Role): Promise<User[]> {
-    return db
-      .select()
-      .from(users)
-      .where(and(eq(users.role, role), isNull(users.bajaAt)));
-  }
-
   /**
    * Identities Neon Auth knows about that have no application row — user story
    * 17. A half-finished provisioning, or somebody who signed in and was refused.
@@ -137,12 +130,6 @@ export class UserRepository {
       .returning();
     // If onConflictDoNothing fired, row is undefined — fetch the existing one
     return row ?? UserRepository.getById(data.id);
-  }
-
-  static async create(data: NewUser): Promise<User> {
-    const [row] = await db.insert(users).values(data).returning();
-    if (!row) throw new Error("Failed to insert user");
-    return row;
   }
 
   static async update(

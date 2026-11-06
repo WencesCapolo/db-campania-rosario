@@ -55,3 +55,42 @@ export type TenedorResueltoDTO =
         misioneroB: PersonaDeTenedorDTO;
       };
     };
+
+/** What any query brings back for one person: enough to name them. */
+export interface ColumnasDePersona {
+  id: string;
+  nombre: string;
+  apellido: string;
+  bajaAt: Date | null;
+}
+
+function personaDeTenedor(p: ColumnasDePersona): PersonaDeTenedorDTO {
+  return { id: p.id, nombre: p.nombre, apellido: p.apellido, deBaja: p.bajaAt !== null };
+}
+
+/**
+ * The two shapes of a resolved Tenedor, built in one place. Every query that
+ * answers "who has it" — the period, the denormalised pointer, the pickers —
+ * ends here, so the two branches cannot drift apart (ADR 0010).
+ */
+export function personaResuelta(p: ColumnasDePersona): TenedorResueltoDTO {
+  return {
+    tipo: "persona",
+    id: p.id,
+    deBaja: p.bajaAt !== null,
+    persona: personaDeTenedor(p),
+  };
+}
+
+export function matrimonioResuelto(
+  m: { id: string; bajaAt: Date | null },
+  a: ColumnasDePersona,
+  b: ColumnasDePersona
+): TenedorResueltoDTO {
+  return {
+    tipo: "matrimonio",
+    id: m.id,
+    deBaja: m.bajaAt !== null,
+    matrimonio: { misioneroA: personaDeTenedor(a), misioneroB: personaDeTenedor(b) },
+  };
+}

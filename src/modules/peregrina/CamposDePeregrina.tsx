@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Campo from "@/components/Campo";
 import Eleccion from "@/components/Eleccion";
-import { paraCampoDeFecha } from "@/lib/formato";
+import { diaEnArgentina } from "@/lib/formato";
 import {
   useValidacionAlSalir,
   type ValidacionAlSalir,
@@ -297,7 +297,7 @@ export function CampoDeFechaDeConsagracion({
       ayuda="Si no la sabés, dejala vacía: se puede completar después."
       type="date"
       min="1900-01-01"
-      max={paraCampoDeFecha(new Date())}
+      max={diaEnArgentina(new Date())}
       value={valor}
       error={error}
       onChange={(e) => onValor(e.target.value)}

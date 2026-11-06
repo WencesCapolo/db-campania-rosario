@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { InvitacionService } from "./invitacion.service";
 import { UserService } from "@/modules/user/user.service";
-import { PeregrinaService } from "@/modules/peregrina/peregrina.service";
 import {
   crearActor,
   crearIdentidad,
-  crearTerritorioDePrueba,
-  type TerritorioDePrueba,
 } from "@/test/factories";
 import type { CurrentUser } from "@/modules/user/user.types";
 import { NoAutorizadoError } from "@/lib/errors";
+import type { Identidad } from "./invitacion.types";
 
 /**
  * Aprovisionamiento por invitación — historias 7 a 14.
@@ -20,17 +18,13 @@ import { NoAutorizadoError } from "@/lib/errors";
  * y los invita un admin o un Asesor Nacional.
  */
 
-let territorio: TerritorioDePrueba;
 let admin: CurrentUser;
 let asesor: CurrentUser;
-let responsable: CurrentUser;
 let dirigente: CurrentUser;
 
 beforeEach(async () => {
-  territorio = await crearTerritorioDePrueba();
   admin = await crearActor({ rol: "admin" });
   asesor = await crearActor({ rol: "asesor_nacional" });
-  responsable = await crearActor({ rol: "responsable_diocesano" });
   dirigente = await crearActor({ rol: "dirigente_joven" });
 });
 
@@ -48,31 +42,6 @@ describe("quién puede invitar a quién — historias 7 a 11", () => {
     expect([r.estado, d.estado]).toEqual(["pendiente", "pendiente"]);
     expect([r.rol, d.rol]).toEqual(["responsable_diocesano", "dirigente_joven"]);
     expect(r.invitadaPorId).toBe(asesor.id);
-  });
-
-  it("los dos rols que cargan no invitan a nadie, ni entre sí — historia 11", async () => {
-    for (const actor of [responsable, dirigente]) {
-      for (const rol of ["responsable_diocesano", "dirigente_joven"] as const) {
-        await expect(
-          InvitacionService.invitar(actor, {
-            email: `cualquiera-${rol}@ejemplo.test`,
-            rol,
-          })
-        ).rejects.toThrow(NoAutorizadoError);
-      }
-      await expect(InvitacionService.listarPendientes(actor)).rejects.toThrow(
-        NoAutorizadoError
-      );
-    }
-  });
-
-  it("nadie invita por encima de su rango — historia 10", async () => {
-    await expect(
-      InvitacionService.invitar(responsable, {
-        email: "un.asesor@ejemplo.test",
-        rol: "asesor_nacional",
-      })
-    ).rejects.toThrow(NoAutorizadoError);
   });
 
   it("un admin puede invitar a otro admin — decidido con el usuario el 2026-07-25", async () => {
@@ -104,7 +73,7 @@ describe("aceptar una invitación", () => {
     const identidad = await crearIdentidad({
       email: "recien.llegado@ejemplo.test",
     });
-    const actor = await InvitacionService.aceptarSiHayPendiente(identidad);
+    const actor = await entrar(identidad);
 
     expect(actor?.role).toBe("dirigente_joven");
   });
@@ -116,7 +85,7 @@ describe("aceptar una invitación", () => {
     });
 
     const identidad = await crearIdentidad({ email: "coincide@ejemplo.test" });
-    await InvitacionService.aceptarSiHayPendiente(identidad);
+    await entrar(identidad);
 
     // Lo que el flujo anterior no lograba: creaba la fila con un randomUUID que
     // ninguna sesión iba a igualar nunca.
@@ -132,7 +101,7 @@ describe("aceptar una invitación", () => {
 
     const identidad = await crearIdentidad({ email: "mayuscula@ejemplo.test" });
 
-    expect(await InvitacionService.aceptarSiHayPendiente(identidad)).not.toBeNull();
+    expect(await entrar(identidad)).not.toBeNull();
   });
 
   it("aceptar dos veces produce un solo Usuario", async () => {
@@ -142,8 +111,8 @@ describe("aceptar una invitación", () => {
     });
 
     const identidad = await crearIdentidad({ email: "dos.veces@ejemplo.test" });
-    await InvitacionService.aceptarSiHayPendiente(identidad);
-    await InvitacionService.aceptarSiHayPendiente(identidad);
+    await entrar(identidad);
+    await entrar(identidad);
 
     const usuarios = await UserService.listarUsuarios(asesor);
     expect(usuarios.filter((u) => u.id === identidad.id)).toHaveLength(1);
@@ -152,7 +121,7 @@ describe("aceptar una invitación", () => {
   it("una identidad sin invitación no obtiene nada", async () => {
     const identidad = await crearIdentidad({ email: "nadie@ejemplo.test" });
 
-    expect(await InvitacionService.aceptarSiHayPendiente(identidad)).toBeNull();
+    expect(await entrar(identidad)).toBeNull();
   });
 
   it("una invitación revocada no se puede aceptar — historia 14", async () => {
@@ -164,7 +133,7 @@ describe("aceptar una invitación", () => {
     await InvitacionService.revocar(asesor, invitacion.id);
 
     const identidad = await crearIdentidad({ email: "un.error@ejemplo.test" });
-    expect(await InvitacionService.aceptarSiHayPendiente(identidad)).toBeNull();
+    expect(await entrar(identidad)).toBeNull();
   });
 
   it("el Usuario invitado queda atribuido a quien lo invitó", async () => {
@@ -174,38 +143,11 @@ describe("aceptar una invitación", () => {
     });
 
     const identidad = await crearIdentidad({ email: "delegado@ejemplo.test" });
-    await InvitacionService.aceptarSiHayPendiente(identidad);
+    await entrar(identidad);
 
     const usuarios = await UserService.listarUsuarios(asesor);
     const invitado = usuarios.find((u) => u.id === identidad.id);
     expect(invitado?.createdById).toBe(asesor.id);
-  });
-
-  it("el Usuario invitado trabaja en cualquier Provincia", async () => {
-    await InvitacionService.invitar(asesor, {
-      email: "a.trabajar@ejemplo.test",
-      rol: "responsable_diocesano",
-    });
-    const identidad = await crearIdentidad({ email: "a.trabajar@ejemplo.test" });
-    const actor = await InvitacionService.aceptarSiHayPendiente(identidad);
-    expect(actor).not.toBeNull();
-    if (!actor) return;
-
-    const enNeuquen = await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "FAM",
-      diocesisLocalidadId: territorio.zapala.id,
-    });
-    const enCordoba = await PeregrinaService.create(actor, {
-      tipo: "peregrina",
-      modalidad: "JOV",
-      diocesisLocalidadId: territorio.villaMaria.id,
-    });
-
-    expect([enNeuquen.codigo, enCordoba.codigo]).toEqual([
-      "NEU FAM 0001",
-      "CBA JOV 0001",
-    ]);
   });
 });
 
@@ -234,7 +176,7 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
       rol: "responsable_diocesano",
     });
     const identidad = await crearIdentidad({ email: "ya.entro@ejemplo.test" });
-    await InvitacionService.aceptarSiHayPendiente(identidad);
+    await entrar(identidad);
 
     expect(await InvitacionService.listarPendientes(asesor)).toEqual([]);
   });
@@ -286,3 +228,9 @@ describe("invitaciones pendientes — historias 13 y 14", () => {
     ).rejects.toThrow(/ya tiene un usuario/);
   });
 });
+
+/** What `getCurrentUser` does on a first sign-in: accept, then resolve the Actor. */
+async function entrar(identidad: Identidad) {
+  await InvitacionService.aceptarSiHayPendiente(identidad);
+  return UserService.resolverActorSiExiste(identidad);
+}

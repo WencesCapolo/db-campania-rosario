@@ -14,7 +14,7 @@ import {
   deCampoDeFecha,
   nombreDeTenedor,
   nombreDeTenedorEnLista,
-  paraCampoDeFecha,
+  diaEnArgentina,
 } from "@/lib/formato";
 import { opcionDeTenedorParaBuscar } from "@/lib/tenedor-en-pantalla";
 import {
@@ -46,7 +46,7 @@ import type { TenedorDTO } from "@/modules/misionero/matrimonio.types";
  * better sentence than anything this component could invent, so it is allowed to
  * arrive.
  *
- * Dates go through `paraCampoDeFecha`/`deCampoDeFecha` rather than
+ * Dates go through `diaEnArgentina`/`deCampoDeFecha` rather than
  * `toISOString().slice(0, 10)`. Argentina is UTC−3, so an entrega at 21:00 is
  * already tomorrow in UTC, and the naïve round trip would silently move every
  * date a caller did not touch one day forward.
@@ -81,9 +81,9 @@ export default function CorregirAsignacion({
 
   const inicial = {
     tenedor: valorRegistrado,
-    abiertaAt: paraCampoDeFecha(asignacion.abiertaAt),
+    abiertaAt: diaEnArgentina(asignacion.abiertaAt),
     cerradaAt: asignacion.cerradaAt
-      ? paraCampoDeFecha(asignacion.cerradaAt)
+      ? diaEnArgentina(asignacion.cerradaAt)
       : "",
     notaApertura: asignacion.notaApertura ?? "",
     notaCierre: asignacion.notaCierre ?? "",

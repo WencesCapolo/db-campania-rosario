@@ -57,8 +57,10 @@ export async function getCurrentUser(opts?: {
   if (existente) return existente;
 
   // ── 3. A pending invitation, accepted on first sign-in ────────────────────
-  const invitado = await InvitacionService.aceptarSiHayPendiente(identidad);
-  if (invitado) return invitado;
+  if (await InvitacionService.aceptarSiHayPendiente(identidad)) {
+    const invitado = await UserService.resolverActorSiExiste(identidad);
+    if (invitado) return invitado;
+  }
 
   // ── 4. Refused, with the reason ────────────────────────────────────────────
   if (opts?.optional) return null;

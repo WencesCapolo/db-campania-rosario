@@ -43,7 +43,12 @@ import {
   modalidadPropia,
 } from "@/lib/authorization/capacidades";
 import { ConflictoError, ValidacionError } from "@/lib/errors";
-import { nombreCompleto, nombreDeTenedor, nombreEnLista } from "@/lib/formato";
+import {
+  diaEnArgentina,
+  nombreCompleto,
+  nombreDeTenedor,
+  nombreEnLista,
+} from "@/lib/formato";
 import {
   celdaDeFecha,
   claveDeTitulo,
@@ -675,7 +680,7 @@ export class PlanillaService {
         )
       );
       let numero = await PeregrinaRepository.nextCodigoNum(
-        pedido.provincia.id,
+        pedido.provincia.abreviatura,
         pedido.modalidad
       );
       for (const f of pedido.filas) {
@@ -687,29 +692,6 @@ export class PlanillaService {
         };
         f.imagenMostrada = `${f.imagen.codigo.codigo} (nueva)`;
         numero++;
-      }
-    }
-
-    // El siguiente número es el mayor de las imágenes que hoy están en esa
-    // Provincia, y una imagen que se mudó de Provincia se llevó su Código: el
-    // número puede estar escrito en otra parte. El alta a mano lo descubre al
-    // escribir; acá se dice antes, en la fila.
-    const automaticas = filas.flatMap((f) =>
-      f.imagen?.tipo === "nueva" && f.imagen.automatico && f.imagen.codigo
-        ? [{ fila: f, codigo: f.imagen.codigo.codigo }]
-        : []
-    );
-    const tomados = new Set(
-      (await PeregrinaRepository.findByCodigos(automaticas.map((a) => a.codigo))).map(
-        (p) => p.peregrina.codigo
-      )
-    );
-    for (const a of automaticas) {
-      if (tomados.has(a.codigo)) {
-        a.fila.errores.push(
-          `El número que seguía, ${a.codigo}, ya está escrito en otra imagen. ` +
-            "Escribí el número de esta a mano."
-        );
       }
     }
   }
@@ -1006,13 +988,6 @@ function diaDeCelda(d: Date): string {
   const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dia = String(d.getUTCDate()).padStart(2, "0");
   return `${d.getUTCFullYear()}-${mes}-${dia}`;
-}
-
-/** El día de un instante en la Argentina, que es donde se registró. */
-function diaEnArgentina(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Buenos_Aires",
-  }).format(d);
 }
 
 /**

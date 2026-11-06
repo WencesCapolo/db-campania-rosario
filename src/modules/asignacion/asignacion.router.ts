@@ -58,20 +58,6 @@ export async function getHistorialDeMisioneroAction(
   return AsignacionService.historialDeMisionero(actor, misioneroId);
 }
 
-export async function getTenenciaActualAction(
-  peregrinaId: string
-): Promise<AsignacionDTO | null> {
-  const actor = await getCurrentUser();
-  return AsignacionService.tenenciaActual(actor, peregrinaId);
-}
-
-export async function getPeregrinasNuncaAsignadasAction(): Promise<
-  { id: string; identificacion: string }[]
-> {
-  const actor = await getCurrentUser();
-  return AsignacionService.listarNuncaAsignadas(actor);
-}
-
 /**
  * Los Tenedores con las manos libres — la tarjeta del tablero, y el filtro «sin
  * imagen» del listado.
@@ -238,6 +224,10 @@ export async function corregirAsignacionAction(
 
   if (result.ok) {
     revalidarTenencia(result.data.peregrina.id, result.data.tenedor);
+    // A correction can swap who a period names, and the one it no longer names
+    // is not in the result. Corrections are rare, so every Tenedor's page goes.
+    revalidatePath("/misionero", "layout");
+    revalidatePath("/matrimonio", "layout");
   }
 
   return result;

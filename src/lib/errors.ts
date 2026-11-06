@@ -106,14 +106,3 @@ export async function aResultado<T>(
     };
   }
 }
-
-/**
- * The same mapping for a service that already returns an `ActionResult` —
- * validation failures it reports itself, authorization failures it throws.
- */
-export async function aResultadoPlano<T>(
-  operacion: () => Promise<ActionResult<T>>
-): Promise<ActionResult<T>> {
-  const resultado = await aResultado(operacion);
-  return resultado.ok ? resultado.data : resultado;
-}

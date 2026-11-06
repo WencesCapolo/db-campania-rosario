@@ -6,13 +6,11 @@ import type {
   InvitarInput,
 } from "./invitacion.types";
 import { UserRepository } from "@/modules/user/user.repository";
-import { UserService } from "@/modules/user/user.service";
-import {
-  ROLE_HIERARCHY,
-  superaEnRango,
-  type Role,
-} from "@/modules/user/user.schema";
 import type { CurrentUser } from "@/modules/user/user.types";
+import {
+  administraRol,
+  rolesAsignables,
+} from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   ConflictoError,
@@ -51,27 +49,9 @@ export class InvitacionService {
     };
   }
 
-  /**
-   * Whether `actor` may hand out `rol` — user stories 10 and 11.
-   *
-   * Strictly lower rank, with one exception the user settled on 2026-07-25: an
-   * `admin` is a real person, not a technical account, and an admin may invite
-   * another admin. Everyone else is bounded by "strictly below me", so nobody
-   * can escalate their own rank, and the two rols that load records — the
-   * bottom, sharing one rank — invite nobody at all (ADR 0016).
-   */
-  private static puedeInvitarRol(actorRol: Role, rol: Role): boolean {
-    if (actorRol === "admin") return true;
-
-    return superaEnRango(actorRol, rol);
-  }
-
   /** A rol that can invite somebody may also see the pending list. */
   private static exigirPuedeInvitar(actor: CurrentUser, operacion: string): void {
-    const alguno = ROLE_HIERARCHY.some((rol) =>
-      InvitacionService.puedeInvitarRol(actor.role, rol)
-    );
-    if (alguno) return;
+    if (rolesAsignables(actor.role).length > 0) return;
 
     registrarDenegacion({
       actor,
@@ -115,7 +95,7 @@ export class InvitacionService {
     const email = normalizarEmail(input.email);
     if (!email) throw new ValidacionError("El email es obligatorio.");
 
-    if (!InvitacionService.puedeInvitarRol(actor.role, input.rol)) {
+    if (!administraRol(actor.role, input.rol)) {
       registrarDenegacion({
         actor,
         operacion,
@@ -161,7 +141,7 @@ export class InvitacionService {
       throw new NoEncontradoError("No existe esa invitación.");
     }
 
-    if (!InvitacionService.puedeInvitarRol(actor.role, actual.rol)) {
+    if (!administraRol(actor.role, actual.rol)) {
       registrarDenegacion({
         actor,
         operacion,
@@ -185,9 +165,11 @@ export class InvitacionService {
   /**
    * Turns a pending invitation into a Usuario, at first sign-in.
    *
-   * Returns null when there is nothing pending for that email — which is the
-   * normal answer for a stranger, and what makes an unknown identity
-   * unauthorized instead of a default rol.
+   * Returns whether it accepted one. False when there is nothing pending for
+   * that email — the normal answer for a stranger, and what makes an unknown
+   * identity unauthorized instead of a default rol. Turning the new row into an
+   * Actor is `UserService`'s, and `getCurrentUser` asks it next: a service does
+   * not call another module's service.
    *
    * Accepting twice produces one Usuario, not two, and neither half of that
    * relies on this method's reasoning:
@@ -203,12 +185,12 @@ export class InvitacionService {
    */
   static async aceptarSiHayPendiente(
     identidad: Identidad
-  ): Promise<CurrentUser | null> {
+  ): Promise<boolean> {
     const email = normalizarEmail(identidad.email);
-    if (!email) return null;
+    if (!email) return false;
 
     const pendiente = await InvitacionRepository.findPendientePorEmail(email);
-    if (!pendiente) return null;
+    if (!pendiente) return false;
 
     await UserRepository.upsert({
       id: identidad.id,
@@ -218,7 +200,7 @@ export class InvitacionService {
 
     await InvitacionRepository.marcarAceptada(pendiente.id, identidad.id);
 
-    return UserService.resolverActorSiExiste(identidad);
+    return true;
   }
 }
 

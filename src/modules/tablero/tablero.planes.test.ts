@@ -272,7 +272,7 @@ describe("los planes del tablero, con volumen", () => {
       PeregrinaRepository.contarPorQuinquenioDeConsagracion(unaDiocesis)
     );
     const personas = await explicar(() =>
-      MisioneroRepository.contarTotal(unaDiocesis)
+      MisioneroRepository.contarFiltrados(unaDiocesis)
     );
 
     // El desglose por Estado y por Modalidad es la razón del índice compuesto:
@@ -405,7 +405,9 @@ describe("los planes del tablero, con volumen", () => {
     // desglose de arriba, y no se le exige un índice. Lo que sí se exige es que
     // «libre» sean las dos columnas en null (ADR 0010), o una imagen de un
     // Matrimonio aparecería para entregarse dos veces.
-    const plan = await explicar(() => PeregrinaRepository.findDisponibles());
+    const plan = await explicar(() =>
+      PeregrinaRepository.findFiltradas({ tenencia: "libre" })
+    );
 
     expect(plan).toContain("misionero_actual_id IS NULL");
     expect(plan).toContain("matrimonio_actual_id IS NULL");

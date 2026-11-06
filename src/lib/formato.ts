@@ -9,34 +9,48 @@ import type { AsignacionDTO } from "@/modules/asignacion/asignacion.types";
  * María Pérez" on one screen and not the other.
  */
 
+/**
+ * The Campaña's calendar. Every day this app shows or reads is a day in
+ * Argentina, wherever the code runs: a server component renders on a machine in
+ * UTC, and a period opened at 21:00 on the 26th is 00:00 UTC on the 27th. Read
+ * through the machine's own clock, that period showed as opened a day later on
+ * every server-rendered page, and a correction dialog rendered there put the
+ * wrong day in its field.
+ */
+export const ZONA_HORARIA = "America/Argentina/Buenos_Aires";
+
+/**
+ * Argentina has kept UTC−3 all year since 2009. A fixed offset is what turns a
+ * typed day back into an instant without asking the machine where it is.
+ */
+const DESFASE_ARGENTINA = "-03:00";
+
 export function fecha(d: Date): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(d);
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "long",
+    timeZone: ZONA_HORARIA,
+  }).format(d);
 }
 
 /**
- * A `Date` as an `<input type="date">` expects it, and back again.
+ * The day an instant falls on in Argentina, as `AAAA-MM-DD` — what an
+ * `<input type="date">` expects, and what names a file or a cell.
  *
- * Both are written from the local calendar fields rather than through
- * `toISOString()`, and that is the whole reason they exist. Argentina is UTC−3, so
- * a period opened at 21:00 on the 26th is 00:00 UTC on the 27th: `toISOString()`
- * would put "2026-07-27" in the field, somebody would open a correction dialog to
- * fix a nota and save the date as a day later than it was. The round trip has to
- * be a fixed point, and the only way it is one is if both halves agree on which
- * calendar they mean.
- *
- * `deCampoDeFecha` returns local midnight, which is what somebody typing a date
- * into a form means by it — not midnight in London.
+ * Never `toISOString()`, which answers in UTC: somebody would open a correction
+ * dialog to fix a nota and save the date as a day later than it was.
  */
-export function paraCampoDeFecha(d: Date): string {
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const dia = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mes}-${dia}`;
+export function diaEnArgentina(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_HORARIA }).format(d);
 }
 
+/**
+ * Back again: midnight in Argentina, which is what somebody typing a date into a
+ * form means by it — not midnight in London, and not midnight wherever the
+ * server is. The two are a fixed point of each other.
+ */
 export function deCampoDeFecha(valor: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+  const d = new Date(`${valor}T00:00:00${DESFASE_ARGENTINA}`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

@@ -84,10 +84,7 @@ and truncate between tests.
 ```ts
 const territorio = await crearTerritorioDePrueba();
 
-const referente = await crearActor({
-  rol: "referente_local",
-  diocesisLocalidadId: territorio.villaMaria.id,
-});
+const dirigente = await crearActor({ rol: "dirigente_joven" });
 ```
 
 `crearActor` inserts a real `users` row, because every entity carries
@@ -130,8 +127,8 @@ storage half fires two concurrent `asignar` calls that both read "nobody has it"
 before either writes, so only the partial unique index can settle it — a test that
 only drives the service proves the service, not the constraint.
 
-The baja suites (`misionero.baja.test.ts`, `peregrina.baja.test.ts`) assert both
-halves of soft delete every time: gone from the active lists **and** still resolving
+The baja suite (`misionero.baja.test.ts`) asserts both halves of soft delete
+every time: gone from the active lists **and** still resolving
 by name inside the history. Either one alone is the wrong half.
 
 ## La suite de planes
@@ -157,24 +154,19 @@ Two things it deliberately does:
   assertion would otherwise have gone. The national Región breakdown is asserted to be
   an aggregate over the whole table, because counting a country is exactly that.
 
-## The migration suite
+## Migrations
 
-`src/db/migrations/migracion-territorio.test.ts` and `migracion-asignacion.test.ts`
-are the two suites that do not go through a service, because the thing under test
-*is* a SQL file: it runs once, against production data, and there is no second
-chance.
+There is no suite per migration. `global-setup.ts` replays every migration onto an
+empty schema on every run, so a migration that does not apply fails the whole suite
+before a single test starts — that is the check that never expires.
 
-Each case creates a throwaway database, applies the migrations up to the one before,
-seeds the messy shape a real installation has, applies the file under test and
-asserts on the result. The territory one seeds the free-text spellings a
-spreadsheet-era database contains and checks, among other things, that a
-contradictory row aborts the migration with a message naming it rather than being
-quietly resolved by guesswork.
-
-The Asignación one does the same for the backfill: every existing
-Misionero→Peregrina link becomes exactly one Asignación, attributed to the record's
-creator and dated from its creation timestamp, and a Peregrina that the old schema
-let two Misioneros claim at once keeps both links while ending with one open period.
+What there used to be was one suite per backfill (territory as reference data, the
+Asignación history, bajas, the Fecha de consagración), each replaying the files up to
+the one before, seeding the messy shape a real installation had, and asserting on the
+result. They were deleted once every one of those migrations was in production: a
+migration runs once, and the column each of them read had since been dropped. A new
+migration that rewrites existing rows deserves the same kind of suite *until it has
+run in production*, and no longer.
 
 Two things that will otherwise cost a day. A new enum value **cannot be used in the
 transaction that adds it**, and Drizzle wraps each file in one — so adding
@@ -185,9 +177,7 @@ backfill needs, since it reads the column that is about to go.
 
 ## The accessibility suite
 
-`src/test/setup-navegador.ts`, `src/test/accesibilidad.ts`, and seven test files:
-`Dialogo`, `ConfirmarAccion`, the primitives together, `Barras`, `Paginador`,
-`validacion-al-salir` and `FlujoDeAsignacion`. Named
+`src/test/setup-navegador.ts`, `src/test/accesibilidad.ts`, and every file named
 `*.test.tsx` — the `node` project takes `*.test.ts` only, so a component test cannot
 be collected there and fail for want of a DOM.
 

@@ -12,12 +12,10 @@ import {
   type FiltrosDeInventario,
 } from "./peregrina.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import type { Modalidad, PeregrinaEstado } from "./peregrina.schema";
-import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import type { Modalidad } from "./peregrina.schema";
+import { exigirDiocesisVigente } from "@/modules/territorio/territorio.guardas";
 import { mapearDiocesisLocalidad } from "@/modules/territorio/territorio.reference";
-import type { Region } from "@/modules/territorio/territorio.schema";
 import {
-  cargaLaModalidad,
   exigirModalidad,
   modalidadPropia,
 } from "@/lib/authorization/capacidades";
@@ -83,24 +81,27 @@ export class PeregrinaService {
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  static async listAll(actor: CurrentUser): Promise<PeregrinaDTO[]> {
-    void actor;
-    const rows = await PeregrinaRepository.findAll();
-    return rows.map(PeregrinaService.toDTO);
+  /**
+   * The images this Actor may hand to somebody — every picker that ends in an
+   * entrega. A Dirigente Joven sees every image but loads only JOV ones
+   * (ADR 0016), and an option that always ends in a refusal is a worse bug than
+   * the refusal.
+   */
+  static async listParaEntregar(actor: CurrentUser): Promise<PeregrinaDTO[]> {
+    return PeregrinaService.listFiltradas(actor, delaModalidadPropia(actor));
   }
 
   /**
-   * The images this Actor may hand to somebody — every picker that ends in an
-   * entrega. Not `listAll`: a Dirigente Joven sees every image but loads only
-   * JOV ones (ADR 0016), and an option that always ends in a refusal is a worse
-   * bug than the refusal.
+   * The images nobody currently has, among those this Actor may hand over — the
+   * second step of the assignment flow. Read off the denormalised pointer, which
+   * is what it is for: the alternative is an anti-join against Asignación on
+   * every keystroke of a picker.
    */
-  static async listParaEntregar(actor: CurrentUser): Promise<PeregrinaDTO[]> {
-    const propia = modalidadPropia(actor.role);
-    const rows = propia
-      ? await PeregrinaRepository.findByModalidad(propia)
-      : await PeregrinaRepository.findAll();
-    return rows.map(PeregrinaService.toDTO);
+  static async listDisponibles(actor: CurrentUser): Promise<PeregrinaDTO[]> {
+    return PeregrinaService.listFiltradas(actor, {
+      ...delaModalidadPropia(actor),
+      tenencia: "libre",
+    });
   }
 
   static async getById(
@@ -111,23 +112,12 @@ export class PeregrinaService {
     return PeregrinaService.toDTO(row);
   }
 
-  static async listByEstado(
-    actor: CurrentUser,
-    estado: PeregrinaEstado
-  ): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByEstado(estado);
-    return rows.map(PeregrinaService.toDTO);
-  }
-
   /**
-   * The listado, filtered — the read behind every list screen and behind every
-   * figure the tablero links to.
+   * The listado, filtered — every matching row, for a picker.
    *
    * The filters are applied in the database rather than narrowed in memory
    * afterwards, so the rows behind a count are found by the same predicate that
-   * produced the count. That is what makes a figure and the list it leads to
-   * agree, and the previous arrangement — ask for the narrowest indexed
-   * question, filter the rest in the page — could not promise it.
+   * produced the count. A screen that shows a list asks `listPagina` instead.
    */
   static async listFiltradas(
     actor: CurrentUser,
@@ -149,10 +139,6 @@ export class PeregrinaService {
    * because this is the only layer that knows how many pages exist. Asking for
    * page nine of three returns page three; returning nothing would read as an
    * empty Diócesis to whoever followed the stale link.
-   *
-   * `listFiltradas` above stays and is not a duplicate of this: it is the read for
-   * a caller that wants every matching row — a picker, a test — and a screen that
-   * asked it for a page would be paginating in memory.
    */
   static async listPagina(
     actor: CurrentUser,
@@ -170,39 +156,6 @@ export class PeregrinaService {
     return armarPagina(rows.map(PeregrinaService.toDTO), total, actual);
   }
 
-  /** Every Peregrina in a Región. */
-  static async listByRegion(
-    actor: CurrentUser,
-    region: Region
-  ): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByRegion(region);
-    return rows.map(PeregrinaService.toDTO);
-  }
-
-  /**
-   * The images nobody currently has — the second step of the assignment flow.
-   *
-   * Read off the denormalised pointer, which is what it is for: the alternative
-   * is an anti-join against Asignación on every keystroke of a picker.
-   *
-   * Only the Modalidades this Actor loads, because the step after it is an
-   * entrega (ADR 0016).
-   */
-  static async listDisponibles(actor: CurrentUser): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findDisponibles();
-    return rows
-      .filter((r) => cargaLaModalidad(actor.role, r.peregrina.modalidad))
-      .map(PeregrinaService.toDTO);
-  }
-
-  static async listByModalidad(
-    actor: CurrentUser,
-    modalidad: Modalidad
-  ): Promise<PeregrinaDTO[]> {
-    const rows = await PeregrinaRepository.findByModalidad(modalidad);
-    return rows.map(PeregrinaService.toDTO);
-  }
-
   // The dashboard counts used to live here, derived from two ad-hoc aggregates
   // with no filters. They are `TableroService.resumen` now — one seam, one set of
   // filters, and figures that agree with the lists they link to.
@@ -215,17 +168,7 @@ export class PeregrinaService {
   ): Promise<PeregrinaDTO> {
     const operacion = "PeregrinaService.create";
 
-    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-      input.diocesisLocalidadId
-    );
-    if (!territorio) {
-      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-    }
-    if (territorio.diocesis.bajaAt !== null) {
-      throw new ValidacionError(
-        `«${territorio.diocesis.nombre}» está dada de baja.`
-      );
-    }
+    const territorio = await exigirDiocesisVigente(input.diocesisLocalidadId);
 
     exigirModalidad(actor, input.modalidad, operacion);
 
@@ -316,10 +259,13 @@ export class PeregrinaService {
 
   /** The next Código for a Provincia and Modalidad, with the número it spends. */
   private static async codigoNuevo(
-    provincia: { id: string; abreviatura: string },
+    provincia: { abreviatura: string },
     modalidad: Modalidad
   ): Promise<{ codigo: string; codigoNum: number }> {
-    const num = await PeregrinaRepository.nextCodigoNum(provincia.id, modalidad);
+    const num = await PeregrinaRepository.nextCodigoNum(
+      provincia.abreviatura,
+      modalidad
+    );
     return {
       codigo: componerCodigo(provincia.abreviatura, modalidad, num),
       codigoNum: num,
@@ -389,13 +335,11 @@ export class PeregrinaService {
     }
 
     let provincia = actual.provincia;
-    if (input.diocesisLocalidadId !== undefined) {
-      const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-        input.diocesisLocalidadId
-      );
-      if (!territorio) {
-        throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-      }
+    if (
+      input.diocesisLocalidadId !== undefined &&
+      input.diocesisLocalidadId !== actual.peregrina.diocesisLocalidadId
+    ) {
+      const territorio = await exigirDiocesisVigente(input.diocesisLocalidadId);
       provincia = territorio.provincia;
     }
 
@@ -476,4 +420,10 @@ export class PeregrinaService {
     if (!row) throw new NoEncontradoError("No existe esa Peregrina.");
     return PeregrinaService.toDTO(row);
   }
+}
+
+/** Only the Modalidad this Actor loads, when their rol loads just one. */
+function delaModalidadPropia(actor: CurrentUser): FiltrosDeInventario {
+  const propia = modalidadPropia(actor.role);
+  return propia ? { modalidad: propia } : {};
 }

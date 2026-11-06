@@ -9,7 +9,7 @@ import type {
   UpdateMatrimonioInput,
 } from "./matrimonio.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
+import { exigirDiocesisVigente } from "@/modules/territorio/territorio.guardas";
 import { nombreDeTenedor } from "@/lib/formato";
 import {
   AsignacionRepository,
@@ -19,19 +19,7 @@ import {
 //   the same import `MisioneroService` has carried since issue 3, for the same
 //   baja. Only the repository, never the other service. The one-way chain
 //   constrains the *schema* imports; this one closes nothing.
-import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
-import {
-  armarPagina,
-  cantidadDePaginas,
-  paginaExistente,
-  rango,
-  type Pagina,
-} from "@/lib/paginacion";
-import {
-  ConflictoError,
-  NoEncontradoError,
-  ValidacionError,
-} from "@/lib/errors";
+import { ConflictoError, NoEncontradoError } from "@/lib/errors";
 
 /**
  * MatrimonioService
@@ -52,35 +40,6 @@ export class MatrimonioService {
   static async get(actor: CurrentUser, id: string): Promise<MatrimonioDTO> {
     const row = await MatrimonioService.exigirExistente(id);
     return mapearMatrimonio(row);
-  }
-
-  /**
-   * The Matrimonio listado, one page at a time.
-   *
-   * Counted by an aggregate over the same predicate the rows come from, never by
-   * fetching them and taking the length, and the page is clamped against that
-   * total here because this is the only layer that knows how many pages there
-   * are (ADR 0008).
-   *
-   * This is not the `/misionero` roster: that one is `MisioneroService.listPagina`
-   * and unions both kinds. This one answers "the couples", which is what a screen
-   * about Matrimonios asks.
-   */
-  static async listPagina(
-    actor: CurrentUser,
-    filtros: FiltrosTerritoriales & { q?: string },
-    pagina = 1
-  ): Promise<Pagina<MatrimonioDTO>> {
-    const total = await MatrimonioRepository.contarFiltrados(filtros);
-    const actual = paginaExistente(pagina, cantidadDePaginas(total));
-
-    const rows = await MatrimonioRepository.findFiltrados(
-      filtros,
-      {},
-      rango(actual)
-    );
-
-    return armarPagina(rows.map(mapearMatrimonio), total, actual);
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────
@@ -109,17 +68,7 @@ export class MatrimonioService {
     actor: CurrentUser,
     input: CreateMatrimonioInput
   ): Promise<MatrimonioDTO> {
-    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-      input.diocesisLocalidadId
-    );
-    if (!territorio) {
-      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-    }
-    if (territorio.diocesis.bajaAt !== null) {
-      throw new ValidacionError(
-        `«${territorio.diocesis.nombre}» está dada de baja.`
-      );
-    }
+    const territorio = await exigirDiocesisVigente(input.diocesisLocalidadId);
 
     // What the household shares, and only that: the territory is the invariant
     // spouse A's row is read for, and the Centro is one place. The teléfono is
@@ -178,13 +127,15 @@ export class MatrimonioService {
 
     let destino: string | undefined;
     if (input.diocesisLocalidadId !== undefined) {
-      const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-        input.diocesisLocalidadId
-      );
-      if (!territorio) {
-        throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
+      // Re-sending the household's own Diócesis still writes it — that is what
+      // mends two spouses who drifted apart — but only a move is checked.
+      if (
+        input.diocesisLocalidadId !==
+        actual.esposoA.misionero.diocesisLocalidadId
+      ) {
+        await exigirDiocesisVigente(input.diocesisLocalidadId);
       }
-      destino = territorio.diocesis.id;
+      destino = input.diocesisLocalidadId;
     }
 
     const territorial =

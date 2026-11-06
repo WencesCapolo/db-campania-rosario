@@ -10,6 +10,7 @@ import {
   isNull,
   isNotNull,
   ilike,
+  like,
   inArray,
   or,
   ne,
@@ -30,13 +31,16 @@ import {
 import type {
   DiocesisLocalidadRow,
   ProvinciaRow,
-  Region,
 } from "@/modules/territorio/territorio.schema";
 import { misionero } from "@/modules/misionero/misionero.schema";
 import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 import { alias } from "drizzle-orm/pg-core";
 import { coincideAlgunNombre } from "@/lib/busqueda";
-import type { TenedorResueltoDTO } from "@/lib/tenedor";
+import {
+  matrimonioResuelto,
+  personaResuelta,
+  type TenedorResueltoDTO,
+} from "@/lib/tenedor";
 
 /**
  * A Peregrina is never useful without its territory resolved — Provincia and
@@ -126,45 +130,10 @@ function aPeregrinaConTerritorio(
  * tiene que poder existir.
  */
 function tenedorDeFila(fila: FilaConTerritorio): TenedorResueltoDTO | null {
-  const m = fila.misioneroActual;
-  if (m) {
-    return {
-      tipo: "persona",
-      id: m.id,
-      deBaja: m.bajaAt !== null,
-      persona: {
-        id: m.id,
-        nombre: m.nombre,
-        apellido: m.apellido,
-        deBaja: m.bajaAt !== null,
-      },
-    };
-  }
+  if (fila.misioneroActual) return personaResuelta(fila.misioneroActual);
 
-  const par = fila.matrimonioActual;
-  const a = fila.esposoA;
-  const b = fila.esposoB;
-  if (par && a && b) {
-    return {
-      tipo: "matrimonio",
-      id: par.id,
-      deBaja: par.bajaAt !== null,
-      matrimonio: {
-        misioneroA: {
-          id: a.id,
-          nombre: a.nombre,
-          apellido: a.apellido,
-          deBaja: a.bajaAt !== null,
-        },
-        misioneroB: {
-          id: b.id,
-          nombre: b.nombre,
-          apellido: b.apellido,
-          deBaja: b.bajaAt !== null,
-        },
-      },
-    };
-  }
+  const { matrimonioActual: par, esposoA: a, esposoB: b } = fila;
+  if (par && a && b) return matrimonioResuelto(par, a, b);
 
   return null;
 }
@@ -343,117 +312,26 @@ export class PeregrinaRepository {
     return leerUna(conTerritorio().where(eq(peregrina.id, id)).limit(1));
   }
 
-  static async findAll(): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
-  static async findByEstado(
-    estado: PeregrinaEstado,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(eq(peregrina.estado, estado))
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
-  static async findByRegion(
-    region: Region,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(eq(diocesisLocalidad.region, region))
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
-  static async findByModalidad(
-    modalidad: Modalidad,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(eq(peregrina.modalidad, modalidad))
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
-  static async findByDiocesisLocalidad(
-    diocesisLocalidadId: string,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(
-          eq(peregrina.diocesisLocalidadId, diocesisLocalidadId),
-        )
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
-  static async findByProvincia(
-    provinciaId: string,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(eq(provincia.id, provinciaId))
-        .orderBy(...POR_IDENTIFICACION),
-    );
-  }
-
-  static async findByCreator(
-    createdById: string,
-  ): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(eq(peregrina.createdById, createdById))
-        .orderBy(desc(peregrina.createdAt)),
-    );
-  }
-
   /**
-   * Images nobody has right now, for the assignment flow's second step.
+   * The next free número for a Provincia and Modalidad pair: one past the
+   * highest Código already *written* with those letters, wherever the image
+   * carrying it is filed now.
    *
-   * *Libre* son las **dos** columnas en null (ADR 0010): mirando sólo la del
-   * Misionero, cada imagen que tiene un Matrimonio aparecería en el picker de
-   * las libres y alguien la entregaría dos veces.
-   */
-  static async findDisponibles(): Promise<PeregrinaConTerritorio[]> {
-    return leerVarias(
-      conTerritorio()
-        .where(SIN_TENEDOR)
-        .orderBy(...POR_IDENTIFICACION),
-    );
-  }
-
-  /**
-   * The next sequential número for a Provincia and Modalidad pair.
-   *
-   * Keyed on the Provincia reference record rather than on a typed-in name,
-   * which is what made the old numbering unreliable: "Córdoba" and "cordoba "
-   * each ran their own sequence and produced colliding Códigos.
-   *
-   * A Código is globally unique and physically written on an image, wherever
-   * that image is filed.
+   * Counted by the Código, not by the images filed in the Provincia today. An
+   * image that moved takes its Código with it, so "the highest in Córdoba"
+   * could be lower than a `CBA JOV` Código written on an image now in Neuquén,
+   * and the next número would already be taken. The letters come from the
+   * Provincia's reference record (`abreviatura` is unique), never from a
+   * typed-in name.
    */
   static async nextCodigoNum(
-    provinciaId: string,
+    abreviatura: string,
     modalidad: Modalidad,
   ): Promise<number> {
     const [result] = await db
       .select({ maxNum: max(peregrina.codigoNum) })
       .from(peregrina)
-      .innerJoin(
-        diocesisLocalidad,
-        eq(diocesisLocalidad.id, peregrina.diocesisLocalidadId),
-      )
-      .where(
-        and(
-          eq(diocesisLocalidad.provinciaId, provinciaId),
-          eq(peregrina.modalidad, modalidad),
-        ),
-      );
+      .where(like(peregrina.codigo, `${abreviatura} ${modalidad} %`));
     return (result?.maxNum ?? 0) + 1;
   }
 
@@ -696,6 +574,10 @@ export class PeregrinaRepository {
   static async contarSinTenencia(
     filtros: FiltrosDeInventario,
   ): Promise<number> {
+    // Filtered to the ones somebody has, none is free — not "every free image",
+    // which is what overriding the filter answered (ADR 0007: every figure on
+    // one screen is asked the same question).
+    if (filtros.tenencia === "asignada") return 0;
     return PeregrinaRepository.contarTotal({
       ...filtros,
       tenencia: "libre",

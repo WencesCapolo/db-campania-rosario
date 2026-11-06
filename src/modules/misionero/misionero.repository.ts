@@ -1,3 +1,4 @@
+import { coincideAlgunNombre } from "@/lib/busqueda";
 import { db, type Transaccion } from "@/db";
 import { misionero } from "./misionero.schema";
 import { matrimonio } from "./matrimonio.schema";
@@ -9,13 +10,12 @@ import {
   and,
   sql,
   isNull,
-  asc,
   inArray,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { PgColumn } from "drizzle-orm/pg-core";
-import type { MisioneroRow, NewMisioneroRow, MisioneroEstado } from "./misionero.schema";
+import type { MisioneroRow, NewMisioneroRow } from "./misionero.schema";
 import {
   diocesisLocalidad,
   provincia,
@@ -23,7 +23,6 @@ import {
 import type {
   DiocesisLocalidadRow,
   ProvinciaRow,
-  Region,
 } from "@/modules/territorio/territorio.schema";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
@@ -97,27 +96,6 @@ function condicionDeFiltros(
   ];
 }
 
-/**
- * "Does this person's name match what was typed?" — one definition.
- *
- * Exported because three reads ask it: the roster's individual leg, the roster's
- * marriage leg (twice, once per spouse), and the holder search on the Peregrina
- * list. A second hand-written copy is how "gomez" comes to find Gómez on one
- * screen and nothing on the next.
- *
- * `ilike`, not `like`: somebody searching "gomez" means Gómez.
- */
-export function coincideElNombre(
-  columnas: { nombre: PgColumn; apellido: PgColumn },
-  termino: string
-): SQL | undefined {
-  const patron = `%${termino}%`;
-  return or(
-    ilike(columnas.nombre, patron),
-    ilike(columnas.apellido, patron)
-  );
-}
-
 /** Counts, never rows. `count(*)` comes back as `bigint`, hence the cast. */
 const TOTAL = sql<number>`cast(count(*) as int)`;
 
@@ -153,8 +131,7 @@ const diocesisDelMatrimonio = alias(diocesisLocalidad, "diocesis_matrimonio");
  * back their individual lives with no code doing it on purpose — this clause
  * simply stops excluding them.
  *
- * Exported for the same reason `coincideElNombre` is: `AsignacionRepository`
- * needs the *same* clause for the tenencia lists behind `?imagen=con|sin`, and a
+ * Exported because `AsignacionRepository` needs the *same* clause for the tenencia lists behind `?imagen=con|sin`, and a
  * second hand-written copy is how a filter comes to offer a row the listado does
  * not show.
  */
@@ -185,7 +162,7 @@ function condicionDeRoster(
     ...condicionDeFiltros(filtros),
     termino
       ? or(
-          coincideElNombre(misionero, termino),
+          coincideAlgunNombre(termino, misionero),
           ilike(diocesisLocalidad.nombre, `%${termino}%`)
         )
       : undefined,
@@ -204,8 +181,7 @@ function condicionDeRoster(
     filtros.region ? eq(diocesisDelMatrimonio.region, filtros.region) : undefined,
     termino
       ? or(
-          coincideElNombre(conyugeA, termino),
-          coincideElNombre(conyugeB, termino),
+          coincideAlgunNombre(termino, conyugeA, conyugeB),
           ilike(diocesisDelMatrimonio.nombre, `%${termino}%`)
         )
       : undefined,
@@ -313,32 +289,6 @@ export class MisioneroRepository {
     return row;
   }
 
-  static async findAll(
-    opts: OpcionesDeLectura = {}
-  ): Promise<MisioneroConTerritorio[]> {
-    return conTerritorio()
-      .where(vigentes(opts))
-      .orderBy(desc(misionero.createdAt));
-  }
-
-  static async findByEstado(
-    estado: MisioneroEstado,
-    opts: OpcionesDeLectura = {}
-  ): Promise<MisioneroConTerritorio[]> {
-    return conTerritorio()
-      .where(vigentes(opts, eq(misionero.estado, estado)))
-      .orderBy(desc(misionero.createdAt));
-  }
-
-  static async findByRegion(
-    region: Region,
-    opts: OpcionesDeLectura = {}
-  ): Promise<MisioneroConTerritorio[]> {
-    return conTerritorio()
-      .where(vigentes(opts, eq(diocesisLocalidad.region, region)))
-      .orderBy(desc(misionero.createdAt));
-  }
-
   static async findByDiocesisLocalidad(
     diocesisLocalidadId: string,
     opts: OpcionesDeLectura = {}
@@ -351,42 +301,6 @@ export class MisioneroRepository {
         )
       )
       .orderBy(desc(misionero.createdAt));
-  }
-
-  /** ilike, not like: someone searching "gomez" means Gómez. */
-  static async search(
-    query: string,
-    opts: OpcionesDeLectura = {}
-  ): Promise<MisioneroConTerritorio[]> {
-    const term = `%${query}%`;
-    return conTerritorio()
-      .where(
-        vigentes(
-          opts,
-          or(
-            ilike(misionero.nombre, term),
-            ilike(misionero.apellido, term),
-            ilike(diocesisLocalidad.nombre, term)
-          )
-        )
-      )
-      .orderBy(desc(misionero.createdAt));
-  }
-
-  static async findByCreator(
-    createdById: string,
-    opts: OpcionesDeLectura = {}
-  ): Promise<MisioneroConTerritorio[]> {
-    return conTerritorio()
-      .where(vigentes(opts, eq(misionero.createdById, createdById)))
-      .orderBy(desc(misionero.createdAt));
-  }
-
-  /** Alphabetical, for the first step of the assignment flow. */
-  static async findParaElegir(): Promise<MisioneroConTerritorio[]> {
-    return conTerritorio()
-      .where(vigentes({}))
-      .orderBy(asc(misionero.apellido), asc(misionero.nombre));
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────
@@ -484,50 +398,12 @@ export class MisioneroRepository {
     return row;
   }
 
-  // ── Agregaciones ───────────────────────────────────────────────────────────
+  // ── El listado ─────────────────────────────────────────────────────────────
   //
-  // Counted in the database, and filtered by territory only. Estado, Modalidad
-  // and Tipo are properties of an *image*; a Misionero has none of them, and a
-  // "Misioneros de Modalidad Jóvenes" figure would be an invention. The tablero
-  // says so on the card rather than silently ignoring the filter.
-  //
-  // Every one of them counts **Tenedores, and a couple is one**. CONTEXT.md says
-  // every figure links to the records behind it, so a figure that counted two
-  // people per household would say 47 and the list it links to would show 45 —
-  // and an off-by-a-plausible-amount figure is worse than an obviously wrong one.
-  // That is why they aggregate over the same union the rows come from, rather
-  // than over `misionero` directly.
-
-  static async contarTotal(
-    filtros: FiltrosTerritoriales,
-    opts: OpcionesDeLectura = {}
-  ): Promise<number> {
-    const tenedores = roster(filtros, opts).as("tenedores");
-    const [row] = await db.select({ total: TOTAL }).from(tenedores);
-    return row?.total ?? 0;
-  }
-
-  static async contarPorEstado(
-    filtros: FiltrosTerritoriales,
-    opts: OpcionesDeLectura = {}
-  ): Promise<{ estado: MisioneroEstado; total: number }[]> {
-    const tenedores = roster(filtros, opts).as("tenedores");
-    return db
-      .select({ estado: tenedores.estado, total: TOTAL })
-      .from(tenedores)
-      .groupBy(tenedores.estado);
-  }
-
-  static async contarPorRegion(
-    filtros: FiltrosTerritoriales,
-    opts: OpcionesDeLectura = {}
-  ): Promise<{ region: Region; total: number }[]> {
-    const tenedores = roster(filtros, opts).as("tenedores");
-    return db
-      .select({ region: tenedores.region, total: TOTAL })
-      .from(tenedores)
-      .groupBy(tenedores.region);
-  }
+  // Rows and total count **Tenedores, and a couple is one**: a total that counted
+  // two people per household would say 47 and the list behind it would show 45.
+  // That is why `contarFiltrados` aggregates over the same union the rows come
+  // from, rather than over `misionero` directly.
 
   /**
    * The collapsed listado: individuals who are nobody's spouse, plus households,

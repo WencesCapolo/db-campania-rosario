@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/get-current-user";
-import { rolesAsignables } from "@/lib/permissions";
+import { rolesAsignables } from "@/lib/authorization/capacidades";
 import Volver from "@/components/Volver";
 import InvitarForm from "./InvitarForm";
 

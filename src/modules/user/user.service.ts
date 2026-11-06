@@ -1,5 +1,4 @@
 import { UserRepository, type UsuarioConIdentidad } from "./user.repository";
-import { ROLE_HIERARCHY, superaEnRango } from "./user.schema";
 import type { Role } from "./user.schema";
 import type {
   ActualizarUsuarioInput,
@@ -7,7 +6,11 @@ import type {
   IdentidadHuerfanaDTO,
   UserDTO,
 } from "./user.types";
-import { configura } from "@/lib/authorization/capacidades";
+import {
+  administraRol,
+  configura,
+  rolesAsignables,
+} from "@/lib/authorization/capacidades";
 import { registrarDenegacion } from "@/lib/authorization/registro";
 import {
   CUENTA_DADA_DE_BAJA,
@@ -44,19 +47,12 @@ const MENSAJE_POR_MOTIVO: Record<MotivoDeRefusa, string> = {
 export class UserService {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  /** Whether `actor` outranks `rol` enough to manage it. */
-  private static puedeAdministrarRol(actorRol: Role, rol: Role): boolean {
-    if (actorRol === "admin") return true;
-
-    return superaEnRango(actorRol, rol);
-  }
-
   private static exigirPuedeAdministrar(
     actor: CurrentUser,
     rol: Role,
     operacion: string
   ): void {
-    if (UserService.puedeAdministrarRol(actor.role, rol)) return;
+    if (administraRol(actor.role, rol)) return;
 
     registrarDenegacion({
       actor,
@@ -73,10 +69,7 @@ export class UserService {
     actor: CurrentUser,
     operacion: string
   ): void {
-    const alguno = ROLE_HIERARCHY.some((rol) =>
-      UserService.puedeAdministrarRol(actor.role, rol)
-    );
-    if (alguno) return;
+    if (rolesAsignables(actor.role).length > 0) return;
 
     registrarDenegacion({
       actor,

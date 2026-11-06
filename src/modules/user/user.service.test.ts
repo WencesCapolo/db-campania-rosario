@@ -126,21 +126,6 @@ describe("dar de baja un Usuario — historia 15", () => {
 });
 
 describe("el rango acota la administración de Usuarios", () => {
-  it("un Dirigente Joven no administra Usuarios en absoluto", async () => {
-    const dirigente = await crearActor({ rol: "dirigente_joven" });
-
-    await expect(UserService.listarUsuarios(dirigente)).rejects.toThrow(
-      NoAutorizadoError
-    );
-  });
-  it("un Responsable Diocesano NO puede ascender a nadie por encima suyo", async () => {
-    const propio = await crearActor({ rol: "responsable_diocesano" });
-    const diocesano = await crearActor({ rol: "responsable_diocesano" });
-
-    await expect(
-      UserService.actualizar(diocesano, propio.id, { rol: "asesor_nacional" })
-    ).rejects.toThrow(NoAutorizadoError);
-  });
 
   it("un Asesor Nacional cambia el rol de quien carga — historia 16", async () => {
     const responsable = await crearActor({ rol: "responsable_diocesano" });

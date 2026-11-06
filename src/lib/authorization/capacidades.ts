@@ -1,6 +1,6 @@
 import { NoAutorizadoError } from "@/lib/errors";
 import { registrarDenegacion } from "./registro";
-import type { Role } from "@/modules/user/user.schema";
+import { ROLE_HIERARCHY, superaEnRango, type Role } from "@/db/schema/users";
 import type { CurrentUser } from "@/modules/user/user.types";
 import type { Modalidad } from "@/modules/peregrina/peregrina.schema";
 
@@ -24,6 +24,24 @@ const ROLES_QUE_CONFIGURAN: readonly Role[] = ["admin", "asesor_nacional"];
 /** Usuarios, Invitaciones and the territory list. Loading records is not this. */
 export function configura(rol: Role): boolean {
   return ROLES_QUE_CONFIGURAN.includes(rol);
+}
+
+/**
+ * Whether a Usuario of rol `actor` may manage one of rol `rol` — invite them,
+ * change their rol, give them de baja. The one copy of the rule: the services
+ * refuse with it and the Usuarios screen offers controls with it.
+ *
+ * Strictly lower rank (`superaEnRango`), with one exception settled on
+ * 2026-07-25: an admin is a real person and may manage another admin. The two
+ * rols that load records share the bottom rank, so they manage nobody.
+ */
+export function administraRol(actor: Role, rol: Role): boolean {
+  return actor === "admin" || superaEnRango(actor, rol);
+}
+
+/** The rols this rol may hand out, highest first — empty when it manages nobody. */
+export function rolesAsignables(actor: Role): Role[] {
+  return ROLE_HIERARCHY.filter((rol) => administraRol(actor, rol));
 }
 
 /** The one Modalidad a rol is bound to, or null when it loads all of them. */

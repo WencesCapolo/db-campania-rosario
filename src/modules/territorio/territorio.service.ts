@@ -1,11 +1,10 @@
 import { TerritorioRepository } from "./territorio.repository";
-import { REGIONES, type ProvinciaRow, type Region } from "./territorio.schema";
+import type { ProvinciaRow } from "./territorio.schema";
 import {
   mapearDiocesisLocalidad,
   normalizarNombre,
 } from "./territorio.reference";
 import type {
-  BuscarPorNombreInput,
   CrearDiocesisLocalidadInput,
   CrearProvinciaInput,
   DiocesisLocalidadDTO,
@@ -70,18 +69,6 @@ export class TerritorioService {
 
   // ── Reads ───────────────────────────────────────────────────────────────────
 
-  /**
-   * The seven pastoral regions. Fixed structure, identical for every Actor.
-   *
-   * The Actor is still the first parameter, even though the answer does not
-   * depend on it: ADR 0001 asks that every service method take one, and an
-   * exception here would be one more shape to remember.
-   */
-  static listarRegiones(actor: CurrentUser): readonly Region[] {
-    void actor;
-    return REGIONES;
-  }
-
   static async listarProvincias(actor: CurrentUser): Promise<ProvinciaDTO[]> {
     void actor;
     const rows = await TerritorioRepository.findProvincias();
@@ -102,62 +89,6 @@ export class TerritorioService {
     });
 
     return rows.map(mapearDiocesisLocalidad);
-  }
-
-  /**
-   * Resolves one Diócesis/Localidad to its Provincia and Región, or null for
-   * one that does not exist.
-   */
-  static async obtenerDiocesisLocalidad(
-    actor: CurrentUser,
-    id: string
-  ): Promise<DiocesisLocalidadDTO | null> {
-    const row = await TerritorioRepository.findDiocesisLocalidadById(id);
-    return row ? mapearDiocesisLocalidad(row) : null;
-  }
-
-  /**
-   * Resolves a free-text Provincia and Diócesis/Localidad onto reference
-   * records, ignoring case, accents and surrounding whitespace.
-   *
-   * This is what a value typed before territory was reference data has to go
-   * through. An unmatched value is reported by name — never silently dropped,
-   * never quietly created.
-   */
-  static async buscarPorNombre(
-    actor: CurrentUser,
-    input: BuscarPorNombreInput
-  ): Promise<DiocesisLocalidadDTO> {
-    const provinciaBuscada = normalizarNombre(input.provincia);
-    const diocesisBuscada = normalizarNombre(input.diocesisLocalidad);
-
-    if (!provinciaBuscada) {
-      throw new ValidacionError("La provincia es obligatoria.");
-    }
-    if (!diocesisBuscada) {
-      throw new ValidacionError("La diócesis/localidad es obligatoria.");
-    }
-
-    const provincia = await TerritorioRepository.findProvinciaByNombre(
-      provinciaBuscada
-    );
-    if (!provincia) {
-      throw new NoEncontradoError(
-        `No existe la Provincia «${input.provincia.trim()}».`
-      );
-    }
-
-    const encontrada = await TerritorioRepository.findDiocesisLocalidadByNombre(
-      provincia.id,
-      diocesisBuscada
-    );
-    if (!encontrada) {
-      throw new NoEncontradoError(
-        `No existe la Diócesis/Localidad «${input.diocesisLocalidad.trim()}» en ${provincia.nombre}.`
-      );
-    }
-
-    return mapearDiocesisLocalidad(encontrada);
   }
 
   /**

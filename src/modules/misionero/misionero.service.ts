@@ -12,8 +12,7 @@ import type {
   AddResumenAnualInput,
 } from "./misionero.types";
 import type { CurrentUser } from "@/modules/user/user.types";
-import { TerritorioRepository } from "@/modules/territorio/territorio.repository";
-import type { Region } from "@/modules/territorio/territorio.schema";
+import { exigirDiocesisVigente } from "@/modules/territorio/territorio.guardas";
 import type { FiltrosTerritoriales } from "@/modules/territorio/territorio.types";
 import {
   armarPagina,
@@ -74,12 +73,6 @@ export class MisioneroService {
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
-  static async listAll(actor: CurrentUser): Promise<MisioneroDTO[]> {
-    void actor;
-    const rows = await MisioneroRepository.findAll();
-    return rows.map(MisioneroService.toDTO);
-  }
-
   static async getById(actor: CurrentUser, id: string): Promise<MisioneroDTO> {
     const row = await MisioneroService.exigirExistente(id);
     return MisioneroService.toDTO(row);
@@ -97,24 +90,6 @@ export class MisioneroService {
     await MisioneroService.exigirExistente(id);
     const fila = await MatrimonioRepository.deMisionero(id);
     return fila?.id ?? null;
-  }
-
-  static async search(
-    actor: CurrentUser,
-    query: string
-  ): Promise<MisioneroDTO[]> {
-    if (!query.trim()) return MisioneroService.listAll(actor);
-
-    const rows = await MisioneroRepository.search(query.trim());
-    return rows.map(MisioneroService.toDTO);
-  }
-
-  static async listByRegion(
-    actor: CurrentUser,
-    region: Region
-  ): Promise<MisioneroDTO[]> {
-    const rows = await MisioneroRepository.findByRegion(region);
-    return rows.map(MisioneroService.toDTO);
   }
 
   /**
@@ -173,17 +148,7 @@ export class MisioneroService {
     actor: CurrentUser,
     input: CreateMisioneroInput
   ): Promise<MisioneroDTO> {
-    const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-      input.diocesisLocalidadId
-    );
-    if (!territorio) {
-      throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-    }
-    if (territorio.diocesis.bajaAt !== null) {
-      throw new ValidacionError(
-        `«${territorio.diocesis.nombre}» está dada de baja.`
-      );
-    }
+    const territorio = await exigirDiocesisVigente(input.diocesisLocalidadId);
 
     const row = await MisioneroRepository.create({
       nombre: input.nombre,
@@ -207,7 +172,7 @@ export class MisioneroService {
     id: string,
     input: UpdateMisioneroInput
   ): Promise<MisioneroDTO> {
-    await MisioneroService.exigirExistente(id);
+    const actual = await MisioneroService.exigirExistente(id);
 
     // A spouse's territory and Centro belong to the household (ADR 0010):
     // changing them for one of the two would split the couple across two
@@ -223,13 +188,11 @@ export class MisioneroService {
       );
     }
 
-    if (input.diocesisLocalidadId !== undefined) {
-      const territorio = await TerritorioRepository.findDiocesisLocalidadById(
-        input.diocesisLocalidadId
-      );
-      if (!territorio) {
-        throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
-      }
+    if (
+      input.diocesisLocalidadId !== undefined &&
+      input.diocesisLocalidadId !== actual.misionero.diocesisLocalidadId
+    ) {
+      await exigirDiocesisVigente(input.diocesisLocalidadId);
     }
 
     const row = await MisioneroRepository.update(id, {

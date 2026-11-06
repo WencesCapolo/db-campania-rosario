@@ -7,7 +7,8 @@ import {
   getUsersAction,
 } from "@/modules/user/user.router";
 import { getInvitacionesPendientesAction } from "@/modules/invitacion/invitacion.router";
-import { ROLE_LABELS, puedeAdministrar, rolesAsignables } from "@/lib/permissions";
+import { ROLE_LABELS } from "@/lib/permissions";
+import { administraRol, rolesAsignables } from "@/lib/authorization/capacidades";
 import { configura } from "@/lib/authorization/capacidades";
 import type { Role } from "@/modules/user/user.schema";
 import type { UserDTO } from "@/modules/user/user.types";
@@ -49,7 +50,7 @@ import BajaDeUsuario from "./BajaDeUsuario";
  * same rows.
  *
  * Whether a row carries controls is decided here, on the server, from the
- * hierarchy — `puedeAdministrar` is strictly-lower, except that an admin
+ * hierarchy — `administraRol` is strictly-lower, except that an admin
  * manages other admins — so nobody is offered a button that would only refuse
  * them. The services ask again. What is deliberately not
  * offered is a baja on your own row: `UserService` refuses that, the rule lives
@@ -158,7 +159,7 @@ export default async function UsuariosPage({
     const u = f.usuario;
     // Nothing on your own row: the service refuses both a baja and a change of
     // rol on yourself, so the buttons could only ever say no.
-    if (u.id === actor.id || !puedeAdministrar(actor.role, u.role)) return null;
+    if (u.id === actor.id || !administraRol(actor.role, u.role)) return null;
 
     return (
       <div className="flex flex-nowrap gap-2">
