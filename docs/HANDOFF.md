@@ -4,7 +4,7 @@ Written 2026-11-06 for the next agent. Read `CLAUDE.md`, `CONTEXT.md` (the new *
 
 ## Where it stands
 
-**Everything is implemented and committed** on `trabajo` (the ADR 0017 commit, on top of `ea4a303`), and pushed to `origin/trabajo`. Not deployed. No migration is involved, so deploy order does not matter.
+**Everything is implemented and committed** on `trabajo` (the ADR 0017 commit, on top of `ea4a303`), pushed to `origin/trabajo`, and **deployed to production** on 2026-11-06 (`dpl_EJQ71qoKRiDwsUGtaPx5KxwM5J2C`, db-campania-rosario.vercel.app). No migration was involved. The planilla dialog has not been tried by hand against production yet — only against a local DB.
 
 | Check | Result |
 |---|---|
@@ -30,7 +30,7 @@ A WhatsApp voice note (2026-11-01, transcribed with Whisper): the shared Buzones
 
 **Should «same name in the same Diócesis/Localidad» be an error instead of a warning?** Found during the manual test. Today it is an *aviso* that does not block (my own choice, not the user's). Re-uploading the same planilla was blocked only because one row typed a número that now exists; a planilla with no typed números would load everybody **twice**, with only warnings on screen. My recommendation to the user was to make it an error (a genuine namesake can be loaded by hand). If they say yes: change `avisarHomonimos` in `planilla.service.ts` to push to `errores` for the «ya hay» case (keep «misma persona en más de una fila» as you see fit), update the two tests that assert `lista: true` with that aviso, the ADR's «Un aviso no frena» bullet, and the page copy that promises re-uploading «nunca duplica nada».
 
-Also pending the user: deploy (`vercel --prod --yes`, which they run themselves — see memory), and whether to drop the local `campania_manual` database.
+Also pending the user: whether to drop the local `campania_manual` database. Deploys are `vercel --prod --yes`, run by the user; CLI 59 answered «Not authorized» and upgrading to 65 fixed it.
 
 ## Where it lives
 
