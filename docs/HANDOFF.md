@@ -1,127 +1,71 @@
-# Handoff — Inicio y la barra de navegación
+# Handoff — ADR 0017: planillas (Excel export and import)
 
-Escrito el 2026-07-28, sobre `trabajo`, con todo sin comitear encima de `759a708`.
-Alcance: las dos pantallas que se ven en cada carga — Inicio y el shell del grupo
-`(dashboard)`. Nada de servicios, repositorios ni migraciones se tocó.
+Written 2026-11-06 for the next agent. Read `CLAUDE.md`, `CONTEXT.md` (the new **Planilla** entry) and `docs/adr/0017-planillas.md` first; this file only says where things stand and what is waiting on the user.
 
-## 1. Qué quedó hecho
+## Where it stands
 
-### Inicio — `src/app/(dashboard)/dashboard/page.tsx`
+**Everything is implemented and committed** on `trabajo` (the ADR 0017 commit, on top of `ea4a303`), and pushed to `origin/trabajo`. Not deployed. No migration is involved, so deploy order does not matter.
 
-Una tarjeta y nada más, centrada en el alto. De arriba hacia abajo:
+| Check | Result |
+|---|---|
+| `pnpm test` (both projects), after the dialog change | 433/433 |
+| typecheck, `pnpm lint` | clean |
+| `pnpm build`, after the dialog change | passed |
+| By hand in Chrome against a local DB | the import end to end (in the prototype) and the final dialog on both screens; see below |
 
-- Una banda de encabezado sobre `lienzo`, centrada: el retrato del Padre Pozzobón
-  (`/pozzobon.png`, 80 px), la etiqueta `CAMPAÑA DEL ROSARIO` en `oro-tinta`, el
-  título `¿Qué querés hacer?` en `azul`, y el filete dorado corto que lo cierra.
-- Un filete `borde-suave` que separa la banda de los destinos.
-- Los tres destinos, como filas separadas por filetes en lugar de por aire, cada una
-  con su punta de flecha: Peregrinas, Misioneros, y `Entregar una imagen` con el
-  relleno azul, porque es el único con consecuencias.
+The two late fixes: `planilla.libro.ts` now writes each dropdown as one explicit range (exceljs squeezes per-cell validations by sorting addresses as text, `E10` before `E2`, and wrote overlapping ranges that Excel offers to «repair»); `Campo.tsx` adds `py-3` when `type="file"` so the file picker's text is vertically centred.
 
-Dos cosas que parecen detalles y son decisiones:
+## What the user asked for, and decided
 
-- **El encabezado está adentro de la tarjeta**, no arriba de ella. Por eso la
-  pantalla tiene **un borde en total** en lugar de dos objetos con canto propio.
-- **El centrado es óptico, no geométrico** — `items-center` con `pt-6 pb-28`. El
-  aire de más abajo empuja la tarjeta arriba del centro exacto, que con una sola
-  cosa en pantalla se lee como caída. `pt-6` es el piso: en una pantalla más baja
-  que la tarjeta, el centrado cede y queda margen en lugar de recorte.
+A WhatsApp voice note (2026-11-01, transcribed with Whisper): the shared Buzones of ADR 0016 are fine for now. Two requests:
 
-El alto disponible sale del layout, que es una columna `flex min-h-screen flex-col`
-con los hijos en un `flex-1`. No hay ninguna altura de barra restada a mano, que es
-lo que se rompería cuando los destinos se van a un segundo renglón en un teléfono.
+1. **Later, maybe:** one Responsable per Provincia, writing only that Provincia. **Not started.** It would bring back a territorial *write* bound beside `exigirModalidad`, a territory on Usuario/Invitación, and the Provincia taken from the image's Diócesis — never parsed from a Código.
+2. **Now:** Excel. Decisions the user made in this session:
+   - A row = one **new** Misionero, optionally with an image: the Código of one already loaded and free (it is handed to them), or the data of a new one (registered in the Misionero's Diócesis/Localidad and handed to them), or nothing. Matrimonios are formed later by hand.
+   - **All or nothing.** Revisar first; one row with an error and nothing loads. Importar re-revisa against the current state and writes everything in one transaction.
+   - **Only creates.** No round trip export → edit → import.
+   - **Export** Peregrinas and Misioneros, with the filters on screen (not the historial of Asignaciones).
 
-### La barra — `src/app/(dashboard)/barra.tsx` (nuevo)
+## Waiting on the user — ask before doing
 
-Componente cliente, y por una sola razón: marca la ruta actual con `usePathname`. El
-Usuario se sigue resolviendo en el servidor, en el layout, y baja por props — la
-barra no toma ninguna decisión de permisos, sólo recibe `puedeAdministrar` y
-`esNacional` ya decididos.
+**Should «same name in the same Diócesis/Localidad» be an error instead of a warning?** Found during the manual test. Today it is an *aviso* that does not block (my own choice, not the user's). Re-uploading the same planilla was blocked only because one row typed a número that now exists; a planilla with no typed números would load everybody **twice**, with only warnings on screen. My recommendation to the user was to make it an error (a genuine namesake can be loaded by hand). If they say yes: change `avisarHomonimos` in `planilla.service.ts` to push to `errores` for the «ya hay» case (keep «misma persona en más de una fila» as you see fit), update the two tests that assert `lista: true` with that aviso, the ADR's «Un aviso no frena» bullet, and the page copy that promises re-uploading «nunca duplica nada».
 
-Lo que cambió respecto de los tres links subrayados que había:
+Also pending the user: deploy (`vercel --prod --yes`, which they run themselves — see memory), and whether to drop the local `campania_manual` database.
 
-| Antes | Ahora | Por qué |
-| --- | --- | --- |
-| Nada decía en qué sección estás | `aria-current="page"` y relleno azul | Lo dice para quien escucha y para quien mira; cambia el relleno, no sólo el matiz |
-| Texto subrayado en `accion` | Pastillas con borde de 2 px en `azul` | Un control se reconoce antes de que alguien lo toque — por eso ningún `Boton` tiene variante fantasma |
-| 18 px de texto con 12 px de aire | `min-h-12` (54 px) y `px-4` | Es un blanco para un pulgar |
-| El nombre del Usuario al lado, mismo peso | Regla vertical y rol en `text-sm` | Sin la regla, un nombre propio se lee como un cuarto lugar a dónde ir |
+## Where it lives
 
-Al pie va el filete dorado del sitio, **adentro** del borde: el canto de abajo lo
-sigue dibujando `borde` (3.8:1), porque el dorado da 2.9:1 y no delimita nada.
+- `src/modules/planilla/` — downstream of everything, nothing imports it.
+  - `planilla.service.ts` — `peregrinas`, `misioneros` (downloads), `plantilla`, `revisar`, `importar`. `planificar` is the one function behind both revisar and importar, so what is shown and what is written cannot differ. Each row goes through `createMisioneroSchema` / `createPeregrinaSchema` — the same rules as the forms.
+  - `planilla.libro.ts` — the only file that knows exceljs. Reads cell values (hyperlinks, rich text, formulas, date cells) into plain values.
+  - `planilla.repository.ts` — no table; the one transaction. Calls `MisioneroRepository.insertarVariosEn`, `PeregrinaRepository.insertarVariasEn`, `AsignacionRepository.abrirEn` (the pointer is still only written by `AsignacionRepository`; `abrir` now delegates to `abrirEn`).
+  - `planilla.router.ts` (two server actions), `planilla.descarga.ts` (the HTTP response), `planilla.types.ts` (column titles, limits, DTOs).
+- **The UI is one dialog, not a page** (changed 2026-11-06 at the user's request): `PlanillaDeExcel.tsx` in the module, a «Planilla de Excel» button in the header of both `/peregrina` and `/misionero`. First step: «Importar Planilla» or «Exportar Planilla»; then one step at a time. Exportar offers both lists from either screen; only the current screen's list carries its filters. `RevisionDePlanilla.tsx` renders the revisión. `Dialogo` gained `amplio` and `conCerrar`. `/misionero/importar` is gone; the prototype of five variants was deleted once E won.
+- Routes (file responses only): `/peregrina/planilla`, `/misionero/planilla`, `/misionero/plantilla`.
+- Small changes elsewhere: `componerCodigo` moved to `peregrina.types.ts`; `PeregrinaRepository.findByCodigos`; `Transaccion` type in `src/db/index.ts`; `BotonDescarga` in `Boton.tsx`; download/import buttons on both listados; `next.config.ts` (`serverExternalPackages: ["exceljs"]`, server-action body limit 3 MB).
+- Tests: `planilla.service.test.ts` (19), a block in `capacidades.test.ts` (Dirigente Joven cannot register or receive a non-`JOV` image by planilla, and nothing is written — negatives were proven failing with the guard disabled), `PlanillaDeExcel.test.tsx` in `navegador` (4 — trimmed on purpose: the user asked for no unnecessary tests).
+- Docs updated: ADR 0017 (new), `CLAUDE.md`, `CONTEXT.md`, `docs/PRODUCTION-PLAN.md`.
 
-Salió de tres variantes (`?variant=N1|N2|N3`, ya borradas): N1 pintaba la barra
-entera de `azul-noche`, N3 la partía en dos pisos con el nombre arriba. Ganó la de
-papel — el cuerpo de la app es claro, y una franja azul a todo el ancho arriba de un
-cuerpo claro es la misma mancha que ya había perdido en la ronda del tratamiento.
+## Manual test — what was done and how to repeat it
 
-### `globals.css`
+Never against production: `.env`'s `DATABASE_URL` **is production**. The setup used:
 
-`:root` declara `color-scheme: light`. Sin esa línea el navegador decide, y con el
-sistema en oscuro pinta los `<select>`, las barras de scroll y los controles nativos
-oscuros arriba de una paleta que es clara en todas las pantallas — la misma mitad de
-modo oscuro que el bloque borrado de `prefers-color-scheme` dejaba. El día que haya
-modo oscuro de verdad, esto es `light dark` y la tabla de contraste necesita su
-segunda mitad.
+1. `podman exec campania-test-db psql -U postgres -c "create database campania_manual"` (the test container from `pnpm test:db:up`; the suite truncates `campania_test`, so use a separate database).
+2. With `DATABASE_URL` **and** `DATABASE_URL_UNPOOLED` exported to `postgresql://postgres:postgres@localhost:55432/campania_manual` (exported variables win over `.env`): `pnpm exec drizzle-kit migrate`, `pnpm db:seed`, then `pnpm dev`.
+3. The user signs in themselves in Chrome (never do it for them). They land on `/sin-autorizacion`; the dev log line `[autorizacion-denegada]` carries their `identidadId`. Insert it locally: `insert into users (id, role) values ('<identidadId>', 'admin')`. Their id is `c9d59f98-c2d7-4b8a-8ab8-d03f5c568860` and the row already exists in `campania_manual`. To test another rol, `update users set role=…` **in the local DB only**, and put it back.
+4. Build planillas with a small Node script requiring the project's `exceljs` by absolute path, write them to the scratchpad, and attach them with the Chrome extension's `file_upload` (it accepted scratchpad paths).
 
-Está también la desviación del import de Tailwind, explicada en el archivo mismo y
-en CLAUDE.md § 8. **No volver a `@import "tailwindcss"`.**
+Verified that way: plantilla downloads (200, xlsx); a planilla with errors marks each row with its reason and offers no Cargar; a good planilla loads exactly the announced totals with correct Códigos (auto `SFE JOV 0001`, typed `CBA FAM 0012`, «Peregrina 7» with none); downloads honour the filters (checked by unzipping the response in the page with `DecompressionStream`); as Dirigente Joven the page says «sólo imágenes de Jóvenes», the plantilla offers only JOV, and a planilla with one FAM row loads nothing. Not checked: opening the files in real Microsoft Excel (only LibreOffice).
 
-### `layout.tsx` (raíz)
+## Still open from ADR 0016 (unchanged)
 
-`suppressHydrationWarning` en el `<html>`, y sólo ahí: el modo oscuro automático del
-navegador le agrega atributos a ese elemento antes de que React hidrate, y eso no es
-nuestro cambio. Es de un nivel, no se hereda, así que una discrepancia real adentro
-de la app sigue avisando.
+1. Manual check of the two shared Buzones against production auth: a non-`JOV` image shows no write controls to the dirigentes Buzón, Usuarios/Territorio absent from its header, Tablero and Peregrinas open on `?modalidad=JOV`.
+2. «Registrada por» on an Asignación used to name the Usuario's territory; check the historial wording now that no Usuario has one.
+3. Accepted performance: `findDisponibles` Seq Scan, and `/misionero` with the tenencia filter intersecting in memory (the planilla export of Misioneros does the same intersection). Revisit only with a measured plan (ADR 0007).
 
-## 2. Contraste, y qué lo prueba
+## Gotchas
 
-Ningún par nuevo quedó sin declarar. Los que la barra y la tarjeta usan ya estaban en
-`src/app/contraste.test.ts`: `azul` sobre papel y sobre lienzo (10:1), blanco sobre
-`azul` (10:1), `oro-tinta` sobre los dos fondos, `borde-suave` como canto (4.5:1 y
-4.2:1). El dorado y el celeste no llevan texto en ninguna pantalla, que es la razón
-por la que existen `oro-tinta` y `borde-suave`.
-
-Si se retoma N1 — la barra azul — hay que agregar un par: su regla divisoria era
-`celeste` sobre `azul-noche` (4.9:1, clarea el 3:1 de un límite de interfaz) y ese
-par no está en el archivo.
-
-## 3. Estado de la verificación
-
-`pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm exec next build` y `pnpm test`
-(26 archivos, 426 pruebas) pasan. La suite `navegador` monta los componentes con la
-hoja de estilos real, así que las 63 pruebas de accesibilidad corrieron contra los
-tokens que se despachan.
-
-Una advertencia sobre el alcance de esa suite, porque cambia qué hay que mirar: el
-proyecto `navegador` importa `globals.css` por Vite, no por el pipeline de Next. Un
-cambio en **cómo una utilidad llega a la página** — el orden de la cascada, las
-capas, un paquete que trae su propio CSS — se verifica en la app corriendo, no en la
-suite. Un cambio de valor de token se verifica en la suite.
-
-## 4. Lo que queda pendiente
-
-1. **Ruido de formato sin resolver.** 17 archivos `src/app/**/*.tsx` que no tienen
-   nada que ver con este trabajo quedaron reformateados por una corrida de
-   `prettier --write` (comas finales, salto de línea al final). Es sólo formato y no
-   toca ninguna lógica, pero ensucia el diff. No se revirtió porque esos archivos
-   tenían trabajo sin comitear encima: un `git checkout` se lo llevaría.
-2. **Una captura suelta en `public/`.** `Captura de pantalla_2026-07-28_17-06-06.png`
-   está sin trackear en `public/`, que es un directorio que se despacha. Borrarla o
-   moverla antes de comitear.
-3. **El resto de las pantallas no lleva el tema.** Inicio y la barra están vestidas;
-   los listados, el tablero y los formularios siguen con los tokens base. La barra ya
-   les pone el filete dorado y el logo arriba, así que la costura se ve.
-4. **El contenedor de pruebas quedó levantado.** `pnpm test:db:down` cuando no se
-   use más.
-
-## 5. Cómo mirarlo
-
-```
-pnpm dev            # :3000
-```
-
-Inicio en `/dashboard`; la pastilla rellena sólo se ve estando en `/tablero`,
-`/admin/users` o `/admin/territorio`, así que hay que salir de Inicio para juzgarla.
-En un teléfono, mirar que los destinos de la barra caigan a un segundo renglón sin
-tapar el nombre del Usuario, y que Inicio siga centrado con la barra más alta.
+- **Production reads are blocked by the auto-mode classifier** (a read-only `select` on `users` was denied this session), as are production writes unless the user explicitly says so. Ask; do not route around it.
+- **The Chrome extension redacts query strings** in tool output (`[BLOCKED: Cookie/query string data]`); assert on them inside the page (`href.includes(...)`) instead of returning them.
+- **Two untracked files are the user's own; leave them:** `public/Captura de pantalla_2026-07-28_17-06-06.png` and `public/inmaculata.png`.
+- **7 GB RAM.** Parallel subagents must not run pnpm. `pnpm test` takes ~5 minutes: run it in the background. Do not run the build and the suite at the same time.
+- **exceljs types lag its runtime:** `worksheet.dataValidations` exists but is untyped (cast, as `planilla.libro.ts` does), and `xlsx.load` is typed for its own `Buffer` = `ArrayBuffer` (pass the sliced `ArrayBuffer`).

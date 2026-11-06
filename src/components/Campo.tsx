@@ -68,6 +68,9 @@ export default function Campo({
         aria-describedby={descrito || undefined}
         className={
           "min-h-12 w-full rounded-control border-2 bg-papel px-3 text-base text-tinta " +
+          // A text box centres its line in the 54 px on its own; a file input
+          // starts at the top edge, so it gets the padding that centres it.
+          (resto.type === "file" ? "py-3 " : "") +
           (error ? "border-peligro" : "border-borde-fuerte")
         }
       />

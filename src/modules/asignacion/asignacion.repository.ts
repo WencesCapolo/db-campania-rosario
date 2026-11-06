@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, type Transaccion } from "@/db";
 import {
   and,
   asc,
@@ -896,24 +896,35 @@ export class AsignacionRepository {
 
   /** Opens a period for a Peregrina nobody currently has. */
   static async abrir(data: AperturaDeAsignacion): Promise<AsignacionCompleta> {
+    const id = await db.transaction((tx) =>
+      AsignacionRepository.abrirEn(tx, data)
+    );
+    return AsignacionRepository.exigirRecienEscrita(id);
+  }
+
+  /**
+   * The same write as `abrir`, inside a transaction somebody else opened — a
+   * planilla that creates the Misionero, the image and the period together
+   * (ADR 0017). The pointer is still written here and nowhere else.
+   */
+  static async abrirEn(
+    tx: Transaccion,
+    data: AperturaDeAsignacion
+  ): Promise<string> {
     const { tenedor, ...resto } = data;
 
-    const id = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(asignacion)
-        .values({ ...resto, ...columnasDeTenedor(tenedor) })
-        .returning();
-      if (!row) throw new Error("Failed to insert asignacion");
+    const [row] = await tx
+      .insert(asignacion)
+      .values({ ...resto, ...columnasDeTenedor(tenedor) })
+      .returning({ id: asignacion.id });
+    if (!row) throw new Error("Failed to insert asignacion");
 
-      await tx
-        .update(peregrina)
-        .set({ ...punteroDeTenedor(tenedor), updatedAt: new Date() })
-        .where(eq(peregrina.id, data.peregrinaId));
+    await tx
+      .update(peregrina)
+      .set({ ...punteroDeTenedor(tenedor), updatedAt: new Date() })
+      .where(eq(peregrina.id, data.peregrinaId));
 
-      return row.id;
-    });
-
-    return AsignacionRepository.exigirRecienEscrita(id);
+    return row.id;
   }
 
   /**

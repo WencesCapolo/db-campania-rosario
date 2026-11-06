@@ -33,6 +33,7 @@ import { nombreDeTenedorEnLista } from "@/lib/formato";
 import FiltrosDeMisionero from "./FiltrosDeMisionero";
 import CrearMisioneroForm from "./CrearMisioneroForm";
 import AltaPlegable from "./AltaPlegable";
+import PlanillaDeExcel from "@/modules/planilla/PlanillaDeExcel";
 
 /**
  * Misioneros — una pantalla, dos marcos: el alta, plegada detrás de un botón del
@@ -288,6 +289,10 @@ export default async function MisioneroPage({
     return `/misionero?${query.toString()}`;
   };
 
+  const consultaDePlanilla = new URLSearchParams();
+  if (q) consultaDePlanilla.set("q", q);
+  if (tenencia) consultaDePlanilla.set("imagen", tenencia);
+
   return (
     <div className="flex-1 bg-lienzo px-5 py-6">
       <main className="mx-auto w-full max-w-4xl space-y-6">
@@ -300,6 +305,16 @@ export default async function MisioneroPage({
               renglón, con el título a la izquierda y el botón del alta a la
               derecha. El filete dorado sigue al texto. */}
           <AltaPlegable
+            planilla={
+              // La planilla de Excel, importar y exportar (ADR 0017): la
+              // lista que baja lleva los mismos filtros que esta pantalla.
+              <PlanillaDeExcel
+                pantalla="misionero"
+                consultaDeFiltros={consultaDePlanilla.toString()}
+                total={pagina.total}
+                filtrado={filtrado}
+              />
+            }
             bajada="Una persona de la Campaña, o un matrimonio: no entra al sistema ni tiene contraseña, es quien puede tener una imagen a cargo. Se carga acá mismo y aparece en la tabla de abajo."
             encabezado={
               <div>

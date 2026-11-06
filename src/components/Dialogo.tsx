@@ -55,6 +55,8 @@ export default function Dialogo({
   children,
   alCerrar,
   cerrarConElFondo = true,
+  amplio = false,
+  conCerrar = false,
 }: {
   titulo: string;
   /** Used when `disparador` is omitted — renders a plain secondary button. */
@@ -69,6 +71,14 @@ export default function Dialogo({
    * everything typed in it. Escape and «No, volver» still cancel.
    */
   cerrarConElFondo?: boolean;
+  /** Twice the width, for a dialog whose content is a list (a planilla's revisión). */
+  amplio?: boolean;
+  /**
+   * A «Cerrar» button beside the title, which stays in view while the content
+   * scrolls. For a dialog that is a whole task rather than one question, where
+   * the way out would otherwise be below a long list.
+   */
+  conCerrar?: boolean;
 }) {
   const [elemento, setElemento] = useState<HTMLDialogElement | null>(null);
 
@@ -117,11 +127,26 @@ export default function Dialogo({
           // the element itself rather than on its content came from outside.
           if (cerrarConElFondo && e.target === elemento) elemento?.close();
         }}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-tarjeta border-2 border-borde-fuerte bg-papel p-6 text-base text-tinta backdrop:bg-tinta/60"
+        className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] ${amplio ? "max-w-3xl" : "max-w-lg"} overflow-y-auto rounded-tarjeta border-2 border-borde-fuerte bg-papel p-6 text-base text-tinta backdrop:bg-tinta/60`}
       >
-        <h2 id={idTitulo} className="text-xl font-bold">
-          {titulo}
-        </h2>
+        {conCerrar ? (
+          <div className="sticky -top-6 z-10 -mx-6 -mt-6 mb-2 flex items-center justify-between gap-4 border-b-2 border-borde bg-papel px-6 py-3">
+            <h2 id={idTitulo} className="text-xl font-bold">
+              {titulo}
+            </h2>
+            <button
+              type="button"
+              onClick={cancelar}
+              className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-control border-2 border-borde-fuerte bg-papel px-4 font-semibold text-tinta hover:bg-fondo"
+            >
+              <span aria-hidden>✕</span> Cerrar
+            </button>
+          </div>
+        ) : (
+          <h2 id={idTitulo} className="text-xl font-bold">
+            {titulo}
+          </h2>
+        )}
         {children(control)}
       </dialog>
     </>

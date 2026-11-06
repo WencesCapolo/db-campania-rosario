@@ -31,7 +31,7 @@ The decision was to adopt the baseline and port the prototype's UI onto it.
 | Styling | Tailwind only, own primitives. Native `<dialog>`; own dropdown and picker (ADR 0015) |
 | Client data | Server components and server actions. TanStack Query when a screen needs client fetching — nothing does yet, so it is not installed |
 | Validation | Zod as source of truth, parsed at the router boundary |
-| Data entry | Manual only. No importer |
+| Data entry | By hand, or a planilla of new Misioneros with their images — all or nothing (ADR 0017) |
 | Tests | Two Vitest projects. `node`: the services against real Postgres, **one seam**, Actor fabricated per test. `navegador`: accessibility in Chromium via Playwright with axe-core — ADR 0006 |
 | Tablero | Aggregates in Postgres, scoped by Actor. One filter schema, and it lives in the query string — ADR 0007 |
 | Indexes | Added only when a query plan names them. `tablero.planes.test.ts` measures; three of five candidates were deleted — ADR 0007 |
@@ -148,6 +148,8 @@ the two cards issue 4 carried here are all shipped, and ADR 0007 records the dec
 What it deliberately did not do, and why:
 
 - **No export to spreadsheet or PDF, and no emailed reports.** Out of scope in the PRD.
+  *Since ADR 0017 both listados download as `.xlsx` with their filters. PDF and emailed
+  reports are still out.*
   It is the most likely first request from whoever the figures get reported to, and the
   reason the DTO carries keys rather than labels is that an exporter would need the same
   numbers with different words around them.

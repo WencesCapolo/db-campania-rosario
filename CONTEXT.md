@@ -131,6 +131,10 @@ _Avoid_: Borrar (that destroys); any baja of a Peregrina
 A Peregrina stops existing in the system, together with every Asignación it ever had — a hard delete, allowed even when it was, or is, in somebody's charge, behind a warning that says how much history goes with it. Each Misionero who had it loses that period from their page, and its Código is free again. An image that is only lost is not borrada: its Estado is Extraviada (ADR 0014). Nothing else is ever borrado.
 _Avoid_: Eliminar; using it for a baja
 
+**Planilla**:
+An Excel file (`.xlsx`). Two directions: a listado of Peregrinas or Misioneros **downloaded** with the filters on screen, and a planilla of new Misioneros **loaded** — each row one person, optionally with the image assigned to them: the Código of one already in the system, or the data of a new one. Loading is all or nothing: it is *revisada* first, and one row with an error means no row is loaded. It only creates; it never changes a record that exists (ADR 0017).
+_Avoid_: Excel, CSV, Importación masiva, Reporte
+
 **Tablero**:
 The screen of aggregate figures for the Actor's own territory — counts by Estado, Modalidad, Tipo and territory, plus the four lists that lead to work. Every figure links to the records behind it. It is a destination reached from the header, not the home screen: Inicio is the three things somebody came to do.
 _Avoid_: Dashboard, Panel, Reportes (a report is exported; this is not)

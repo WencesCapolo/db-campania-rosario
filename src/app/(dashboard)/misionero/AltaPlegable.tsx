@@ -23,7 +23,10 @@ export default function AltaPlegable({
   encabezado,
   bajada,
   children,
+  planilla,
 }: {
+  /** El botón de la planilla de Excel, arriba del alta de a uno (ADR 0017). */
+  planilla: ReactNode;
   /** El título de la pantalla, que va a la izquierda del botón. */
   encabezado: ReactNode;
   bajada: string;
@@ -36,21 +39,24 @@ export default function AltaPlegable({
       <header className="flex flex-col items-center gap-6 border-b-2 border-borde-suave bg-lienzo px-5 pt-8 pb-6 text-center sm:flex-row sm:justify-between sm:px-6 sm:text-left">
         {encabezado}
 
-        <button
-          type="button"
-          aria-expanded={abierta}
-          aria-controls="alta-de-misionero"
-          onClick={() => setAbierta((a) => !a)}
-          className={
-            "inline-flex min-h-12 shrink-0 items-center gap-2 rounded-control border-2 px-5 text-base font-semibold " +
-            (abierta
-              ? "border-azul bg-papel text-azul hover:bg-lienzo"
-              : "border-transparent bg-azul text-white hover:bg-azul-noche")
-          }
-        >
-          {abierta ? "Cerrar el alta" : "Cargar un Misionero"}
-          <span aria-hidden>{abierta ? "▴" : "▾"}</span>
-        </button>
+        <div className="flex flex-col items-center gap-3 sm:items-end">
+          {planilla}
+          <button
+            type="button"
+            aria-expanded={abierta}
+            aria-controls="alta-de-misionero"
+            onClick={() => setAbierta((a) => !a)}
+            className={
+              "inline-flex min-h-12 shrink-0 items-center gap-2 rounded-control border-2 px-5 text-base font-semibold " +
+              (abierta
+                ? "border-azul bg-papel text-azul hover:bg-lienzo"
+                : "border-transparent bg-azul text-white hover:bg-azul-noche")
+            }
+          >
+            {abierta ? "Cerrar el alta" : "Cargar un Misionero"}
+            <span aria-hidden>{abierta ? "▴" : "▾"}</span>
+          </button>
+        </div>
       </header>
 
       <section

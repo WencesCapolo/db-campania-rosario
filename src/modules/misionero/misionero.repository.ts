@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, type Transaccion } from "@/db";
 import { misionero } from "./misionero.schema";
 import { matrimonio } from "./matrimonio.schema";
 import {
@@ -390,6 +390,19 @@ export class MisioneroRepository {
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Several at once, inside a transaction somebody else opened — a planilla
+   * (ADR 0017). The ids come in with the rows, so the caller can point an
+   * Asignación at them without reading back what it just wrote.
+   */
+  static async insertarVariosEn(
+    tx: Transaccion,
+    filas: (NewMisioneroRow & { id: string })[]
+  ): Promise<void> {
+    if (filas.length === 0) return;
+    await tx.insert(misionero).values(filas);
+  }
 
   static async create(data: NewMisioneroRow): Promise<MisioneroConTerritorio> {
     const [row] = await db.insert(misionero).values(data).returning();

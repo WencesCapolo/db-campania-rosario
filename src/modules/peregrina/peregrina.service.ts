@@ -4,6 +4,7 @@ import {
   type PeregrinaConTerritorio,
 } from "./peregrina.repository";
 import {
+  componerCodigo,
   identificacionDe,
   type PeregrinaDTO,
   type CreatePeregrinaInput,
@@ -32,22 +33,6 @@ import {
   rango,
   type Pagina,
 } from "@/lib/paginacion";
-
-/**
- * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
- *
- * The abbreviation now comes from the Provincia reference record instead of a
- * hardcoded map, so an Asesor Nacional can add a Provincia without a
- * deployment. The format is unchanged, and existing Códigos are never
- * regenerated — a Código is physically written on the image.
- */
-function buildCodigo(
-  abreviatura: string,
-  modalidad: Modalidad,
-  num: number
-): string {
-  return `${abreviatura} ${modalidad} ${String(num).padStart(4, "0")}`;
-}
 
 /**
  * PeregrinaService
@@ -336,7 +321,7 @@ export class PeregrinaService {
   ): Promise<{ codigo: string; codigoNum: number }> {
     const num = await PeregrinaRepository.nextCodigoNum(provincia.id, modalidad);
     return {
-      codigo: buildCodigo(provincia.abreviatura, modalidad, num),
+      codigo: componerCodigo(provincia.abreviatura, modalidad, num),
       codigoNum: num,
     };
   }
@@ -356,7 +341,7 @@ export class PeregrinaService {
     numero: number,
     exceptoId?: string
   ): Promise<{ codigo: string; codigoNum: number }> {
-    const codigo = buildCodigo(provincia.abreviatura, modalidad, numero);
+    const codigo = componerCodigo(provincia.abreviatura, modalidad, numero);
     if (await PeregrinaRepository.existeCodigo(codigo, exceptoId)) {
       throw new ConflictoError(PeregrinaService.codigoRepetido(codigo));
     }

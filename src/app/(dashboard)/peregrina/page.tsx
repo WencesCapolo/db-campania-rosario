@@ -20,6 +20,7 @@ import FiltrosDeInventario from "@/modules/peregrina/FiltrosDeInventario";
 import Volver from "@/components/Volver";
 import AltaRapida from "./AltaRapida";
 import SeccionDeAlta from "./SeccionDeAlta";
+import PlanillaDeExcel from "@/modules/planilla/PlanillaDeExcel";
 
 /**
  * Peregrinas — una pantalla, dos marcos: el alta, y la tabla con sus filtros.
@@ -144,15 +145,25 @@ export default async function PeregrinaListaPage({
              * madera, y un segundo marco sobre una foto que ya trae uno es el gesto
              * que abarata una pantalla.
              */}
-            <Image
-              src="/peregrina.webp"
-              alt=""
-              width={640}
-              height={640}
-              priority
-              aria-hidden
-              className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
-            />
+            <div className="flex shrink-0 flex-col items-center gap-4 sm:items-end">
+              <Image
+                src="/peregrina.webp"
+                alt=""
+                width={640}
+                height={640}
+                priority
+                aria-hidden
+                className="h-28 w-28 shrink-0 sm:h-32 sm:w-32"
+              />
+              {/* La planilla de Excel, importar y exportar (ADR 0017): la
+                  lista que baja lleva los mismos filtros que esta pantalla. */}
+              <PlanillaDeExcel
+                pantalla="peregrina"
+                consultaDeFiltros={comoQueryString(filtros)}
+                total={pagina.total}
+                filtrado={filtrado}
+              />
+            </div>
           </header>
 
           {/* Dos altas plegables, una por rotulación — ADR 0012. `<details>`

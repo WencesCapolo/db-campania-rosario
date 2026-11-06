@@ -5,6 +5,9 @@ import { MisioneroService } from "@/modules/misionero/misionero.service";
 import { TerritorioService } from "@/modules/territorio/territorio.service";
 import { InvitacionService } from "@/modules/invitacion/invitacion.service";
 import { UserService } from "@/modules/user/user.service";
+import { PlanillaService } from "@/modules/planilla/planilla.service";
+import { COLUMNAS } from "@/modules/planilla/planilla.types";
+import ExcelJS from "exceljs";
 import {
   crearActor,
   crearMisioneroDirecto,
@@ -228,6 +231,82 @@ describe("el Dirigente Joven escribe sólo Jóvenes", () => {
 
     expect(opciones.map((p) => p.id)).toEqual([jov.id]);
     expect(libres.map((p) => p.id)).toEqual([jov.id]);
+  });
+});
+
+/**
+ * ADR 0017 — una planilla escribe lo mismo que el alta a mano, así que el
+ * Dirigente Joven tampoco carga por ahí una imagen que no sea `JOV`. Y como es
+ * todo o nada, una sola fila fuera del rol deja la base como estaba.
+ */
+describe("el Dirigente Joven tampoco carga otra Modalidad por planilla", () => {
+  async function planilla(filas: Partial<Record<keyof typeof COLUMNAS, string>>[]) {
+    const libro = new ExcelJS.Workbook();
+    const ws = libro.addWorksheet("Misioneros");
+    const claves = Object.keys(COLUMNAS) as (keyof typeof COLUMNAS)[];
+    ws.addRow(claves.map((c) => COLUMNAS[c]));
+    for (const f of filas) ws.addRow(claves.map((c) => f[c] ?? null));
+    return Buffer.from(await libro.xlsx.writeBuffer());
+  }
+
+  const fila = (extra: Partial<Record<keyof typeof COLUMNAS, string>>) => ({
+    nombre: "Ana",
+    apellido: "Gómez",
+    diocesis: "Villa María",
+    ...extra,
+  });
+
+  it("carga Misioneros con imágenes JOV", async () => {
+    const totales = await PlanillaService.importar(
+      dirigente,
+      await planilla([fila({ modalidad: "JOV" })])
+    );
+
+    expect(totales.imagenesNuevas).toBe(1);
+  });
+
+  it("NO registra una imagen FAM nueva, y no carga ni al Misionero", async () => {
+    const archivo = await planilla([
+      fila({ modalidad: "JOV" }),
+      fila({ apellido: "Pérez", modalidad: "FAM" }),
+    ]);
+
+    const revision = await PlanillaService.revisar(dirigente, archivo);
+    expect(revision.lista).toBe(false);
+    expect(revision.filas[1]?.errores.join(" ")).toMatch(/sólo imágenes de Jóvenes/);
+
+    await expect(PlanillaService.importar(dirigente, archivo)).rejects.toThrow(
+      NoAutorizadoError
+    );
+
+    expect((await MisioneroService.listPagina(asesor, {})).total).toBe(0);
+    expect((await PeregrinaService.listPagina(asesor, {})).total).toBe(0);
+  });
+
+  it("NO se entrega una FAM ya cargada, y queda libre", async () => {
+    const fam = await imagen("FAM");
+
+    await expect(
+      PlanillaService.importar(
+        dirigente,
+        await planilla([fila({ codigo: fam.identificacion })])
+      )
+    ).rejects.toThrow(NoAutorizadoError);
+
+    expect((await PeregrinaService.getById(asesor, fam.id)).tenenciaActual).toBeNull();
+    expect((await MisioneroService.listPagina(asesor, {})).total).toBe(0);
+  });
+
+  it("su plantilla ofrece sólo Jóvenes", async () => {
+    const libro = new ExcelJS.Workbook();
+    const archivo = await PlanillaService.plantilla(dirigente);
+    await libro.xlsx.load(
+      archivo.buffer.slice(archivo.byteOffset, archivo.byteOffset + archivo.byteLength) as ArrayBuffer
+    );
+
+    expect(libro.getWorksheet("Listas")?.getColumn(2).values.filter(Boolean)).toEqual([
+      "JOV — Jóvenes",
+    ]);
   });
 });
 

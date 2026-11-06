@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, type Transaccion } from "@/db";
 import { peregrina } from "./peregrina.schema";
 import {
   eq,
@@ -10,6 +10,7 @@ import {
   isNull,
   isNotNull,
   ilike,
+  inArray,
   or,
   ne,
 } from "drizzle-orm";
@@ -458,6 +459,20 @@ export class PeregrinaRepository {
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Several at once, inside a transaction somebody else opened — a planilla
+   * (ADR 0017). The ids come in with the rows, for the Asignación that follows.
+   * The unique index on `codigo` still refuses a Código that somebody registered
+   * in the meantime; `codigoRepetidoEn` reads which one.
+   */
+  static async insertarVariasEn(
+    tx: Transaccion,
+    filas: (NewPeregrinaRow & { id: string })[],
+  ): Promise<void> {
+    if (filas.length === 0) return;
+    await tx.insert(peregrina).values(filas);
+  }
+
   static async create(data: NewPeregrinaRow): Promise<PeregrinaConTerritorio> {
     const [row] = await db.insert(peregrina).values(data).returning();
     if (!row) throw new Error("Failed to insert peregrina");
@@ -508,6 +523,19 @@ export class PeregrinaRepository {
       .where(and(eq(peregrina.id, id), isNull(peregrina.codigo)))
       .returning();
     return row;
+  }
+
+  /**
+   * The images carrying any of these Códigos, wherever they are — a planilla
+   * names images by what is written on them (ADR 0017).
+   */
+  static async findByCodigos(
+    codigos: readonly string[],
+  ): Promise<PeregrinaConTerritorio[]> {
+    if (codigos.length === 0) return [];
+    return leerVarias(
+      conTerritorio().where(inArray(peregrina.codigo, [...codigos])),
+    );
   }
 
   /**

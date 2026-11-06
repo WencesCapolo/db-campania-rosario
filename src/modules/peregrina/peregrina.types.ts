@@ -150,6 +150,24 @@ export function identificacionDe(p: {
   return identificacion;
 }
 
+/**
+ * Composes a Código: `[Provincia Modalidad Número]`, e.g. "CBA JOV 0001".
+ *
+ * The abbreviation comes from the Provincia reference record, so an Asesor
+ * Nacional can add a Provincia without a deployment. Existing Códigos are never
+ * regenerated — a Código is physically written on the image.
+ *
+ * Here and not in the service because two of them compose one: the alta, and
+ * a planilla that registers images in bulk (ADR 0017). One format, one place.
+ */
+export function componerCodigo(
+  abreviatura: string,
+  modalidad: Modalidad,
+  num: number
+): string {
+  return `${abreviatura} ${modalidad} ${String(num).padStart(4, "0")}`;
+}
+
 // ── Inputs ────────────────────────────────────────────────────────────────────
 // Three territory fields became one choice. Provincia and Región follow from
 // the Diócesis/Localidad, so a contradictory combination is unrepresentable.

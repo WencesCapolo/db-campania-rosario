@@ -96,3 +96,25 @@ export function BotonEnlace({
     </Link>
   );
 }
+
+/**
+ * A file to save — a planilla (ADR 0017). A plain anchor with `download` and not
+ * a `next/link`: the target is a route handler that answers with a file, and
+ * the router would otherwise prefetch it, or try to render it as a page.
+ */
+export function BotonDescarga({
+  tono = "secundario",
+  anchoCompleto,
+  compacto,
+  children,
+  ...resto
+}: Comun &
+  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "className" | "download"> & {
+    href: string;
+  }) {
+  return (
+    <a {...resto} download className={clases(tono, anchoCompleto, compacto)}>
+      {children}
+    </a>
+  );
+}

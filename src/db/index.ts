@@ -36,3 +36,10 @@ function isNeon(url: string): boolean {
 export const db = isNeon(connectionString)
   ? drizzleNeon(new NeonPool({ connectionString }), { schema })
   : drizzlePg(new Pool({ connectionString }), { schema });
+
+/**
+ * A transaction as `db.transaction` hands it over. For the one write that spans
+ * several repositories — loading a planilla (ADR 0017) — each repository takes
+ * it and writes its own table inside it, so none of them gives up owning its SQL.
+ */
+export type Transaccion = Parameters<Parameters<typeof db.transaction>[0]>[0];
