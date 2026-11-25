@@ -184,7 +184,7 @@ export class TerritorioRepository {
 
   static async updateDiocesisLocalidad(
     id: string,
-    data: Partial<Pick<DiocesisLocalidadRow, "nombre" | "bajaAt">>
+    data: Partial<Pick<DiocesisLocalidadRow, "nombre" | "region" | "bajaAt">>
   ): Promise<DiocesisLocalidadRow | undefined> {
     const [row] = await db
       .update(diocesisLocalidad)

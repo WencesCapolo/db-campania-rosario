@@ -95,9 +95,10 @@ describe("el territorio de un Misionero", () => {
       diocesisLocalidadId: territorio.zapala.id,
     });
 
-    await TerritorioService.renombrarDiocesisLocalidad(asesor, {
+    await TerritorioService.editarDiocesisLocalidad(asesor, {
       id: territorio.zapala.id,
       nombre: "Zapala Centro",
+      region: "R. PAT",
     });
 
     const releido = await MisioneroService.getById(asesor, creado.id);

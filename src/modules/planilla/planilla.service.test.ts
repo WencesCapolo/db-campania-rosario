@@ -403,7 +403,7 @@ describe("exportar", () => {
     const fila = hoja?.getRow(2);
     expect(fila?.getCell(1).value).toBe("CBA JOV 0001");
     expect(fila?.getCell(8).value).toBe("Nadie");
-    expect(fila?.getCell(12).value).toEqual(new Date(Date.UTC(1998, 7, 15)));
+    expect(fila?.getCell(15).value).toEqual(new Date(Date.UTC(1998, 7, 15)));
   });
 
   it("los Misioneros, con la imagen que tiene cada uno", async () => {
@@ -436,6 +436,6 @@ describe("exportar", () => {
 
     expect(hoja?.rowCount).toBe(2);
     expect(hoja?.getRow(2).getCell(1).value).toBe("Ibáñez");
-    expect(hoja?.getRow(2).getCell(12).value).toBe("CBA JOV 0001");
+    expect(hoja?.getRow(2).getCell(13).value).toBe("CBA JOV 0001");
   });
 });

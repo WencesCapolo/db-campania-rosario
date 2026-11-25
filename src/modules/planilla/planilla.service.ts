@@ -44,7 +44,6 @@ import {
 } from "@/lib/authorization/capacidades";
 import { ConflictoError, ValidacionError } from "@/lib/errors";
 import {
-  diaEnArgentina,
   nombreCompleto,
   nombreDeTenedor,
   nombreEnLista,
@@ -106,11 +105,13 @@ export class PlanillaService {
       { titulo: "Tipo", ancho: 12 },
       { titulo: "Estado", ancho: 20 },
       { titulo: "¿Quién la tiene?", ancho: 32 },
+      { titulo: "Teléfono", ancho: 24 },
+      { titulo: "WhatsApp", ancho: 24 },
+      { titulo: "Email", ancho: 34 },
       { titulo: "Diócesis/Localidad", ancho: 26 },
       { titulo: "Provincia", ancho: 20 },
       { titulo: "Región", ancho: 10 },
       { titulo: "Fecha de consagración", ancho: 14, fecha: true },
-      { titulo: "Registrada el", ancho: 14, fecha: true },
     ];
 
     return escribirLibro([
@@ -126,11 +127,13 @@ export class PlanillaService {
           TIPO_LABELS[f.peregrina.tipo],
           ESTADO_LABELS[f.peregrina.estado],
           f.tenedorActual ? nombreDeTenedor(f.tenedorActual) : "Nadie",
+          contacto(f.personasActuales, "telefono"),
+          contacto(f.personasActuales, "whatsapp"),
+          contacto(f.personasActuales, "email"),
           f.diocesis.nombre,
           f.provincia.nombre,
           f.diocesis.region,
           celdaDeFecha(f.peregrina.fechaConsagracion),
-          celdaDeFecha(diaEnArgentina(f.peregrina.createdAt)),
         ]),
       },
     ]);
@@ -190,6 +193,7 @@ export class PlanillaService {
       p.apellido,
       p.nombre,
       p.telefono,
+      p.whatsapp,
       p.email,
       p.diocesisLocalidad.nombre,
       p.provincia,
@@ -199,7 +203,6 @@ export class PlanillaService {
       celdaDeFecha(p.fechaConsagracion),
       conyuge ? nombreCompleto(conyuge) : null,
       (imagenes.get(valorDeTenedor(tenedor)) ?? []).join(", ") || null,
-      celdaDeFecha(diaEnArgentina(p.createdAt)),
     ];
 
     const filas = roster.flatMap((f) => {
@@ -228,6 +231,7 @@ export class PlanillaService {
           { titulo: "Apellido", ancho: 20 },
           { titulo: "Nombre", ancho: 20 },
           { titulo: "Teléfono", ancho: 18 },
+          { titulo: "WhatsApp", ancho: 18 },
           { titulo: "Email", ancho: 30 },
           { titulo: "Diócesis/Localidad", ancho: 26 },
           { titulo: "Provincia", ancho: 20 },
@@ -237,7 +241,6 @@ export class PlanillaService {
           { titulo: "Fecha de consagración", ancho: 14, fecha: true },
           { titulo: "Matrimonio con", ancho: 26 },
           { titulo: "Imágenes a cargo", ancho: 30 },
-          { titulo: "Cargado el", ancho: 14, fecha: true },
         ],
         filas,
       },
@@ -273,6 +276,7 @@ export class PlanillaService {
         { titulo: COLUMNAS.nombre, ancho: 18, obligatoria: true },
         { titulo: COLUMNAS.apellido, ancho: 18, obligatoria: true },
         { titulo: COLUMNAS.telefono, ancho: 16 },
+        { titulo: COLUMNAS.whatsapp, ancho: 16 },
         { titulo: COLUMNAS.email, ancho: 26 },
         {
           titulo: COLUMNAS.diocesis,
@@ -411,6 +415,7 @@ export class PlanillaService {
         nombre: f.misionero.nombre,
         apellido: f.misionero.apellido,
         telefono: f.misionero.telefono ?? null,
+        whatsapp: f.misionero.whatsapp ?? null,
         email: f.misionero.email ?? null,
         estado: "activo",
         diocesisLocalidadId: f.misionero.diocesisLocalidadId,
@@ -834,6 +839,7 @@ function leerFila(fila: FilaLeida, territorios: Resolutor): FilaPlaneada {
     nombre: texto("nombre") ?? "",
     apellido: texto("apellido") ?? "",
     telefono: texto("telefono") ?? null,
+    whatsapp: texto("whatsapp") ?? null,
     email: texto("email") ?? null,
     // El mensaje de un territorio que falta ya está arriba, más preciso.
     diocesisLocalidadId: lugar?.id ?? "-",
@@ -1050,4 +1056,14 @@ class Resolutor {
     if (porNombre.length > 1) return "ambigua";
     return porNombre[0] ?? null;
   }
+}
+
+/** De un Matrimonio, el dato de cada uno con su nombre. */
+function contacto(
+  personas: PeregrinaConTerritorio["personasActuales"],
+  dato: "telefono" | "whatsapp" | "email"
+): string | null {
+  if (personas.length === 1) return personas[0][dato];
+  const conDato = personas.filter((p) => p[dato]);
+  return conDato.map((p) => `${p.nombre}: ${p[dato]}`).join(" / ") || null;
 }

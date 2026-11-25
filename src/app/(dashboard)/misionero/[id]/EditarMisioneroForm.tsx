@@ -5,6 +5,7 @@ import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { updateMisioneroAction } from "@/modules/misionero/misionero.router";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
+import { AYUDA_WHATSAPP } from "@/lib/whatsapp";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
 import type { CentroTipo } from "@/modules/misionero/misionero.schema";
@@ -75,6 +76,7 @@ export default function EditarMisioneroForm({
   const [nombre, setNombre] = useState(misionero.nombre);
   const [apellido, setApellido] = useState(misionero.apellido);
   const [telefono, setTelefono] = useState(misionero.telefono ?? "");
+  const [whatsapp, setWhatsapp] = useState(misionero.whatsapp ?? "");
   const [email, setEmail] = useState(misionero.email ?? "");
   const [fechaConsagracion, setFechaConsagracion] = useState(
     misionero.fechaConsagracion ?? "",
@@ -101,6 +103,7 @@ export default function EditarMisioneroForm({
         nombre,
         apellido,
         telefono: telefono.trim() || null,
+        whatsapp: whatsapp.trim() || null,
         email: email.trim() || null,
         fechaConsagracion: fechaConsagracion || null,
         ...(!casado && {
@@ -121,7 +124,12 @@ export default function EditarMisioneroForm({
 
   /** Lo que comparten las cajas de texto: avisar al salir, callar al escribir. */
   const campo = (
-    nombreDelCampo: "nombre" | "apellido" | "telefono" | "email" | "centroNombre",
+    nombreDelCampo:       | "nombre"
+      | "apellido"
+      | "telefono"
+      | "whatsapp"
+      | "email"
+      | "centroNombre",
     valor: string,
     setValor: (v: string) => void,
   ) => ({
@@ -176,6 +184,13 @@ export default function EditarMisioneroForm({
         inputMode="tel"
         autoComplete="tel"
         {...campo("telefono", telefono, setTelefono)}
+      />
+      <Campo
+        etiqueta="WhatsApp"
+        ayuda={AYUDA_WHATSAPP}
+        type="tel"
+        inputMode="tel"
+        {...campo("whatsapp", whatsapp, setWhatsapp)}
       />
       <Campo
         etiqueta="Email"

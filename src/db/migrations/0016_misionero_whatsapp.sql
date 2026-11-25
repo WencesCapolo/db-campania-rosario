@@ -1,0 +1,1 @@
+ALTER TABLE "misionero" ADD COLUMN "whatsapp" text;

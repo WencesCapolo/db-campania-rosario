@@ -113,6 +113,13 @@
       "when": 1793289965153,
       "tag": "0015_sin_territorio_de_usuario",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795632327528,
+      "tag": "0016_misionero_whatsapp",
+      "breakpoints": true
     }
   ]
 }

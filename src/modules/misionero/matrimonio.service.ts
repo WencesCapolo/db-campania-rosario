@@ -88,6 +88,7 @@ export class MatrimonioService {
         nombre: input.nombreA,
         apellido: input.apellidoA,
         telefono: input.telefonoA ?? null,
+        whatsapp: input.whatsappA ?? null,
         email: input.emailA ?? null,
         fechaConsagracion: input.fechaConsagracionA ?? null,
       },
@@ -96,6 +97,7 @@ export class MatrimonioService {
         nombre: input.nombreB,
         apellido: input.apellidoB,
         telefono: input.telefonoB ?? null,
+        whatsapp: input.whatsappB ?? null,
         email: input.emailB ?? null,
         fechaConsagracion: input.fechaConsagracionB ?? null,
       },
@@ -160,6 +162,9 @@ export class MatrimonioService {
           ...(input.telefonoA !== undefined && {
             telefono: input.telefonoA ?? null,
           }),
+          ...(input.whatsappA !== undefined && {
+            whatsapp: input.whatsappA ?? null,
+          }),
           ...(input.emailA !== undefined && {
             email: input.emailA ?? null,
           }),
@@ -176,6 +181,9 @@ export class MatrimonioService {
           ...(input.apellidoB !== undefined && { apellido: input.apellidoB }),
           ...(input.telefonoB !== undefined && {
             telefono: input.telefonoB ?? null,
+          }),
+          ...(input.whatsappB !== undefined && {
+            whatsapp: input.whatsappB ?? null,
           }),
           ...(input.emailB !== undefined && {
             email: input.emailB ?? null,

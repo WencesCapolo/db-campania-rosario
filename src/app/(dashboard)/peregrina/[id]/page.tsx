@@ -81,11 +81,11 @@ export default async function PeregrinaPage({
           {peregrina.diocesisLocalidad.nombre}, {peregrina.provincia}
         </p>
 
-        {peregrina.fechaConsagracion && (
-          <p className="text-base text-tinta-suave">
-            Consagrada el {fechaDeConsagracion(peregrina.fechaConsagracion)}
-          </p>
-        )}
+        <p className="text-base text-tinta-suave">
+          {peregrina.fechaConsagracion
+            ? `Consagrada el ${fechaDeConsagracion(peregrina.fechaConsagracion)}`
+            : "Sin fecha de consagración registrada"}
+        </p>
 
         {carga ? (
           <div>

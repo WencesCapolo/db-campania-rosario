@@ -154,6 +154,7 @@ export class MisioneroService {
       nombre: input.nombre,
       apellido: input.apellido,
       telefono: input.telefono ?? null,
+      whatsapp: input.whatsapp ?? null,
       email: input.email ?? null,
       estado: "activo",
       diocesisLocalidadId: territorio.diocesis.id,
@@ -199,6 +200,7 @@ export class MisioneroService {
       ...(input.nombre !== undefined && { nombre: input.nombre }),
       ...(input.apellido !== undefined && { apellido: input.apellido }),
       ...(input.telefono !== undefined && { telefono: input.telefono ?? null }),
+      ...(input.whatsapp !== undefined && { whatsapp: input.whatsapp ?? null }),
       ...(input.email !== undefined && { email: input.email ?? null }),
       ...(input.estado !== undefined && { estado: input.estado }),
       ...(input.diocesisLocalidadId !== undefined && {

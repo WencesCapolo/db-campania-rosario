@@ -9,7 +9,7 @@ import type {
   CrearProvinciaInput,
   DiocesisLocalidadDTO,
   ProvinciaDTO,
-  RenombrarDiocesisLocalidadInput,
+  EditarDiocesisLocalidadInput,
   RenombrarProvinciaInput,
   UsoTerritorio,
 } from "./territorio.types";
@@ -225,13 +225,14 @@ export class TerritorioService {
     return mapearDiocesisLocalidad({ diocesis: row, provincia });
   }
 
-  static async renombrarDiocesisLocalidad(
+  /** Nombre y Región. La Provincia no: cambiaría las letras de los Códigos. */
+  static async editarDiocesisLocalidad(
     actor: CurrentUser,
-    input: RenombrarDiocesisLocalidadInput
+    input: EditarDiocesisLocalidadInput
   ): Promise<DiocesisLocalidadDTO> {
     TerritorioService.exigirQueConfigura(
       actor,
-      "TerritorioService.renombrarDiocesisLocalidad"
+      "TerritorioService.editarDiocesisLocalidad"
     );
 
     const actual = await TerritorioRepository.findDiocesisLocalidadById(input.id);
@@ -249,6 +250,7 @@ export class TerritorioService {
 
     const row = await TerritorioRepository.updateDiocesisLocalidad(input.id, {
       nombre: input.nombre,
+      region: input.region,
     });
     if (!row) throw new NoEncontradoError("No existe esa Diócesis/Localidad.");
 

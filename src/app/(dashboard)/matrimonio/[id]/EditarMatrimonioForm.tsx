@@ -5,6 +5,7 @@ import SelectorDeTerritorio from "@/modules/territorio/SelectorDeTerritorio";
 import { updateMatrimonioAction } from "@/modules/misionero/matrimonio.router";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
+import { AYUDA_WHATSAPP } from "@/lib/whatsapp";
 import Eleccion from "@/components/Eleccion";
 import Mensaje from "@/components/Mensaje";
 import type { CentroTipo } from "@/modules/misionero/misionero.schema";
@@ -44,6 +45,7 @@ interface Persona {
   nombre: string;
   apellido: string;
   telefono: string;
+  whatsapp: string;
   email: string;
   fechaConsagracion: string;
 }
@@ -52,6 +54,7 @@ const desde = (m: MisioneroDTO): Persona => ({
   nombre: m.nombre,
   apellido: m.apellido,
   telefono: m.telefono ?? "",
+  whatsapp: m.whatsapp ?? "",
   email: m.email ?? "",
   fechaConsagracion: m.fechaConsagracion ?? "",
 });
@@ -74,7 +77,7 @@ function DatosDePersona({
 }) {
   const de = ` (${deQuien})`;
   const caja = (
-    clave: "nombre" | "apellido" | "telefono" | "email",
+    clave: "nombre" | "apellido" | "telefono" | "whatsapp" | "email",
     obligatorio: boolean,
   ) => {
     const campo = `${clave}${sufijo}` as const;
@@ -117,6 +120,13 @@ function DatosDePersona({
         inputMode="tel"
         autoComplete="tel"
         {...caja("telefono", false)}
+      />
+      <Campo
+        etiqueta={`WhatsApp${de}`}
+        ayuda={AYUDA_WHATSAPP}
+        type="tel"
+        inputMode="tel"
+        {...caja("whatsapp", false)}
       />
       <Campo
         etiqueta={`Email${de}`}
@@ -197,11 +207,13 @@ export default function EditarMatrimonioForm({
         nombreA: a.nombre,
         apellidoA: a.apellido,
         telefonoA: a.telefono.trim() || null,
+        whatsappA: a.whatsapp.trim() || null,
         emailA: a.email.trim() || null,
         fechaConsagracionA: a.fechaConsagracion || null,
         nombreB: b.nombre,
         apellidoB: b.apellido,
         telefonoB: b.telefono.trim() || null,
+        whatsappB: b.whatsapp.trim() || null,
         emailB: b.email.trim() || null,
         fechaConsagracionB: b.fechaConsagracion || null,
         diocesisLocalidadId,

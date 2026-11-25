@@ -6,7 +6,7 @@ import { TerritorioService } from "./territorio.service";
 import {
   crearDiocesisLocalidadSchema,
   crearProvinciaSchema,
-  renombrarDiocesisLocalidadSchema,
+  editarDiocesisLocalidadSchema,
   renombrarProvinciaSchema,
 } from "./territorio.types";
 import type {
@@ -116,16 +116,16 @@ export async function crearDiocesisLocalidadAction(
   return result;
 }
 
-export async function renombrarDiocesisLocalidadAction(
+export async function editarDiocesisLocalidadAction(
   input: unknown
 ): Promise<ActionResult<DiocesisLocalidadDTO>> {
   const actor = await getCurrentUser();
 
-  const parsed = renombrarDiocesisLocalidadSchema.safeParse(input);
+  const parsed = editarDiocesisLocalidadSchema.safeParse(input);
   if (!parsed.success) return invalido(parsed.error);
 
   const result = await aResultado(() =>
-    TerritorioService.renombrarDiocesisLocalidad(actor, parsed.data)
+    TerritorioService.editarDiocesisLocalidad(actor, parsed.data)
   );
   if (result.ok) revalidatePath("/admin/territorio");
 

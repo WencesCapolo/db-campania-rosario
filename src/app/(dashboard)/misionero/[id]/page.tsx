@@ -12,7 +12,7 @@ import Insignia from "@/components/Insignia";
 import { BotonEnlace } from "@/components/Boton";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import { dias, fecha, nombreCompleto, registro } from "@/lib/formato";
-import { fechaDeConsagracion } from "@/lib/consagracion";
+import DatosDeContacto from "@/modules/misionero/DatosDeContacto";
 import BajaDeMisionero from "./BajaDeMisionero";
 import { EditarMisionero } from "./EditarMisioneroForm";
 
@@ -77,26 +77,18 @@ export default async function MisioneroPage({
 
         <p className="text-base text-tinta-suave">
           {misionero.diocesisLocalidad.nombre}, {misionero.provincia}
-          {misionero.telefono ? ` · ${misionero.telefono}` : ""}
-          {misionero.email ? ` · ${misionero.email}` : ""}
+          {misionero.centroNombre && (
+            <>
+              {" · "}
+              {misionero.centroTipo
+                ? `${CENTRO_LABELS[misionero.centroTipo]}: `
+                : ""}
+              {misionero.centroNombre}
+            </>
+          )}
         </p>
 
-        {(misionero.centroNombre || misionero.fechaConsagracion) && (
-          <p className="text-base text-tinta-suave">
-            {misionero.centroNombre && (
-              <>
-                {misionero.centroTipo
-                  ? `${CENTRO_LABELS[misionero.centroTipo]}: `
-                  : ""}
-                {misionero.centroNombre}
-              </>
-            )}
-            {misionero.centroNombre && misionero.fechaConsagracion ? " · " : ""}
-            {misionero.fechaConsagracion && (
-              <>Consagración: {fechaDeConsagracion(misionero.fechaConsagracion)}</>
-            )}
-          </p>
-        )}
+        <DatosDeContacto misionero={misionero} />
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <EditarMisionero misionero={misionero} casado={matrimonioId !== null} />

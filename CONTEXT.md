@@ -62,7 +62,7 @@ A person who can take charge of a Peregrina, alone or as half of a Matrimonio. A
 _Avoid_: Usuario, Voluntario
 
 **Matrimonio**:
-A married couple who take charge of a Peregrina together — two Misioneros, one Tenedor. The couple shares a Centro and a territory; each spouse keeps their own teléfono, email, Fecha de consagración and Resumen anual, because two people are consecrated on two different days.
+A married couple who take charge of a Peregrina together — two Misioneros, one Tenedor. The couple shares a Centro and a territory; each spouse keeps their own teléfono, WhatsApp, email, Fecha de consagración and Resumen anual, because two people are consecrated on two different days.
 A Misionero in an active Matrimonio is **never** a holder on their own: the couple replaces them in every list and every picker, so an image is never filed under one spouse while the other is invisible. Ending a Matrimonio is a **baja**, like any other — the two spouses become individual Misioneros again, and every Asignación the couple held keeps reading as the couple, because that is what was true then (ADR 0010).
 Distinct from the `MAT` Modalidad, which is a property of the *image* and says nothing about who holds it.
 _Avoid_: Pareja, Familia (that is the `FAM` Modalidad), Cónyuges

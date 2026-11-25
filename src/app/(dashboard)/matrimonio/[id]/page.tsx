@@ -16,7 +16,7 @@ import {
   nombreDeTenedor,
   registro,
 } from "@/lib/formato";
-import { fechaDeConsagracion } from "@/lib/consagracion";
+import DatosDeContacto from "@/modules/misionero/DatosDeContacto";
 import BajaDeMatrimonio from "./BajaDeMatrimonio";
 import { EditarMatrimonio } from "./EditarMatrimonioForm";
 
@@ -223,7 +223,7 @@ export default async function MatrimonioPage({
 }
 
 /**
- * Un cónyuge: su nombre, su fecha, y su página.
+ * Un cónyuge: su nombre, cómo ubicarlo, su fecha y su página.
  *
  * La Fecha de consagración vive acá y no en el encabezado porque es de la persona
  * y no de la pareja — es la razón por la que un Matrimonio son dos filas de
@@ -243,26 +243,7 @@ function Conyuge({ misionero }: { misionero: MisioneroDTO }) {
         <Insignia tono="neutro">Dado de baja de la Campaña</Insignia>
       )}
 
-      <p className="text-base text-tinta-suave">
-        {misionero.fechaConsagracion
-          ? `Consagración: ${fechaDeConsagracion(misionero.fechaConsagracion)}`
-          : "Sin fecha de consagración registrada"}
-      </p>
-
-      {/* El teléfono es de cada uno y no de la casa. Se muestra acá, al lado
-          del nombre de quien atiende, y no arriba junto al territorio.
-          Se dice «sin teléfono» en vez de no decir nada: una pareja con un solo
-          número cargado es el caso común, y un renglón que falta se lee como un
-          error de la pantalla en vez de como un dato que no está. */}
-      <p className="text-base text-tinta-suave">
-        {misionero.telefono
-          ? `Teléfono: ${misionero.telefono}`
-          : "Sin teléfono registrado"}
-      </p>
-
-      {misionero.email && (
-        <p className="text-base text-tinta-suave">Email: {misionero.email}</p>
-      )}
+      <DatosDeContacto misionero={misionero} />
     </div>
   );
 }

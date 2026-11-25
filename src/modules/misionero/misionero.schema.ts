@@ -40,6 +40,7 @@ export const misionero = pgTable(
     nombre: text("nombre").notNull(),
     apellido: text("apellido").notNull(),
     telefono: text("telefono"),
+    whatsapp: text("whatsapp"),
     email: text("email"),
 
     estado: misioneroEstadoEnum("estado").notNull().default("activo"),

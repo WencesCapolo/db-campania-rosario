@@ -5,7 +5,12 @@ import {
   type CentroTipo,
 } from "./misionero.schema";
 import type { MisioneroEstado } from "./misionero.schema";
-import { emailOpcional, type MisioneroDTO } from "./misionero.types";
+import {
+  emailOpcional,
+  telefonoOpcional,
+  whatsappOpcional,
+  type MisioneroDTO,
+} from "./misionero.types";
 import { fechaDeConsagracionSchema } from "@/lib/consagracion";
 
 // ── El Tenedor ────────────────────────────────────────────────────────────────
@@ -105,21 +110,6 @@ const nombrePersona = (campo: string) =>
     .max(120, `El ${campo} no puede superar los 120 caracteres.`);
 
 /**
- * Each spouse's own number, and both are optional.
- *
- * Two rather than one because a household has two, and the second is exactly the
- * one somebody reaches for when the first does not answer — which is the reason
- * the Campaña writes a phone down at all. Neither is required: a Misionero's
- * teléfono has always been optional, and making the first half of a couple carry
- * an obligation the same person would not carry alone would be an odd rule.
- */
-const telefono = z
-  .string()
-  .trim()
-  .max(40, "El teléfono no puede superar los 40 caracteres.")
-  .nullish();
-
-/**
  * Both spouses, in one submit.
  *
  * The field names carry the suffix the form's blur validation reads, so
@@ -135,13 +125,15 @@ const telefono = z
 export const createMatrimonioSchema = z.object({
   nombreA: nombrePersona("nombre"),
   apellidoA: nombrePersona("apellido"),
-  telefonoA: telefono,
+  telefonoA: telefonoOpcional,
+  whatsappA: whatsappOpcional,
   emailA: emailOpcional,
   fechaConsagracionA: fechaDeConsagracionSchema,
 
   nombreB: nombrePersona("nombre"),
   apellidoB: nombrePersona("apellido"),
-  telefonoB: telefono,
+  telefonoB: telefonoOpcional,
+  whatsappB: whatsappOpcional,
   emailB: emailOpcional,
   fechaConsagracionB: fechaDeConsagracionSchema,
 

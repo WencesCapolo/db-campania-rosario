@@ -38,6 +38,7 @@ export function mapearMisionero(row: MisioneroConTerritorio): MisioneroDTO {
     nombre: row.misionero.nombre,
     apellido: row.misionero.apellido,
     telefono: row.misionero.telefono ?? null,
+    whatsapp: row.misionero.whatsapp ?? null,
     email: row.misionero.email ?? null,
     estado: row.misionero.estado,
     diocesisLocalidad,

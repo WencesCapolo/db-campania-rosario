@@ -11,6 +11,7 @@ import Insignia from "@/components/Insignia";
 import { Vacio } from "@/components/EstadosAsincronicos";
 import CrearDiocesis from "./CrearDiocesis";
 import CrearProvincia from "./CrearProvincia";
+import EditarDiocesis from "./EditarDiocesis";
 import RetirarTerritorio from "./RetirarTerritorio";
 
 /**
@@ -121,24 +122,30 @@ export default async function TerritorioPage() {
                             <span className="text-base font-semibold text-tinta">
                               {d.nombre}
                             </span>
+                            <span className="text-base text-tinta-suave">
+                              {d.region}
+                            </span>
                             {d.deBaja && (
                               <Insignia tono="neutro">Retirada</Insignia>
                             )}
                           </span>
 
                           {!d.deBaja && (
-                            <RetirarTerritorio
-                              nombre={d.nombre}
-                              que="la Diócesis/Localidad"
-                              contarUso={getUsoDiocesisLocalidadAction.bind(
-                                null,
-                                d.id,
-                              )}
-                              retirar={darDeBajaDiocesisLocalidadAction.bind(
-                                null,
-                                d.id,
-                              )}
-                            />
+                            <span className="flex flex-wrap gap-3">
+                              <EditarDiocesis diocesis={d} />
+                              <RetirarTerritorio
+                                nombre={d.nombre}
+                                que="la Diócesis/Localidad"
+                                contarUso={getUsoDiocesisLocalidadAction.bind(
+                                  null,
+                                  d.id,
+                                )}
+                                retirar={darDeBajaDiocesisLocalidadAction.bind(
+                                  null,
+                                  d.id,
+                                )}
+                              />
+                            </span>
                           )}
                         </li>
                       ))}

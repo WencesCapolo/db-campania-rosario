@@ -84,6 +84,7 @@ function misionero(id: string, nombre: string, apellido: string): MisioneroDTO {
     nombre,
     apellido,
     telefono: null,
+    whatsapp: null,
     email: null,
     estado: "activo",
     diocesisLocalidad: VILLA_MARIA,

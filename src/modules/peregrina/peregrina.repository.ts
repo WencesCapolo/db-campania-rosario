@@ -32,7 +32,7 @@ import type {
   DiocesisLocalidadRow,
   ProvinciaRow,
 } from "@/modules/territorio/territorio.schema";
-import { misionero } from "@/modules/misionero/misionero.schema";
+import { misionero, type MisioneroRow } from "@/modules/misionero/misionero.schema";
 import { matrimonio } from "@/modules/misionero/matrimonio.schema";
 import { alias } from "drizzle-orm/pg-core";
 import { coincideAlgunNombre } from "@/lib/busqueda";
@@ -63,6 +63,8 @@ export interface PeregrinaConTerritorio {
   diocesis: DiocesisLocalidadRow;
   provincia: ProvinciaRow;
   tenedorActual: TenedorResueltoDTO | null;
+  /** Quien la tiene, en persona: uno, o los dos de un Matrimonio. */
+  personasActuales: MisioneroRow[];
 }
 
 /**
@@ -118,6 +120,9 @@ function aPeregrinaConTerritorio(
     diocesis: fila.diocesis,
     provincia: fila.provincia,
     tenedorActual: tenedorDeFila(fila),
+    personasActuales: [fila.misioneroActual ?? fila.esposoA, fila.esposoB].filter(
+      (p) => p !== null,
+    ),
   };
 }
 

@@ -152,9 +152,10 @@ describe("autorización de escritura", () => {
     const responsable = await crearActor({ rol: "responsable_diocesano" });
 
     await expect(
-      TerritorioService.renombrarDiocesisLocalidad(responsable, {
+      TerritorioService.editarDiocesisLocalidad(responsable, {
         id: territorio.villaMaria.id,
         nombre: "Villa Maria Nueva",
+        region: "NOA",
       })
     ).rejects.toThrow(NoAutorizadoError);
     await expect(
@@ -168,6 +169,7 @@ describe("autorización de escritura", () => {
     const lista = await TerritorioService.listarDiocesisLocalidades(asesor);
     const sinCambios = lista.find((d) => d.id === territorio.villaMaria.id);
     expect(sinCambios?.nombre).toBe("Villa María");
+    expect(sinCambios?.region).toBe("CENTRO");
   });
 });
 
@@ -216,9 +218,10 @@ describe("crear y renombrar territorio", () => {
   });
 
   it("el renombre se propaga a donde el nombre se muestre", async () => {
-    await TerritorioService.renombrarDiocesisLocalidad(asesor, {
+    await TerritorioService.editarDiocesisLocalidad(asesor, {
       id: territorio.villaMaria.id,
       nombre: "Villa María del Río Seco",
+      region: "CENTRO",
     });
 
     const lista = await TerritorioService.listarDiocesisLocalidades(asesor);

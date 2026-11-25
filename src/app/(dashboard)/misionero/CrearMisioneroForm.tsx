@@ -9,6 +9,7 @@ import { createPeregrinaAction } from "@/modules/peregrina/peregrina.router";
 import { asignarAction } from "@/modules/asignacion/asignacion.router";
 import Boton from "@/components/Boton";
 import Campo from "@/components/Campo";
+import { AYUDA_WHATSAPP } from "@/lib/whatsapp";
 import Eleccion from "@/components/Eleccion";
 import Buscador from "@/components/Buscador";
 import { opcionDePeregrina } from "@/modules/peregrina/OpcionDePeregrina";
@@ -257,6 +258,7 @@ function ParDeNombres({
  * persona sola no debe sería una regla rara.
  */
 function CampoDeTelefono({
+  nombre = "Teléfono",
   campo,
   deQuien,
   ayuda,
@@ -264,9 +266,10 @@ function CampoDeTelefono({
   onValor,
   validador,
 }: {
+  nombre?: "Teléfono" | "WhatsApp";
   campo: string;
   /** De cuál de los dos, por la misma razón que en `ParDeNombres`. */
-  deQuien: string;
+  deQuien?: string;
   ayuda: string;
   valor: string;
   onValor: (valor: string) => void;
@@ -274,11 +277,11 @@ function CampoDeTelefono({
 }) {
   return (
     <Campo
-      etiqueta={`Teléfono (${deQuien})`}
+      etiqueta={deQuien ? `${nombre} (${deQuien})` : nombre}
       ayuda={ayuda}
       type="tel"
       inputMode="tel"
-      autoComplete="tel"
+      autoComplete={nombre === "Teléfono" ? "tel" : undefined}
       value={valor}
       error={validador.error(campo)}
       onChange={(e) => {
@@ -395,6 +398,8 @@ export default function CrearMisioneroForm({
   /** El de la persona, o el de la primera de las dos: nunca uno de la casa. */
   const [telefono, setTelefono] = useState("");
   const [telefonoB, setTelefonoB] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [whatsappB, setWhatsappB] = useState("");
   const [email, setEmail] = useState("");
   const [emailB, setEmailB] = useState("");
   const [diocesisLocalidadId, setDiocesisLocalidadId] = useState<string | null>(
@@ -446,6 +451,7 @@ export default function CrearMisioneroForm({
   const campoNombre = esMatrimonio ? "nombreA" : "nombre";
   const campoApellido = esMatrimonio ? "apellidoA" : "apellido";
   const campoTelefono = esMatrimonio ? "telefonoA" : "telefono";
+  const campoWhatsApp = esMatrimonio ? "whatsappA" : "whatsapp";
   const campoEmail = esMatrimonio ? "emailA" : "email";
   const campoFecha = esMatrimonio ? "fechaConsagracionA" : "fechaConsagracion";
 
@@ -529,11 +535,13 @@ export default function CrearMisioneroForm({
             nombreA: nombre,
             apellidoA: apellido,
             telefonoA: telefono.trim() || null,
+            whatsappA: whatsapp.trim() || null,
             emailA: email.trim() || null,
             fechaConsagracionA: fechaConsagracion || null,
             nombreB,
             apellidoB,
             telefonoB: telefonoB.trim() || null,
+            whatsappB: whatsappB.trim() || null,
             emailB: emailB.trim() || null,
             fechaConsagracionB: fechaConsagracionB || null,
           })
@@ -542,6 +550,7 @@ export default function CrearMisioneroForm({
             nombre,
             apellido,
             telefono: telefono.trim() || null,
+            whatsapp: whatsapp.trim() || null,
             email: email.trim() || null,
             fechaConsagracion: fechaConsagracion || null,
           });
@@ -613,6 +622,8 @@ export default function CrearMisioneroForm({
       setFechaConsagracionB("");
       setTelefono("");
       setTelefonoB("");
+      setWhatsapp("");
+      setWhatsappB("");
       setEmail("");
       setEmailB("");
       setFechaConsagracion("");
@@ -710,6 +721,16 @@ export default function CrearMisioneroForm({
               validador={validador}
             />
 
+            <CampoDeTelefono
+              nombre="WhatsApp"
+              ayuda={AYUDA_WHATSAPP}
+              campo={campoWhatsApp}
+              deQuien="la primera persona"
+              valor={whatsapp}
+              onValor={setWhatsapp}
+              validador={validador}
+            />
+
             <CampoDeEmail
               campo={campoEmail}
               deQuien="la primera persona"
@@ -751,6 +772,16 @@ export default function CrearMisioneroForm({
               ayuda="Opcional, y conviene ponerlo: es a quién llamar cuando la primera persona no atiende."
               valor={telefonoB}
               onValor={setTelefonoB}
+              validador={validador}
+            />
+
+            <CampoDeTelefono
+              nombre="WhatsApp"
+              ayuda={AYUDA_WHATSAPP}
+              campo="whatsappB"
+              deQuien="la segunda persona"
+              valor={whatsappB}
+              onValor={setWhatsappB}
               validador={validador}
             />
 
@@ -797,6 +828,15 @@ export default function CrearMisioneroForm({
               validador.alEscribir("telefono");
             }}
             onBlur={(e) => validador.alSalir("telefono", e.target.value)}
+          />
+
+          <CampoDeTelefono
+            nombre="WhatsApp"
+            ayuda={AYUDA_WHATSAPP}
+            campo={campoWhatsApp}
+            valor={whatsapp}
+            onValor={setWhatsapp}
+            validador={validador}
           />
 
           <CampoDeEmail

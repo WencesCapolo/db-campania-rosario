@@ -29,6 +29,7 @@ export const COLUMNAS = {
   nombre: "Nombre",
   apellido: "Apellido",
   telefono: "Teléfono",
+  whatsapp: "WhatsApp",
   email: "Email",
   diocesis: "Diócesis/Localidad",
   centroTipo: "Tipo de Centro",

@@ -94,9 +94,10 @@ export const crearDiocesisLocalidadSchema = z.object({
   region: regionSchema,
 });
 
-export const renombrarDiocesisLocalidadSchema = z.object({
+export const editarDiocesisLocalidadSchema = z.object({
   id: z.string().min(1),
   nombre: nombreTerritorio,
+  region: regionSchema,
 });
 
 export type CrearProvinciaInput = z.infer<typeof crearProvinciaSchema>;
@@ -104,8 +105,8 @@ export type RenombrarProvinciaInput = z.infer<typeof renombrarProvinciaSchema>;
 export type CrearDiocesisLocalidadInput = z.infer<
   typeof crearDiocesisLocalidadSchema
 >;
-export type RenombrarDiocesisLocalidadInput = z.infer<
-  typeof renombrarDiocesisLocalidadSchema
+export type EditarDiocesisLocalidadInput = z.infer<
+  typeof editarDiocesisLocalidadSchema
 >;
 
 // ── Result pattern ────────────────────────────────────────────────────────────

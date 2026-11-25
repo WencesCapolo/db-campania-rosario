@@ -40,6 +40,7 @@ export interface MisioneroDTO {
   nombre: string;
   apellido: string;
   telefono: string | null;
+  whatsapp: string | null;
   email: string | null;
   estado: MisioneroEstado;
   diocesisLocalidad: DiocesisLocalidadDTO;
@@ -80,10 +81,17 @@ const nombrePersona = (campo: string) =>
     .min(1, `El ${campo} es obligatorio.`)
     .max(120, `El ${campo} no puede superar los 120 caracteres.`);
 
-const telefono = z
+export const telefonoOpcional = z
   .string()
   .trim()
   .max(40, "El teléfono no puede superar los 40 caracteres.")
+  .nullish();
+
+/** Aparte del teléfono: a veces es otro número. */
+export const whatsappOpcional = z
+  .string()
+  .trim()
+  .max(40, "El WhatsApp no puede superar los 40 caracteres.")
   .nullish();
 
 /**
@@ -100,7 +108,8 @@ export const emailOpcional = z
 export const createMisioneroSchema = z.object({
   nombre: nombrePersona("nombre"),
   apellido: nombrePersona("apellido"),
-  telefono,
+  telefono: telefonoOpcional,
+  whatsapp: whatsappOpcional,
   email: emailOpcional,
   diocesisLocalidadId: z.string().min(1, "Elegí una Diócesis/Localidad."),
   centroTipo: z.enum(centroTipoEnum.enumValues).nullish(),
@@ -111,7 +120,8 @@ export const createMisioneroSchema = z.object({
 export const updateMisioneroSchema = z.object({
   nombre: nombrePersona("nombre").optional(),
   apellido: nombrePersona("apellido").optional(),
-  telefono,
+  telefono: telefonoOpcional,
+  whatsapp: whatsappOpcional,
   email: emailOpcional,
   estado: z.enum(misioneroEstadoEnum.enumValues).optional(),
   diocesisLocalidadId: z.string().min(1).optional(),
